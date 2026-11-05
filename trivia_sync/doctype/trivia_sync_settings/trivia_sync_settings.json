@@ -1,0 +1,28 @@
+{
+ "doctype": "DocType",
+ "name": "Trivia Sync Settings",
+ "issingle": 1,
+ "module": "Trivia Sync",
+ "editable_grid": 1,
+ "field_order": ["qapi_section", "qapi_base_url", "qapi_api_key", "qapi_enabled", "qapi_sync_frequency", "qapi_page_size", "qapi_max_pages", "lms_section", "lms_sync_enabled", "lms_sync_frequency", "trivia_api_url", "trivia_api_token", "trivia_sync_mode", "only_published", "audit_section", "last_qapi_sync_at", "last_lms_sync_at"],
+ "fields": [
+  {"fieldname":"qapi_section","fieldtype":"Section Break","label":"QAPI · questões de concursos"},
+  {"fieldname":"qapi_base_url","fieldtype":"Data","label":"QAPI base URL","default":"https://qapi.otunac.com/api","reqd":1},
+  {"fieldname":"qapi_api_key","fieldtype":"Password","label":"Q-Api-Key","description":"Nunca exponha esta chave no frontend ou no repositório."},
+  {"fieldname":"qapi_enabled","fieldtype":"Check","label":"Ativar sincronização QAPI","default":"0"},
+  {"fieldname":"qapi_sync_frequency","fieldtype":"Select","label":"Frequência QAPI","options":"Hourly\nEvery scheduler tick","default":"Hourly"},
+  {"fieldname":"qapi_page_size","fieldtype":"Int","label":"Itens por página","default":"10","description":"A QAPI limita listagens a 10 itens por página."},
+  {"fieldname":"qapi_max_pages","fieldtype":"Int","label":"Máximo de páginas por execução","default":"10"},
+  {"fieldname":"lms_section","fieldtype":"Section Break","label":"Frappe LMS → trivia"},
+  {"fieldname":"lms_sync_enabled","fieldtype":"Check","label":"Ativar sincronização LMS","default":"0"},
+  {"fieldname":"lms_sync_frequency","fieldtype":"Select","label":"Frequência LMS","options":"Daily\nEvery scheduler tick","default":"Daily"},
+  {"fieldname":"trivia_api_url","fieldtype":"Data","label":"URL da API da trivia360","description":"Endpoint que recebe o payload normalizado de cursos existentes do LMS."},
+  {"fieldname":"trivia_api_token","fieldtype":"Password","label":"Token da API da trivia360"},
+  {"fieldname":"trivia_sync_mode","fieldtype":"Select","label":"Modo de envio","options":"Push normalized payload\nDry run","default":"Push normalized payload"},
+  {"fieldname":"only_published","fieldtype":"Check","label":"Enviar somente cursos publicados","default":"1"},
+  {"fieldname":"audit_section","fieldtype":"Section Break","label":"Auditoria"},
+  {"fieldname":"last_qapi_sync_at","fieldtype":"Datetime","label":"Última sincronização QAPI","read_only":1},
+  {"fieldname":"last_lms_sync_at","fieldtype":"Datetime","label":"Última sincronização LMS","read_only":1}
+ ],
+ "permissions": [{"role":"System Manager","read":1,"write":1}]
+}

@@ -1,0 +1,22 @@
+{
+ "doctype": "DocType",
+ "name": "Trivia Sync Run",
+ "autoname": "hash",
+ "module": "Trivia Sync",
+ "read_only": 1,
+ "field_order": ["source", "operation", "status", "started_at", "finished_at", "page", "records_created", "records_updated", "records_skipped", "records_errors", "error_log"],
+ "fields": [
+  {"fieldname":"source","fieldtype":"Select","label":"Fonte","options":"QAPI\nFrappe LMS","in_list_view":1},
+  {"fieldname":"operation","fieldtype":"Select","label":"Operação","options":"Pull questions\nPush LMS content","in_list_view":1},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Queued\nRunning\nCompleted\nPartial\nFailed","in_list_view":1},
+  {"fieldname":"started_at","fieldtype":"Datetime","label":"Início"},
+  {"fieldname":"finished_at","fieldtype":"Datetime","label":"Fim"},
+  {"fieldname":"page","fieldtype":"Int","label":"Última página"},
+  {"fieldname":"records_created","fieldtype":"Int","label":"Criados"},
+  {"fieldname":"records_updated","fieldtype":"Int","label":"Atualizados"},
+  {"fieldname":"records_skipped","fieldtype":"Int","label":"Ignorados"},
+  {"fieldname":"records_errors","fieldtype":"Int","label":"Erros"},
+  {"fieldname":"error_log","fieldtype":"Long Text","label":"Log de erros"}
+ ],
+ "permissions": [{"role":"System Manager","read":1,"write":1}]
+}

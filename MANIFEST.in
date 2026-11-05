@@ -1,0 +1,4 @@
+include README.md
+include license.txt
+recursive-include trivia_sync *.json *.js *.css *.html *.md
+recursive-include docs *.md
