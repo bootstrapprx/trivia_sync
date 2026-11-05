@@ -1,0 +1,18 @@
+{
+  "doctype": "Dock",
+  "name": "trivia_sync",
+  "app": "trivia_sync",
+  "standard": 1,
+  "mount_on": "lms",
+  "user": "",
+  "items": [
+    {
+      "link_type": "Workspace",
+      "link_to": "Concursos",
+      "icon": "education",
+      "title": "Concursos",
+      "added": 1,
+      "hidden": 0
+    }
+  ]
+}

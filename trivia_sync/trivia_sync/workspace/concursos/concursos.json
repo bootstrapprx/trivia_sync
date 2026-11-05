@@ -1,0 +1,51 @@
+{
+  "doctype": "Workspace",
+  "name": "Concursos",
+  "label": "Concursos",
+  "title": "Concursos",
+  "module": "Trivia Sync",
+  "icon": "education",
+  "public": 1,
+  "is_hidden": 0,
+  "content": "[{\"id\":\"concurso-setup\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuração QAPI\",\"col\":6}},{\"id\":\"concurso-questions\",\"type\":\"card\",\"data\":{\"card_name\":\"Banco LMS\",\"col\":6}}]",
+  "links": [
+    {
+      "type": "Card Break",
+      "label": "Configuração QAPI",
+      "link_count": 1,
+      "hidden": 0,
+      "is_query_report": 0,
+      "onboard": 0
+    },
+    {
+      "type": "Link",
+      "label": "Iniciar configuração",
+      "link_type": "Page",
+      "link_to": "trivia-sync-onboarding",
+      "link_count": 0,
+      "hidden": 0,
+      "is_query_report": 0,
+      "onboard": 0
+    },
+    {
+      "type": "Card Break",
+      "label": "Banco LMS",
+      "link_count": 1,
+      "hidden": 0,
+      "is_query_report": 0,
+      "onboard": 0
+    },
+    {
+      "type": "Link",
+      "label": "Questões",
+      "link_type": "DocType",
+      "link_to": "LMS Question",
+      "link_count": 0,
+      "hidden": 0,
+      "is_query_report": 0,
+      "onboard": 0
+    }
+  ],
+  "roles": [{"role": "System Manager"}],
+  "sequence_id": 1
+}

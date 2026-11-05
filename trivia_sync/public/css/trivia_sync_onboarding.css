@@ -1,0 +1,71 @@
+.trivia-onboarding-page .trivia-onboarding-header {
+	margin: 12px 0 28px;
+}
+
+.trivia-onboarding-page .trivia-onboarding-eyebrow {
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+}
+
+.trivia-onboarding-page .trivia-onboarding-header h2 {
+	margin: 6px 0;
+	font-size: var(--text-2xl);
+}
+
+.trivia-onboarding-page .trivia-onboarding-header p,
+.trivia-onboarding-page .trivia-onboarding-step-title p {
+	color: var(--text-muted);
+	margin: 0;
+}
+
+.trivia-onboarding-page .trivia-onboarding-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+	gap: 16px;
+	align-items: start;
+}
+
+.trivia-onboarding-page .trivia-onboarding-step {
+	padding: 24px;
+}
+
+.trivia-onboarding-page .trivia-onboarding-step-title {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	margin-bottom: 20px;
+}
+
+.trivia-onboarding-page .trivia-onboarding-step-title > span {
+	align-items: center;
+	background: var(--subtle-accent);
+	border-radius: 50%;
+	color: var(--primary);
+	display: inline-flex;
+	flex: 0 0 30px;
+	font-weight: 600;
+	height: 30px;
+	justify-content: center;
+}
+
+.trivia-onboarding-page .trivia-onboarding-step-title h3 {
+	font-size: var(--text-base);
+	font-weight: 600;
+	margin: 4px 0;
+}
+
+.trivia-onboarding-page .trivia-onboarding-step .btn {
+	margin-top: 12px;
+}
+
+.trivia-onboarding-page .trivia-onboarding-status {
+	min-height: 24px;
+}
+
+@media (max-width: 767px) {
+	.trivia-onboarding-page .trivia-onboarding-step {
+		padding: 18px;
+	}
+}

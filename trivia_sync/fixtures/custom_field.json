@@ -1,0 +1,113 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_section",
+    "dt": "LMS Question",
+    "fieldname": "trivia_section",
+    "label": "Concurso",
+    "fieldtype": "Section Break",
+    "insert_after": "question",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_qcode",
+    "dt": "LMS Question",
+    "fieldname": "trivia_qcode",
+    "label": "Código da fonte",
+    "fieldtype": "Data",
+    "insert_after": "trivia_section",
+    "unique": 1,
+    "hidden": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_banca",
+    "dt": "LMS Question",
+    "fieldname": "trivia_banca",
+    "label": "Banca",
+    "fieldtype": "Data",
+    "insert_after": "trivia_qcode",
+    "in_list_view": 1,
+    "in_standard_filter": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_orgao",
+    "dt": "LMS Question",
+    "fieldname": "trivia_orgao",
+    "label": "Órgão",
+    "fieldtype": "Data",
+    "insert_after": "trivia_banca",
+    "in_standard_filter": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_cargo",
+    "dt": "LMS Question",
+    "fieldname": "trivia_cargo",
+    "label": "Cargo",
+    "fieldtype": "Data",
+    "insert_after": "trivia_orgao",
+    "in_standard_filter": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ano",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ano",
+    "label": "Ano",
+    "fieldtype": "Int",
+    "insert_after": "trivia_cargo",
+    "in_standard_filter": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_materia",
+    "dt": "LMS Question",
+    "fieldname": "trivia_materia",
+    "label": "Matéria",
+    "fieldtype": "Data",
+    "insert_after": "trivia_ano",
+    "in_list_view": 1,
+    "in_standard_filter": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_assunto",
+    "dt": "LMS Question",
+    "fieldname": "trivia_assunto",
+    "label": "Assunto",
+    "fieldtype": "Data",
+    "insert_after": "trivia_materia",
+    "in_standard_filter": 1,
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_source_url",
+    "dt": "LMS Question",
+    "fieldname": "trivia_source_url",
+    "label": "URL da fonte",
+    "fieldtype": "Data",
+    "insert_after": "trivia_assunto",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_sync_hash",
+    "dt": "LMS Question",
+    "fieldname": "trivia_sync_hash",
+    "label": "Hash da sincronização",
+    "fieldtype": "Data",
+    "insert_after": "trivia_source_url",
+    "hidden": 1,
+    "module": "Trivia Sync"
+  }
+]

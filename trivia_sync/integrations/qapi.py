@@ -1,3 +1,5 @@
+import json
+
 import frappe
 import requests
 from trivia_sync.integrations.normalization import answer_letter, normalize_question
@@ -32,22 +34,66 @@ def test_qapi_connection():
         return {"ok": False, "error": str(exc)}
 
 
-def _save_question(data):
+def _save_trivia_question(data):
     if not data["qcode"] or not data["enunciado"]:
-        return "skipped"
+        return
     name = frappe.db.exists("Trivia Question", {"qcode": data["qcode"]})
     if name:
         doc = frappe.get_doc("Trivia Question", name)
         if doc.sync_hash == data["sync_hash"]:
-            return "skipped"
+            return
         for key, value in data.items():
             setattr(doc, key, value)
         doc.last_synced_at = frappe.utils.now_datetime()
         doc.save(ignore_permissions=True)
-        return "updated"
+        return
     doc = frappe.get_doc({"doctype": "Trivia Question", **data, "last_synced_at": frappe.utils.now_datetime()})
     doc.insert(ignore_permissions=True)
-    return "created"
+
+
+def _save_lms_question(data):
+    options = json.loads(data["options"] or "{}")
+    correct_option = data["correct_option"]
+    if len(options) < 2 or correct_option not in options:
+        return "skipped"
+
+    name = frappe.db.get_value("LMS Question", {"trivia_qcode": data["qcode"]}, "name")
+    if name:
+        question = frappe.get_doc("LMS Question", name)
+        if question.trivia_sync_hash == data["sync_hash"]:
+            return "skipped"
+    else:
+        question = frappe.new_doc("LMS Question")
+
+    question.question = data["enunciado"]
+    question.type = "Choices"
+    question.marks = 1
+    question.trivia_qcode = data["qcode"]
+    question.trivia_banca = data["banca"]
+    question.trivia_orgao = data["orgao"]
+    question.trivia_cargo = data["cargo"]
+    question.trivia_ano = data["ano"] or None
+    question.trivia_materia = data["materia"]
+    question.trivia_assunto = data["assunto"]
+    question.trivia_source_url = data["source_url"]
+    question.trivia_sync_hash = data["sync_hash"]
+    for index, letter in enumerate("ABCDE", start=1):
+        question.set(f"option_{index}", options.get(letter, ""))
+        question.set(f"is_correct_{index}", int(letter == correct_option))
+        question.set(f"explanation_{index}", data["explanation"] if letter == correct_option else "")
+
+    if question.is_new():
+        question.insert(ignore_permissions=True)
+        return "created"
+    question.save(ignore_permissions=True)
+    return "updated"
+
+
+def _save_question(data):
+    if not data["qcode"] or not data["enunciado"]:
+        return "skipped"
+    _save_trivia_question(data)
+    return _save_lms_question(data)
 
 
 def sync_qapi_questions():
