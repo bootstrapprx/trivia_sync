@@ -11,6 +11,7 @@
     "source",
     "enunciado",
     "metadata_section",
+    "texto_apoio",
     "banca",
     "orgao",
     "cargo",
@@ -23,7 +24,16 @@
     "source_url",
     "raw_payload",
     "sync_hash",
-    "last_synced_at"
+    "last_synced_at",
+    "ai_section",
+    "ai_difficulty_stars",
+    "ai_difficulty_label",
+    "ai_difficulty_reason",
+    "ai_learning_objective",
+    "ai_topics",
+    "ai_model",
+    "ai_enrichment_hash",
+    "ai_enriched_at"
   ],
   "fields": [
     {
@@ -57,6 +67,13 @@
       "fieldname": "metadata_section",
       "fieldtype": "Section Break",
       "label": "Classificação"
+    },
+    {
+      "fieldname": "texto_apoio",
+      "fieldtype": "Link",
+      "options": "Texto de Apoio",
+      "label": "Texto de apoio",
+      "in_list_view": 1
     },
     {
       "fieldname": "banca",
@@ -114,7 +131,11 @@
       "fieldtype": "Text Editor",
       "label": "Comentário / explicação"
     },
-    { "fieldname": "source_url", "fieldtype": "Data", "label": "URL da fonte" },
+    {
+      "fieldname": "source_url",
+      "fieldtype": "Data",
+      "label": "URL da fonte"
+    },
     {
       "fieldname": "raw_payload",
       "fieldtype": "Code",
@@ -132,6 +153,63 @@
       "fieldname": "last_synced_at",
       "fieldtype": "Datetime",
       "label": "Última sincronização",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_section",
+      "fieldtype": "Section Break",
+      "label": "Enriquecimento por IA"
+    },
+    {
+      "fieldname": "ai_difficulty_stars",
+      "fieldtype": "Rating",
+      "label": "Dificuldade (estrelas)",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_difficulty_label",
+      "fieldtype": "Data",
+      "label": "Nível de dificuldade",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_difficulty_reason",
+      "fieldtype": "Small Text",
+      "label": "Justificativa da dificuldade",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_learning_objective",
+      "fieldtype": "Small Text",
+      "label": "Objetivo de aprendizagem",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_topics",
+      "fieldtype": "Code",
+      "label": "Tópicos IA",
+      "options": "JSON",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_model",
+      "fieldtype": "Data",
+      "label": "Modelo IA",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_enrichment_hash",
+      "fieldtype": "Data",
+      "label": "Hash do enriquecimento IA",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_enriched_at",
+      "fieldtype": "Datetime",
+      "label": "Enriquecida em",
       "read_only": 1
     }
   ],

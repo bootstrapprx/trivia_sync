@@ -1,0 +1,80 @@
+{
+  "doctype": "DocType",
+  "name": "Flashcard",
+  "autoname": "field:qapi_id",
+  "module": "Trivia Sync",
+  "title_field": "frente",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "qapi_id",
+    "frente",
+    "verso",
+    "conteudo",
+    "materia",
+    "assunto",
+    "raw_payload",
+    "sync_hash"
+  ],
+  "fields": [
+    {
+      "fieldname": "identity_section",
+      "fieldtype": "Section Break",
+      "label": "Identificação"
+    },
+    {
+      "fieldname": "qapi_id",
+      "fieldtype": "Data",
+      "label": "ID QAPI",
+      "reqd": 1
+    },
+    {
+      "fieldname": "frente",
+      "fieldtype": "Text Editor",
+      "label": "Frente",
+      "reqd": 1
+    },
+    {
+      "fieldname": "verso",
+      "fieldtype": "Text Editor",
+      "label": "Verso",
+      "reqd": 1
+    },
+    {
+      "fieldname": "conteudo",
+      "fieldtype": "Link",
+      "label": "Conteúdo"
+    },
+    {
+      "fieldname": "materia",
+      "fieldtype": "Data",
+      "label": "Matéria"
+    },
+    {
+      "fieldname": "assunto",
+      "fieldtype": "Data",
+      "label": "Assunto"
+    },
+    {
+      "fieldname": "raw_payload",
+      "fieldtype": "Code",
+      "label": "Payload bruto",
+      "options": "JSON",
+      "hidden": 1
+    },
+    {
+      "fieldname": "sync_hash",
+      "fieldtype": "Data",
+      "label": "Hash"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ]
+}

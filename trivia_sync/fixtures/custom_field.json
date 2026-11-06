@@ -109,5 +109,16 @@
     "insert_after": "trivia_source_url",
     "hidden": 1,
     "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_texto_apoio",
+    "dt": "LMS Question",
+    "fieldname": "trivia_texto_apoio",
+    "label": "Texto de apoio",
+    "fieldtype": "Link",
+    "options": "Texto de Apoio",
+    "insert_after": "trivia_assunto",
+    "module": "Trivia Sync"
   }
 ]

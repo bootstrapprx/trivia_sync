@@ -1,0 +1,79 @@
+{
+  "doctype": "DocType",
+  "name": "Disciplina",
+  "autoname": "field:qapi_id",
+  "module": "Trivia Sync",
+  "title_field": "titulo",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "qapi_id",
+    "titulo",
+    "concurso",
+    "cargo",
+    "materia",
+    "raw_payload",
+    "sync_hash",
+    "last_synced_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "identity_section",
+      "fieldtype": "Section Break",
+      "label": "Identificação"
+    },
+    {
+      "fieldname": "qapi_id",
+      "fieldtype": "Data",
+      "label": "ID QAPI",
+      "reqd": 1
+    },
+    {
+      "fieldname": "titulo",
+      "fieldtype": "Data",
+      "label": "Título",
+      "reqd": 1
+    },
+    {
+      "fieldname": "concurso",
+      "fieldtype": "Link",
+      "label": "Concurso"
+    },
+    {
+      "fieldname": "cargo",
+      "fieldtype": "Data",
+      "label": "Cargo"
+    },
+    {
+      "fieldname": "materia",
+      "fieldtype": "Data",
+      "label": "Matéria"
+    },
+    {
+      "fieldname": "raw_payload",
+      "fieldtype": "Code",
+      "label": "Payload bruto",
+      "options": "JSON",
+      "hidden": 1
+    },
+    {
+      "fieldname": "sync_hash",
+      "fieldtype": "Data",
+      "label": "Hash"
+    },
+    {
+      "fieldname": "last_synced_at",
+      "fieldtype": "Datetime",
+      "label": "Última sincronização"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ]
+}
