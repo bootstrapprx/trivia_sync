@@ -2,6 +2,7 @@ import json
 import frappe
 from trivia_sync.integrations.normalization import normalize_question, normalize_resource, first
 from trivia_sync.integrations.qapi_client import QAPIClient
+from trivia_sync.integrations.lms_questions import sync_lms_question
 
 RESOURCE_MAP = {
     "bancas": ("Banca", "bancas"), "orgaos": ("Órgão", "orgaos"), "cargos": ("Cargo", "cargos"),
@@ -71,15 +72,17 @@ def _save_question(client, row, settings_doc):
     name = frappe.db.exists("Trivia Question", {"qcode":data["qcode"]})
     if name:
         doc = frappe.get_doc("Trivia Question", name)
-        if doc.sync_hash == data["sync_hash"] and (not texto_name or doc.texto_apoio == texto_name): return "skipped"
-    else: doc = frappe.new_doc("Trivia Question")
-    for key, value in data.items():
-        if key in {"texto_codigo"}: continue
-        setattr(doc, key, value)
-    doc.texto_apoio = texto_name
-    doc.last_synced_at = frappe.utils.now_datetime()
-    if doc.is_new(): doc.insert(ignore_permissions=True); return "created"
-    doc.save(ignore_permissions=True); return "updated"
+        changed = doc.sync_hash != data["sync_hash"] or doc.texto_apoio != texto_name
+    else:
+        doc = frappe.new_doc("Trivia Question")
+        changed = True
+    if changed:
+        for key, value in data.items():
+            if key != "texto_codigo": setattr(doc, key, value)
+        doc.texto_apoio = texto_name
+        doc.last_synced_at = frappe.utils.now_datetime()
+        doc.insert(ignore_permissions=True) if doc.is_new() else doc.save(ignore_permissions=True)
+    return sync_lms_question(doc)
 
 
 def _sync_paginated(client, method_name, doctype, kind, settings_doc, **params):

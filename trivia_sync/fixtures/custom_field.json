@@ -120,5 +120,76 @@
     "options": "Texto de Apoio",
     "insert_after": "trivia_assunto",
     "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_difficulty_stars",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_difficulty_stars",
+    "label": "Dificuldade IA (estrelas)",
+    "fieldtype": "Rating",
+    "insert_after": "trivia_texto_apoio",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_difficulty_label",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_difficulty_label",
+    "label": "Dificuldade IA",
+    "fieldtype": "Data",
+    "insert_after": "trivia_ai_difficulty_stars",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_difficulty_reason",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_difficulty_reason",
+    "label": "Justificativa da dificuldade",
+    "fieldtype": "Small Text",
+    "insert_after": "trivia_ai_difficulty_label",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_learning_objective",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_learning_objective",
+    "label": "Objetivo de aprendizagem",
+    "fieldtype": "Small Text",
+    "insert_after": "trivia_ai_difficulty_reason",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_topics",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_topics",
+    "label": "Tópicos IA",
+    "fieldtype": "Code",
+    "options": "JSON",
+    "insert_after": "trivia_ai_learning_objective",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_model",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_model",
+    "label": "Modelo IA",
+    "fieldtype": "Data",
+    "insert_after": "trivia_ai_topics",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_enriched_at",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_enriched_at",
+    "label": "Enriquecida em",
+    "fieldtype": "Datetime",
+    "insert_after": "trivia_ai_model",
+    "module": "Trivia Sync"
   }
 ]

@@ -4,6 +4,7 @@ from typing import Any
 
 import frappe
 import requests
+from trivia_sync.integrations.lms_questions import sync_lms_question
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-6-luna"
@@ -110,22 +111,35 @@ def enrich_pending_questions():
         raise frappe.ValidationError("Ative o enriquecimento IA nas configurações antes de executar.")
     adapter = OpenAICompatibleAdapter(settings)
     limit = max(1, min(int(settings.ai_batch_size or 10), 100))
-    rows = frappe.get_all("Trivia Question", fields=["name", "qcode", "enunciado", "options", "correct_option", "materia", "assunto", "banca", "ano", "ai_enrichment_hash"], limit_page_length=limit)
     result = {"processed": 0, "enriched": 0, "skipped": 0, "errors": 0}
-    for row in rows:
-        try:
-            doc = frappe.get_doc("Trivia Question", row.name)
-            source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
-            digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
-            if doc.ai_enrichment_hash == digest:
-                result["skipped"] += 1
-                continue
-            data = adapter.enrich(_question_payload(doc))
-            for field, value in {"ai_difficulty_stars":data["difficulty_stars"], "ai_difficulty_label":data["difficulty_label"], "ai_difficulty_reason":data["reason"], "ai_learning_objective":data["learning_objective"], "ai_topics":json.dumps(data["topics"], ensure_ascii=False), "ai_model":data["model"], "ai_enrichment_hash":data["enrichment_hash"], "ai_enriched_at":frappe.utils.now_datetime()}.items(): setattr(doc, field, value)
-            doc.save(ignore_permissions=True); result["enriched"] += 1
-        except Exception:
-            result["errors"] += 1
-            frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI enrichment · {row.get('qcode')}")
-        result["processed"] += 1
-        frappe.db.commit()
+    start = 0
+    while result["enriched"] < limit:
+        rows = frappe.get_all(
+            "Trivia Question",
+            fields=["name", "qcode"],
+            limit_page_length=limit,
+            start=start,
+        )
+        if not rows:
+            break
+        start += len(rows)
+        for row in rows:
+            try:
+                doc = frappe.get_doc("Trivia Question", row.name)
+                source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
+                digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+                if doc.ai_enrichment_hash == digest:
+                    sync_lms_question(doc)
+                    result["skipped"] += 1
+                else:
+                    data = adapter.enrich(_question_payload(doc))
+                    for field, value in {"ai_difficulty_stars":data["difficulty_stars"], "ai_difficulty_label":data["difficulty_label"], "ai_difficulty_reason":data["reason"], "ai_learning_objective":data["learning_objective"], "ai_topics":json.dumps(data["topics"], ensure_ascii=False), "ai_model":data["model"], "ai_enrichment_hash":data["enrichment_hash"], "ai_enriched_at":frappe.utils.now_datetime()}.items(): setattr(doc, field, value)
+                    doc.save(ignore_permissions=True)
+                    sync_lms_question(doc)
+                    result["enriched"] += 1
+            except Exception:
+                result["errors"] += 1
+                frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI enrichment · {row.get('qcode')}")
+            result["processed"] += 1
+            frappe.db.commit()
     return result
