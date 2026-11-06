@@ -24,7 +24,8 @@ def _pages(payload):
 
 def _tree_rows(payload, parent_id="", level=0):
     if isinstance(payload, dict):
-        nodes = next((value for key, value in payload.items() if key in {"data", "items", "results", "conteudos", "children", "filhos"} and isinstance(value, list)), None)
+        is_node = any(payload.get(key) not in (None, "") for key in ("id", "_id", "codigo", "code", "uuid", "titulo", "title", "nome", "name"))
+        nodes = next((value for key, value in payload.items() if key in {"data", "items", "results", "conteudos"} and isinstance(value, list)), None) if not is_node else None
         if nodes is not None:
             for node in nodes:
                 yield from _tree_rows(node, parent_id, level)

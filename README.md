@@ -30,3 +30,9 @@ O módulo `trivia_sync.integrations.ai_enricher` usa qualquer endpoint compatív
 O padrão recomendado é o modelo `gpt-6-luna`, escolhido por ter suporte a JSON Schema e menor custo no catálogo disponível. O provedor, modelo, timeout e lote são configuráveis em `Trivia Sync Settings`; a chave é armazenada como Password. O recurso é opt-in (`ai_enabled=1`) e usa hash do conteúdo para não cobrar novamente por uma questão que não mudou.
 
 Depois de configurar a chave, o administrador pode usar o botão **Enriquecer questões com IA** ou chamar `trivia_sync.api.enqueue_ai_enrichment`. O lote padrão é de 10 questões por execução e falhas individuais são registradas sem interromper o restante do lote.
+
+## Dashboard e testes
+
+A Desk Page **Trivia Sync Dashboard** mostra workers em andamento, falhas recentes, histórico de execuções, cobertura do enriquecimento IA, média e distribuição das estrelas, questões pendentes e contagens dos principais catálogos. Os dados são atualizados automaticamente a cada 30 segundos pelo endpoint protegido `trivia_sync.dashboard.metrics`.
+
+Os testes unitários em `trivia_sync/tests` cobrem normalização de questões, paginação limitada a 10 itens, leitura de árvores QAPI, autenticação do cliente, saída JSON estrita do adaptador IA, hash de enriquecimento e rejeição de níveis de dificuldade inválidos. Eles podem ser executados com `python -m unittest discover -s trivia_sync/tests` ou pelo fluxo `bench --site <site> run-tests --app trivia_sync`.
