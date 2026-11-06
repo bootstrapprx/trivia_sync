@@ -1,0 +1,8 @@
+{
+  "doctype": "Page",
+  "name": "trivia-sync-dashboard",
+  "module": "Trivia Sync",
+  "standard": "Yes",
+  "title": "Trivia Sync Dashboard",
+  "roles": [{"role": "System Manager"}]
+}

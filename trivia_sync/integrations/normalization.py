@@ -24,7 +24,8 @@ def identifier(row: dict[str, Any]) -> str:
 
 
 def answer_letter(value: Any) -> str:
-    value = first(value, "letra", "letter", "resposta", default=value)
+    if isinstance(value, dict):
+        value = first(value, "letra", "letter", "resposta", default=value)
     normalized = text(value).upper()
     if normalized in {"A", "B", "C", "D", "E"}: return normalized
     if normalized.isdigit() and 1 <= int(normalized) <= 5: return "ABCDE"[int(normalized) - 1]

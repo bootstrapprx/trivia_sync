@@ -110,9 +110,16 @@ def enrich_pending_questions():
     if not settings.ai_enabled:
         raise frappe.ValidationError("Ative o enriquecimento IA nas configurações antes de executar.")
     adapter = OpenAICompatibleAdapter(settings)
+    run = frappe.new_doc("Trivia Sync Run")
+    run.source = "IA"
+    run.operation = "AI enrichment"
+    run.status = "Running"
+    run.started_at = frappe.utils.now_datetime()
+    run.insert(ignore_permissions=True)
     limit = max(1, min(int(settings.ai_batch_size or 10), 100))
     result = {"processed": 0, "enriched": 0, "skipped": 0, "errors": 0}
-    start = 0
+    try:
+        start = 0
     while result["enriched"] < limit:
         rows = frappe.get_all(
             "Trivia Question",
@@ -124,22 +131,35 @@ def enrich_pending_questions():
             break
         start += len(rows)
         for row in rows:
-            try:
-                doc = frappe.get_doc("Trivia Question", row.name)
-                source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
-                digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
-                if doc.ai_enrichment_hash == digest:
-                    sync_lms_question(doc)
+                try:
+                    doc = frappe.get_doc("Trivia Question", row.name)
+                    source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
+                    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+                    if doc.ai_enrichment_hash == digest:
+                        sync_lms_question(doc)
                     result["skipped"] += 1
-                else:
-                    data = adapter.enrich(_question_payload(doc))
-                    for field, value in {"ai_difficulty_stars":data["difficulty_stars"], "ai_difficulty_label":data["difficulty_label"], "ai_difficulty_reason":data["reason"], "ai_learning_objective":data["learning_objective"], "ai_topics":json.dumps(data["topics"], ensure_ascii=False), "ai_model":data["model"], "ai_enrichment_hash":data["enrichment_hash"], "ai_enriched_at":frappe.utils.now_datetime()}.items(): setattr(doc, field, value)
-                    doc.save(ignore_permissions=True)
+                    else:
+                        data = adapter.enrich(_question_payload(doc))
+                        for field, value in {"ai_difficulty_stars":data["difficulty_stars"], "ai_difficulty_label":data["difficulty_label"], "ai_difficulty_reason":data["reason"], "ai_learning_objective":data["learning_objective"], "ai_topics":json.dumps(data["topics"], ensure_ascii=False), "ai_model":data["model"], "ai_enrichment_hash":data["enrichment_hash"], "ai_enriched_at":frappe.utils.now_datetime()}.items(): setattr(doc, field, value)
+                        doc.save(ignore_permissions=True)
                     sync_lms_question(doc)
                     result["enriched"] += 1
-            except Exception:
-                result["errors"] += 1
-                frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI enrichment · {row.get('qcode')}")
-            result["processed"] += 1
-            frappe.db.commit()
-    return result
+                except Exception:
+                    result["errors"] += 1
+                    frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI enrichment · {row.get('qcode')}")
+                result["processed"] += 1
+                frappe.db.commit()
+        run.status = "Partial" if result["errors"] else "Completed"
+        run.records_created = result["enriched"]
+        run.records_skipped = result["skipped"]
+        run.records_errors = result["errors"]
+        return result
+    except Exception:
+        run.status = "Failed"
+        run.error_log = frappe.get_traceback()
+        frappe.log_error(frappe.get_traceback(), "Trivia Sync · AI enrichment")
+        raise
+    finally:
+        run.finished_at = frappe.utils.now_datetime()
+        run.save(ignore_permissions=True)
+        frappe.db.commit()
