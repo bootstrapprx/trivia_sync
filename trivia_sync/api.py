@@ -27,9 +27,9 @@ def save_onboarding(qapi_api_key=None, qapi_enabled=0, qapi_sync_frequency="Hour
     doc.qapi_enabled = cint(qapi_enabled)
     doc.qapi_sync_frequency = qapi_sync_frequency
     doc.qapi_base_url = (qapi_base_url or "https://qapi.otunac.com/api").strip().rstrip("/")
-    doc.save()
     if qapi_api_key:
-        doc.set_password("qapi_api_key", qapi_api_key)
+        doc.qapi_api_key = qapi_api_key
+    doc.save()
     return onboarding_status()
 
 
