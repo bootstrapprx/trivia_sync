@@ -8,6 +8,20 @@ from pathlib import Path
 APP_ROOT = Path(__file__).resolve().parents[1]
 BASELINE = APP_ROOT / "docs/superpowers/fixtures/schema_baseline.json"
 DOCTYPE_ROOT = APP_ROOT / "trivia_sync/trivia_sync/doctype"
+DECLARED_RENAMES = {
+    "Órgão": "Trivia Organization",
+    "Matéria": "Trivia Subject",
+    "Conteúdo Programático": "Trivia Syllabus Topic",
+    "Concurso": "Trivia Contest",
+    "Assunto": "Trivia Topic",
+    "Prova": "Trivia Exam",
+    "Banca": "Trivia Exam Board",
+    "Concurso Cargo": "Trivia Contest Position",
+    "Disciplina": "Trivia Discipline",
+    "Texto de Apoio": "Trivia Supporting Text",
+    "Cargo": "Trivia Position",
+    "Trivia Apostila Recipe": "Trivia Study Guide Recipe",
+}
 
 
 def current_schema():
@@ -60,6 +74,8 @@ def main():
     errors = link_errors()
     for doctype, previous in baseline.items():
         if doctype not in actual:
+            if doctype in DECLARED_RENAMES and DECLARED_RENAMES[doctype] in actual:
+                continue
             errors.append(f"removed DocType: {doctype}")
             continue
         removed = sorted(set(previous["fields"]) - set(actual[doctype]["fields"]))

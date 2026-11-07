@@ -177,6 +177,10 @@ class TestQAPI(unittest.TestCase):
                 value = filters.get("source_key") or filters.get("qcode")
                 return next((name for name, doc in store.items() if doc.source_key == value or doc.qcode == value), None)
 
+            def get_value(self, doctype, filters, fieldname):
+                name = self.exists(doctype, filters)
+                return name if fieldname == "name" else getattr(store.get(name), fieldname, None)
+
         class FakeDoc:
             def __init__(self, values):
                 self.__dict__.update(values)
