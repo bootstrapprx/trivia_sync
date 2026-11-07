@@ -1,38 +1,49 @@
 # Trivia Sync
 
-Aplicativo Frappe para sincronizar a QAPI com o Frappe LMS. O app usa REST por padrão (`https://qapi.otunac.com/api`) e suporta fallback MCP (`https://qapi.otunac.com/mcp`) quando habilitado nas configurações.
+Camada editorial e de concursos para Frappe LMS. O app importa catálogos e questões da QAPI, organiza concursos, cargos e conteúdo programático, exige revisão e decisão de redistribuição antes de projetar questões no LMS e monta provas preservando quizzes e tentativas anteriores.
 
-## Cobertura
-
-A sincronização completa cobre questões, textos de apoio vinculados por código, bancas, órgãos, cargos, matérias, assuntos, provas, concursos, status de concursos, disciplinas, conteúdos planos, árvore de conteúdos e flashcards. Listagens são paginadas com no máximo 10 itens por chamada. Provas ficam desabilitadas por padrão porque a QAPI cobra 200 cotas por chamada.
-
-Cada recurso é persistido em um DocType próprio com `qapi_id`/código, payload bruto, hash idempotente e timestamp. Questões com texto de apoio chamam `GET /textos/:codigo` durante a ingestão e gravam o Link `Trivia Question.texto_apoio`; o campo equivalente `LMS Question.trivia_texto_apoio` é incluído por fixture.
-
-## Instalação
+## Instalação e configuração
 
 ```bash
-cd $PATH_TO_YOUR_BENCH
 bench get-app https://github.com/bootstrapprx/trivia_sync --branch main
-bench --site $SITE install-app trivia_sync
-bench --site $SITE migrate
+bench --site <site> install-app trivia_sync
+bench --site <site> migrate
 ```
 
-Em **Trivia Sync Settings**, configure o Q-Api-Key como campo Password. A chave nunca é enviada ao frontend nem armazenada no código. Ative `sync_catalogs`, `sync_support_texts` e, conscientemente, `sync_exams` se quiser consumir as chamadas caras de provas.
+Abra **Trivia Sync Onboarding** ou **Trivia Sync Settings** para configurar endpoint e chave da QAPI. Segredos são armazenados como Password e não devem ser incluídos em logs, issues ou comandos compartilhados. Faça backup antes de migrar um site existente. A migração adiciona campos e DocTypes; patches legados podem ser repetidos.
 
-## Workers
+## Importação e orçamento
 
-O scheduler enfileira `trivia_sync.integrations.sync.sync_qapi_full` na fila `long`. Também é possível usar `trivia_sync.api.enqueue_qapi_sync` ou `trivia_sync.api.run_qapi_sync_now` como System Manager.
+QAPI pode cobrar por chamada: listagens de provas custam 200 créditos; as demais chamadas conhecidas custam 1. `qapi_max_requests_per_run=0` bloqueia a sincronização paga; defina um limite de créditos e `qapi_min_credit_reserve` antes de executar. O modo dry-run estima o custo em créditos sem gravar registros nem chamar endpoints pagos. O agendamento de sincronização paga permanece desativado por padrão; habilite-o apenas depois de configurar limite e reserva. Execuções registram operador, parâmetros, chamadas, créditos consumidos, erros e cursor de retomada. Retome execuções incompletas pelo onboarding/API após conferir saldo e filtros.
 
-## Adaptador IA
+Importações usam identidade estável e atualizam apenas campos pertencentes à fonte. Campos editoriais e notas locais são preservados. Quando conteúdo avaliável muda, a aprovação dependente desse conteúdo volta para revisão e o enriquecimento IA fica desatualizado. Correspondências ambíguas de banca, órgão, matéria, assunto ou cargo ficam sem vínculo para reconciliação manual. Nós de ementa ausentes ficam obsoletos; não são apagados.
 
-O módulo `trivia_sync.integrations.ai_enricher` usa qualquer endpoint compatível com `POST /v1/chat/completions` e saída `json_schema`. Ele classifica questões de 1 a 5 estrelas, produz um rótulo em português, justifica a classificação, sugere um objetivo de aprendizagem e extrai tópicos. Os campos ficam no DocType `Trivia Question` e são somente leitura para usuários.
+## Direitos, revisão e projeção LMS
 
-O padrão recomendado é o modelo `gpt-6-luna`, escolhido por ter suporte a JSON Schema e menor custo no catálogo disponível. O provedor, modelo, timeout e lote são configuráveis em `Trivia Sync Settings`; a chave é armazenada como Password. O recurso é opt-in (`ai_enabled=1`) e usa hash do conteúdo para não cobrar novamente por uma questão que não mudou.
+Registro de licença/atribuição e decisão de redistribuição são independentes da revisão editorial. Configure a licença e confirme explicitamente o direito de redistribuir antes de projetar uma questão. Um revisor aprova ou rejeita com motivo; IA nunca aprova conteúdo.
 
-Depois de configurar a chave, o administrador pode usar o botão **Enriquecer questões com IA** ou chamar `trivia_sync.api.enqueue_ai_enrichment`. O lote padrão é de 10 questões por execução e falhas individuais são registradas sem interromper o restante do lote.
+Somente questões válidas, aprovadas, liberadas para redistribuição e com licença registrada podem virar `LMS Question`. Projeções são repetíveis e versionadas por hash de conteúdo. Uma questão LMS já usada em quiz não é alterada quando a fonte muda: uma nova versão é criada. Os patches `v0_2` e `v0_3` fazem backfill aditivo de classificações e vínculos LMS legados; revise contagens de não correspondidos/ambíguos após a migração.
 
-## Dashboard e testes
+## Cargos, simulados e tentativas
 
-A Desk Page **Trivia Sync Dashboard** mostra workers em andamento, falhas recentes, histórico de execuções, cobertura do enriquecimento IA, média e distribuição das estrelas, questões pendentes e contagens dos principais catálogos. Os dados são atualizados automaticamente a cada 30 segundos pelo endpoint protegido `trivia_sync.dashboard.metrics`.
+`Concurso Cargo` liga concurso, cargo, curso LMS existente e ementa. A importação não cria cursos nem aulas. A cobertura por cargo separa banco total, questões elegíveis, tópicos, revisão, licença e fonte.
 
-Os testes unitários em `trivia_sync/tests` cobrem normalização de questões, paginação limitada a 10 itens, leitura de árvores QAPI, autenticação do cliente, saída JSON estrita do adaptador IA, hash de enriquecimento e rejeição de níveis de dificuldade inválidos. Eles podem ser executados com `python -m unittest discover -s trivia_sync/tests` ou pelo fluxo `bench --site <site> run-tests --app trivia_sync`.
+Monte o blueprint da `Prova` com blocos/tópicos e quantidade desejada. A montagem calcula primeiro o conjunto elegível e não grava quiz parcial se o banco for insuficiente. Publicar exige curso e aula existentes e permissão de escrita no curso. O quiz ativo é colocado no conteúdo da aula sem substituir blocos alheios. Alterações após tentativas criam uma versão nova; quizzes antigos e submissões permanecem preservados.
+
+## Catálogo público e materiais assistidos
+
+O catálogo público está em `/concursos`. Só concursos publicados com cursos LMS publicados aparecem. Respostas, explicações, payloads de fonte e dados de aluno não são expostos pelas APIs públicas.
+
+Receitas de aula/apostila usam apenas fontes aprovadas e licenciadas. Geração assistida cria versões em rascunho; aprovação humana é necessária para publicar. Mudança nas fontes invalida a versão. PDFs são privados por padrão e só ficam públicos para curso publicado e gratuito.
+
+## Recuperação e validação
+
+Faça backup do site antes de `bench migrate`. Se migração ou backfill falhar, preserve logs e backup, corrija o app e repita a migração/patch idempotente; não apague questões, quizzes ou tentativas para contornar erro. Falhas de projeção podem ser retomadas sem desfazer a aprovação. Para parar chamadas pagas, zere o limite e desative o agendamento.
+
+Execute a suíte no bench:
+
+```bash
+bench --site <site> run-tests --app trivia_sync
+```
+
+Ver detalhes de recuperação e publicação em [`docs/runbooks/trivia-sync-operations.md`](docs/runbooks/trivia-sync-operations.md).

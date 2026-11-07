@@ -1,0 +1,16 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Exam Version",
+  "module": "Trivia Sync",
+  "istable": 1,
+  "editable_grid": 1,
+  "field_order": ["version", "quiz", "lesson", "status", "published_at"],
+  "fields": [
+    {"fieldname": "version", "fieldtype": "Int", "label": "Versão", "reqd": 1},
+    {"fieldname": "quiz", "fieldtype": "Link", "label": "Quiz LMS", "options": "LMS Quiz", "reqd": 1},
+    {"fieldname": "lesson", "fieldtype": "Link", "label": "Aula LMS", "options": "Course Lesson"},
+    {"fieldname": "status", "fieldtype": "Select", "label": "Estado", "options": "Ready\nPublished\nSuperseded\nArchived", "default": "Ready", "reqd": 1},
+    {"fieldname": "published_at", "fieldtype": "Datetime", "label": "Publicado em"}
+  ],
+  "permissions": []
+}

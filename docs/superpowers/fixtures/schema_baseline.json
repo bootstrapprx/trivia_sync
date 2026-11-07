@@ -1,0 +1,238 @@
+{
+  "Assunto": {
+    "fields": [
+      "identity_section",
+      "last_synced_at",
+      "materia",
+      "nome",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash"
+    ],
+    "controller": true
+  },
+  "Banca": {
+    "fields": [
+      "identity_section",
+      "last_synced_at",
+      "nome",
+      "qapi_id",
+      "raw_payload",
+      "sigla",
+      "sync_hash"
+    ],
+    "controller": true
+  },
+  "Cargo": {
+    "fields": [
+      "identity_section",
+      "last_synced_at",
+      "nome",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash"
+    ],
+    "controller": true
+  },
+  "Concurso": {
+    "fields": [
+      "ano",
+      "banca",
+      "estado",
+      "identity_section",
+      "last_synced_at",
+      "orgao",
+      "qapi_id",
+      "raw_payload",
+      "regiao",
+      "status",
+      "sync_hash",
+      "titulo"
+    ],
+    "controller": true
+  },
+  "Conteúdo Programático": {
+    "fields": [
+      "disciplina",
+      "identity_section",
+      "is_group",
+      "last_synced_at",
+      "nivel",
+      "ordem",
+      "parent_conteudo",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash",
+      "titulo"
+    ],
+    "controller": true
+  },
+  "Disciplina": {
+    "fields": [
+      "cargo",
+      "concurso",
+      "identity_section",
+      "last_synced_at",
+      "materia",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash",
+      "titulo"
+    ],
+    "controller": true
+  },
+  "Flashcard": {
+    "fields": [
+      "assunto",
+      "conteudo",
+      "frente",
+      "identity_section",
+      "materia",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash",
+      "verso"
+    ],
+    "controller": true
+  },
+  "Matéria": {
+    "fields": [
+      "identity_section",
+      "last_synced_at",
+      "nome",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash"
+    ],
+    "controller": true
+  },
+  "Órgão": {
+    "fields": [
+      "identity_section",
+      "last_synced_at",
+      "nome",
+      "qapi_id",
+      "raw_payload",
+      "sigla",
+      "sync_hash",
+      "uf"
+    ],
+    "controller": true
+  },
+  "Prova": {
+    "fields": [
+      "ano",
+      "banca",
+      "cargo",
+      "concurso",
+      "identity_section",
+      "last_synced_at",
+      "orgao",
+      "pdf_url",
+      "qapi_id",
+      "raw_payload",
+      "sync_hash",
+      "titulo"
+    ],
+    "controller": true
+  },
+  "Trivia Question": {
+    "fields": [
+      "ai_difficulty_label",
+      "ai_difficulty_reason",
+      "ai_difficulty_stars",
+      "ai_enriched_at",
+      "ai_enrichment_hash",
+      "ai_learning_objective",
+      "ai_model",
+      "ai_section",
+      "ai_topics",
+      "ano",
+      "assunto",
+      "banca",
+      "cargo",
+      "correct_option",
+      "enunciado",
+      "explanation",
+      "identity_section",
+      "last_synced_at",
+      "materia",
+      "metadata_section",
+      "options",
+      "orgao",
+      "qcode",
+      "raw_payload",
+      "source",
+      "source_url",
+      "sync_hash",
+      "texto_apoio"
+    ],
+    "controller": true
+  },
+  "Trivia Sync Run": {
+    "fields": [
+      "error_log",
+      "finished_at",
+      "operation",
+      "page",
+      "records_created",
+      "records_errors",
+      "records_skipped",
+      "records_updated",
+      "source",
+      "started_at",
+      "status"
+    ],
+    "controller": true
+  },
+  "Trivia Sync Settings": {
+    "fields": [
+      "ai_api_key",
+      "ai_base_url",
+      "ai_batch_size",
+      "ai_enabled",
+      "ai_model",
+      "ai_section",
+      "ai_timeout",
+      "audit_section",
+      "catalog_section",
+      "last_lms_sync_at",
+      "last_qapi_sync_at",
+      "lms_section",
+      "lms_sync_enabled",
+      "lms_sync_frequency",
+      "mcp_base_url",
+      "mcp_enabled",
+      "only_published",
+      "qapi_api_key",
+      "qapi_base_url",
+      "qapi_enabled",
+      "qapi_max_pages",
+      "qapi_page_size",
+      "qapi_section",
+      "qapi_sync_frequency",
+      "qapi_timeout",
+      "sync_catalogs",
+      "sync_exams",
+      "sync_flashcards",
+      "sync_support_texts",
+      "trivia_api_token",
+      "trivia_api_url",
+      "trivia_sync_mode"
+    ],
+    "controller": true
+  },
+  "Texto de Apoio": {
+    "fields": [
+      "codigo",
+      "conteudo",
+      "identity_section",
+      "last_synced_at",
+      "raw_payload",
+      "source_url",
+      "sync_hash",
+      "titulo"
+    ],
+    "controller": true
+  }
+}

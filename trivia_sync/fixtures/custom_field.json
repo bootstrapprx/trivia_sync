@@ -17,7 +17,6 @@
     "label": "Código da fonte",
     "fieldtype": "Data",
     "insert_after": "trivia_section",
-    "unique": 1,
     "hidden": 1,
     "module": "Trivia Sync"
   },
@@ -190,6 +189,42 @@
     "label": "Enriquecida em",
     "fieldtype": "Datetime",
     "insert_after": "trivia_ai_model",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_source_key",
+    "dt": "LMS Question",
+    "fieldname": "trivia_source_key",
+    "label": "Identidade da fonte Trivia",
+    "fieldtype": "Data",
+    "hidden": 1,
+    "insert_after": "trivia_qcode",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_question",
+    "dt": "LMS Question",
+    "fieldname": "trivia_question",
+    "label": "Questão editorial",
+    "fieldtype": "Link",
+    "options": "Trivia Question",
+    "read_only": 1,
+    "hidden": 1,
+    "insert_after": "trivia_source_key",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_projection_key",
+    "dt": "LMS Question",
+    "fieldname": "trivia_projection_key",
+    "label": "Identidade da versão Trivia",
+    "fieldtype": "Data",
+    "unique": 1,
+    "hidden": 1,
+    "insert_after": "trivia_question",
     "module": "Trivia Sync"
   }
 ]

@@ -10,7 +10,7 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 		<div class="trivia-onboarding-header">
 			<div class="trivia-onboarding-eyebrow">TRIVIA SYNC</div>
 			<h2>Prepare seu banco de questões</h2>
-			<p>Conecte a QAPI e importe questões diretamente para o Frappe LMS.</p>
+			<p>Configure a origem, o orçamento de créditos e encaminhe questões à revisão editorial antes do LMS.</p>
 		</div>
 		<div class="trivia-onboarding-grid">
 			<section class="frappe-card trivia-onboarding-step">
@@ -19,6 +19,8 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 				<div data-field="qapi_api_key"></div>
 				<div data-field="qapi_enabled"></div>
 				<div data-field="qapi_sync_frequency"></div>
+				<div data-field="qapi_max_requests_per_run"></div>
+				<div data-field="qapi_min_credit_reserve"></div>
 				<button class="btn btn-primary" data-action="save">Salvar configuração</button>
 			</section>
 			<section class="frappe-card trivia-onboarding-step">
@@ -27,8 +29,9 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 			<button class="btn btn-default" data-action="test">Testar QAPI</button>
 			</section>
 			<section class="frappe-card trivia-onboarding-step">
-				<div class="trivia-onboarding-step-title"><span>3</span><div><h3>Importar questões</h3><p>As questões válidas entrarão no banco do LMS, prontas para serem usadas em quizzes.</p></div></div>
-			<button class="btn btn-primary" data-action="sync">Sincronizar questões agora</button>
+			<div class="trivia-onboarding-step-title"><span>3</span><div><h3>Prévia e importação</h3><p>A importação cria questões pendentes na fila editorial. Só itens aprovados e liberados serão projetados no LMS.</p></div></div>
+			<button class="btn btn-default" data-action="dry-run">Simular custo</button>
+			<button class="btn btn-primary" data-action="sync">Importar questões para revisão</button>
 			</section>
 		</div>`);
 
@@ -56,6 +59,18 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 			label: __("Frequência"),
 			options: "Hourly\nEvery scheduler tick",
 		},
+		qapi_max_requests_per_run: {
+			fieldname: "qapi_max_requests_per_run",
+			fieldtype: "Int",
+			label: __("Limite de créditos QAPI por execução (0 desativa; provas custam 200)"),
+			default: 0,
+		},
+		qapi_min_credit_reserve: {
+			fieldname: "qapi_min_credit_reserve",
+			fieldtype: "Int",
+			label: __("Créditos para manter reservados"),
+			default: 1,
+		},
 	};
 	const controls = {};
 	for (const [name, df] of Object.entries(fields)) {
@@ -74,8 +89,10 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 			controls.qapi_base_url.set_value(message.base_url || "https://qapi.otunac.com/api");
 			controls.qapi_enabled.set_value(message.enabled);
 			controls.qapi_sync_frequency.set_value(message.frequency);
+			controls.qapi_max_requests_per_run.set_value(message.request_budget || 0);
+			controls.qapi_min_credit_reserve.set_value(message.credit_reserve || 0);
 			main.find("[data-status]").text(
-				`${message.configured ? __("Chave configurada") : __("Chave pendente")} · ${__("Última sincronização")}: ${message.last_sync || __("nunca")}`
+				`${message.configured ? __("Chave configurada") : __("Chave pendente")} · ${__("Limite efetivo")}: ${message.paid_sync_available ? message.request_budget - message.credit_reserve : 0} ${__("créditos")} · ${__("Última sincronização")}: ${message.last_sync || __("nunca")}`
 			);
 		});
 
@@ -88,6 +105,8 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 					qapi_api_key: controls.qapi_api_key.get_value(),
 					qapi_enabled: controls.qapi_enabled.get_value() ? 1 : 0,
 					qapi_sync_frequency: controls.qapi_sync_frequency.get_value(),
+					qapi_max_requests_per_run: controls.qapi_max_requests_per_run.get_value(),
+					qapi_min_credit_reserve: controls.qapi_min_credit_reserve.get_value(),
 				},
 			})
 			.then(({ message }) => {
@@ -111,6 +130,14 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 		frappe.call("trivia_sync.api.enqueue_qapi_sync").then(() =>
 			showStatus(__("Importação enfileirada."), "green")
 		)
+	);
+
+	main.find('[data-action="dry-run"]').on("click", () =>
+		frappe.call({ method: "trivia_sync.api.run_qapi_sync_now", args: { dry_run: 1 } }).then(({ message }) => {
+			const text = `${__("Custo máximo estimado")}: ${message?.projected_request_cost ?? 0} ${__("créditos")} · ${__("Nenhuma gravação")}`;
+			main.find("[data-status]").text(text);
+			showStatus(text, "blue");
+		})
 	);
 
 	loadStatus();

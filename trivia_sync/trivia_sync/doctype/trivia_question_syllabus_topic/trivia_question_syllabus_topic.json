@@ -1,0 +1,21 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Question Syllabus Topic",
+  "module": "Trivia Sync",
+  "custom": 0,
+  "istable": 1,
+  "track_changes": 1,
+  "field_order": [
+    "conteudo_programatico"
+  ],
+  "fields": [
+    {
+      "fieldname": "conteudo_programatico",
+      "fieldtype": "Link",
+      "label": "Tópico",
+      "options": "Conteúdo Programático",
+      "reqd": 1
+    }
+  ],
+  "permissions": []
+}

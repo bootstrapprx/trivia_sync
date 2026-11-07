@@ -9,11 +9,13 @@ def settings():
 
 def test_qapi_connection():
 	try:
-		payload = QAPIClient().questoes(page=1, size=1)
+		client = QAPIClient(settings())
+		payload = client.questoes(page=1, size=1)
 		return {
 			"ok": True,
 			"total": payload.get("total", 0) if isinstance(payload, dict) else 0,
 			"page": payload.get("page", 1) if isinstance(payload, dict) else 1,
+			"requests_made": client.requests_made,
 		}
 	except Exception as exc:
 		frappe.log_error(frappe.get_traceback(), "Trivia Sync · QAPI connection")

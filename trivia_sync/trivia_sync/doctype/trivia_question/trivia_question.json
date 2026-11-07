@@ -1,7 +1,7 @@
 {
   "doctype": "DocType",
   "name": "Trivia Question",
-  "autoname": "field:qcode",
+  "autoname": "hash",
   "module": "Trivia Sync",
   "title_field": "enunciado",
   "track_changes": 1,
@@ -33,7 +33,40 @@
     "ai_topics",
     "ai_model",
     "ai_enrichment_hash",
-    "ai_enriched_at"
+    "ai_enriched_at",
+    "source_type",
+    "source_id",
+    "source_key",
+    "content_hash",
+    "review_section",
+    "review_status",
+    "reviewed_by",
+    "reviewed_at",
+    "review_reason",
+    "editorial_notes",
+    "source_license",
+    "source_attribution",
+    "redistribution_status",
+    "redistribution_reference",
+    "redistribution_decided_by",
+    "redistribution_decided_at",
+    "classification_section",
+    "trivia_banca",
+    "trivia_orgao",
+    "trivia_cargo",
+    "concurso",
+    "concurso_cargo",
+    "prova",
+    "trivia_materia",
+    "trivia_assunto",
+    "conteudos_programaticos",
+    "projection_section",
+    "lms_question",
+    "projection_status",
+    "projection_hash",
+    "projection_error",
+    "projected_at",
+    "ai_enrichment_status"
   ],
   "fields": [
     {
@@ -45,7 +78,7 @@
       "fieldname": "qcode",
       "fieldtype": "Data",
       "label": "Código da questão",
-      "reqd": 1,
+      "reqd": 0,
       "unique": 1,
       "in_list_view": 1
     },
@@ -211,6 +244,214 @@
       "fieldtype": "Datetime",
       "label": "Enriquecida em",
       "read_only": 1
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Select",
+      "label": "Tipo de fonte",
+      "options": "QAPI\nGitHub\nHugging Face\nManual",
+      "default": "QAPI",
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "ID na fonte"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Chave estável da fonte",
+      "unique": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "content_hash",
+      "fieldtype": "Data",
+      "label": "Hash de conteúdo avaliável",
+      "read_only": 1,
+      "hidden": 1
+    },
+    {
+      "fieldname": "review_section",
+      "fieldtype": "Section Break",
+      "label": "Revisão e redistribuição"
+    },
+    {
+      "fieldname": "review_status",
+      "fieldtype": "Select",
+      "label": "Estado da revisão",
+      "options": "Pending\nApproved\nRejected",
+      "default": "Pending",
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "reviewed_by",
+      "fieldtype": "Link",
+      "label": "Revisado por",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewed_at",
+      "fieldtype": "Datetime",
+      "label": "Revisado em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "review_reason",
+      "fieldtype": "Small Text",
+      "label": "Motivo da decisão"
+    },
+    {
+      "fieldname": "editorial_notes",
+      "fieldtype": "Text Editor",
+      "label": "Notas editoriais"
+    },
+    {
+      "fieldname": "source_license",
+      "fieldtype": "Data",
+      "label": "Licença declarada pela fonte"
+    },
+    {
+      "fieldname": "source_attribution",
+      "fieldtype": "Small Text",
+      "label": "Atribuição exigida"
+    },
+    {
+      "fieldname": "redistribution_status",
+      "fieldtype": "Select",
+      "label": "Direito de redistribuição",
+      "options": "Pending\nApproved\nRejected",
+      "default": "Pending",
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "redistribution_reference",
+      "fieldtype": "Data",
+      "label": "Referência dos termos/licença"
+    },
+    {
+      "fieldname": "redistribution_decided_by",
+      "fieldtype": "Link",
+      "label": "Direito confirmado por",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "redistribution_decided_at",
+      "fieldtype": "Datetime",
+      "label": "Direito confirmado em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "classification_section",
+      "fieldtype": "Section Break",
+      "label": "Classificação relacionada"
+    },
+    {
+      "fieldname": "trivia_banca",
+      "fieldtype": "Link",
+      "label": "Banca relacionada",
+      "options": "Banca"
+    },
+    {
+      "fieldname": "trivia_orgao",
+      "fieldtype": "Link",
+      "label": "Órgão relacionado",
+      "options": "Órgão"
+    },
+    {
+      "fieldname": "trivia_cargo",
+      "fieldtype": "Link",
+      "label": "Cargo de catálogo",
+      "options": "Cargo"
+    },
+    {
+      "fieldname": "concurso",
+      "fieldtype": "Link",
+      "label": "Concurso",
+      "options": "Concurso"
+    },
+    {
+      "fieldname": "concurso_cargo",
+      "fieldtype": "Link",
+      "label": "Cargo no concurso",
+      "options": "Concurso Cargo"
+    },
+    {
+      "fieldname": "prova",
+      "fieldtype": "Link",
+      "label": "Prova de origem",
+      "options": "Prova"
+    },
+    {
+      "fieldname": "trivia_materia",
+      "fieldtype": "Link",
+      "label": "Matéria relacionada",
+      "options": "Matéria"
+    },
+    {
+      "fieldname": "trivia_assunto",
+      "fieldtype": "Link",
+      "label": "Assunto relacionado",
+      "options": "Assunto"
+    },
+    {
+      "fieldname": "conteudos_programaticos",
+      "fieldtype": "Table MultiSelect",
+      "label": "Tópicos da ementa",
+      "options": "Trivia Question Syllabus Topic"
+    },
+    {
+      "fieldname": "projection_section",
+      "fieldtype": "Section Break",
+      "label": "Projeção para o LMS"
+    },
+    {
+      "fieldname": "lms_question",
+      "fieldtype": "Link",
+      "label": "Questão LMS",
+      "options": "LMS Question",
+      "read_only": 1
+    },
+    {
+      "fieldname": "projection_status",
+      "fieldtype": "Select",
+      "label": "Estado da projeção",
+      "options": "Not Projected\nPending\nProjected\nFailed",
+      "default": "Not Projected",
+      "read_only": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "projection_hash",
+      "fieldtype": "Data",
+      "label": "Hash projetada",
+      "read_only": 1,
+      "hidden": 1
+    },
+    {
+      "fieldname": "projection_error",
+      "fieldtype": "Small Text",
+      "label": "Erro de projeção",
+      "read_only": 1
+    },
+    {
+      "fieldname": "projected_at",
+      "fieldtype": "Datetime",
+      "label": "Projetada em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ai_enrichment_status",
+      "fieldtype": "Select",
+      "label": "Atualização da IA",
+      "options": "Pending\nFresh\nStale",
+      "default": "Pending",
+      "read_only": 1,
+      "in_standard_filter": 1
     }
   ],
   "permissions": [
@@ -220,6 +461,24 @@
       "write": 1,
       "create": 1,
       "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1,
+      "write": 1,
+      "create": 0
     }
   ]
 }

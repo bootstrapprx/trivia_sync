@@ -93,6 +93,7 @@ jobs:
           bench new-site --db-root-password root --admin-password admin test_site
           bench --site test_site install-app trivia_sync
           bench build
+          ./env/bin/pip install coverage
         env:
           CI: 'Yes'
 
@@ -100,6 +101,8 @@ jobs:
         working-directory: /home/runner/frappe-bench
         run: |
           bench --site test_site set-config allow_tests true
-          bench --site test_site run-tests --app trivia_sync
+          python apps/trivia_sync/scripts/check_schema_compatibility.py
+          ./env/bin/python -m coverage run --source=trivia_sync ./env/bin/bench --site test_site run-tests --app trivia_sync
+          ./env/bin/python -m coverage report --include='*/trivia_sync/*'
         env:
           TYPE: server

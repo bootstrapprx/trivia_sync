@@ -1,0 +1,67 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Methodology",
+  "module": "Trivia Sync",
+  "field_order": [
+    "title",
+    "activity_type",
+    "instructions",
+    "active"
+  ],
+  "fields": [
+    {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "label": "Título",
+      "reqd": 1
+    },
+    {
+      "fieldname": "activity_type",
+      "fieldtype": "Select",
+      "label": "Tipo",
+      "options": "Lesson\nExercise\nReview",
+      "default": "Lesson",
+      "reqd": 1
+    },
+    {
+      "fieldname": "instructions",
+      "fieldtype": "Text Editor",
+      "label": "Instruções editoriais",
+      "reqd": 1
+    },
+    {
+      "fieldname": "active",
+      "fieldtype": "Check",
+      "label": "Ativa",
+      "default": "1"
+    }
+  ],
+  "istable": 0,
+  "track_changes": 1,
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1
+    }
+  ],
+  "autoname": "field:title"
+}

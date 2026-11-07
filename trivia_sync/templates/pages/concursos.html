@@ -1,0 +1,21 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<main class="container py-5">
+	{% if contest %}
+		<a href="/concursos">Concursos</a>
+		<h1 class="mt-3">{{ contest.title }}</h1>
+		<p>{{ contest.summary }}</p>
+		{% if contest.year %}<p>{{ contest.year }}{% if contest.state %} · {{ contest.state }}{% endif %}</p>{% endif %}
+		<h2>Cursos associados</h2>
+		<ul>{% for course in contest.courses %}<li>{{ course.title }}</li>{% endfor %}</ul>
+	{% else %}
+		<h1>Concursos públicos</h1>
+		{% if contests %}
+			<ul class="list-unstyled">{% for row in contests %}
+				<li class="border-bottom py-3"><h2><a href="/concursos?slug={{ row.slug }}">{{ row.title }}</a></h2><p>{{ row.summary }}</p><small>{{ row.year }}{% if row.state %} · {{ row.state }}{% endif %}</small></li>
+			{% endfor %}</ul>
+		{% else %}<p>Nenhum concurso está publicado no momento.</p>{% endif %}
+	{% endif %}
+</main>
+{% endblock %}

@@ -16,7 +16,16 @@
     "nivel",
     "raw_payload",
     "sync_hash",
-    "last_synced_at"
+    "last_synced_at",
+    "concurso_cargo",
+    "source_path",
+    "source_text",
+    "source_version",
+    "is_obsolete",
+    "source_hash",
+    "source_type",
+    "source_id",
+    "source_key"
   ],
   "fields": [
     {
@@ -39,12 +48,14 @@
     {
       "fieldname": "disciplina",
       "fieldtype": "Link",
-      "label": "Disciplina"
+      "label": "Disciplina",
+      "options": "Disciplina"
     },
     {
       "fieldname": "parent_conteudo",
       "fieldtype": "Link",
-      "label": "Conteúdo pai"
+      "label": "Conteúdo pai",
+      "options": "Conteúdo Programático"
     },
     {
       "fieldname": "is_group",
@@ -77,6 +88,55 @@
       "fieldname": "last_synced_at",
       "fieldtype": "Datetime",
       "label": "Última sincronização"
+    },
+    {
+      "fieldname": "concurso_cargo",
+      "fieldtype": "Link",
+      "label": "Cargo do concurso",
+      "options": "Concurso Cargo"
+    },
+    {
+      "fieldname": "source_path",
+      "fieldtype": "Data",
+      "label": "Caminho estável da fonte"
+    },
+    {
+      "fieldname": "source_text",
+      "fieldtype": "Small Text",
+      "label": "Texto original da fonte"
+    },
+    {
+      "fieldname": "source_version",
+      "fieldtype": "Data",
+      "label": "Versão da ementa"
+    },
+    {
+      "fieldname": "is_obsolete",
+      "fieldtype": "Check",
+      "label": "Obsoleto"
+    },
+    {
+      "fieldname": "source_hash",
+      "fieldtype": "Data",
+      "label": "Hash do tópico",
+      "hidden": 1
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Tipo de fonte",
+      "default": "QAPI"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "ID na fonte"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Chave estável da fonte",
+      "unique": 1
     }
   ],
   "permissions": [
@@ -86,6 +146,22 @@
       "write": 1,
       "create": 1,
       "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1
     }
   ]
 }

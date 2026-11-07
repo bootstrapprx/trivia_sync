@@ -39,6 +39,11 @@ def raw_hash(row: dict[str, Any]) -> tuple[str, str]:
 	return raw, hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def evaluable_hash(question: dict[str, Any]) -> str:
+	content = {key: question.get(key) for key in ("enunciado", "options", "correct_option", "explanation", "texto_codigo")}
+	return hashlib.sha256(json.dumps(content, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
 def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
 	raw, digest = raw_hash(row)
 	options = {
@@ -46,9 +51,12 @@ def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
 	}
 	options = {key: value for key, value in options.items() if value}
 	qcode = identifier(row)
-	return {
+	result = {
 		"qcode": qcode,
 		"source": "QAPI",
+		"source_type": "QAPI",
+		"source_id": qcode,
+		"source_key": f"qapi:{qcode}" if qcode else "",
 		"enunciado": text(first(row, "enunciado", "question", "pergunta", "texto")),
 		"banca": text(first(row, "banca", "siglaBanca", "organizadora")),
 		"orgao": text(first(row, "orgao", "entidade")),
@@ -63,7 +71,11 @@ def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
 		"source_url": f"https://qapi.otunac.com/api/questoes?qCode={qcode}" if qcode else "",
 		"raw_payload": raw,
 		"sync_hash": digest,
+		"source_license": text(first(row, "licenca", "license")),
+		"source_attribution": text(first(row, "atribuicao", "attribution")),
 	}
+	result["content_hash"] = evaluable_hash(result)
+	return result
 
 
 def normalize_resource(row: dict[str, Any], kind: str) -> dict[str, Any]:
@@ -72,15 +84,21 @@ def normalize_resource(row: dict[str, Any], kind: str) -> dict[str, Any]:
 	if kind == "texto":
 		return {
 			"codigo": rid,
+			"source_type": "QAPI",
+			"source_id": rid,
+			"source_key": f"qapi:{rid}" if rid else "",
 			"titulo": text(first(row, "titulo", "title", "nome")),
 			"conteudo": text(first(row, "conteudo", "texto", "body", "descricao")),
 			"source_url": text(first(row, "url", "link")),
 			"raw_payload": raw,
 			"sync_hash": digest,
 		}
-	if kind == "flashcard":
+	if kind in {"flashcard", "flashcards"}:
 		return {
 			"qapi_id": rid,
+			"source_type": "QAPI",
+			"source_id": rid,
+			"source_key": f"qapi:{rid}" if rid else "",
 			"frente": text(first(row, "frente", "front", "pergunta", "question")),
 			"verso": text(first(row, "verso", "back", "resposta", "answer")),
 			"conteudo": text(first(row, "conteudo_id", "conteudoId")),
@@ -89,7 +107,8 @@ def normalize_resource(row: dict[str, Any], kind: str) -> dict[str, Any]:
 			"raw_payload": raw,
 			"sync_hash": digest,
 		}
-	result = {"qapi_id": rid, "raw_payload": raw, "sync_hash": digest}
+	result = {"qapi_id": rid, "source_type": "QAPI", "source_id": rid,
+	          "source_key": f"qapi:{rid}" if rid else "", "raw_payload": raw, "sync_hash": digest}
 	name = text(first(row, "nome", "name", "titulo", "title", "descricao", "description"))
 	result.update(
 		{

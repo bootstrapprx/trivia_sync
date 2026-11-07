@@ -12,6 +12,8 @@
     "qapi_sync_frequency",
     "qapi_page_size",
     "qapi_max_pages",
+    "qapi_min_credit_reserve",
+    "qapi_max_requests_per_run",
     "lms_section",
     "lms_sync_enabled",
     "lms_sync_frequency",
@@ -231,6 +233,20 @@
       "label": "Questões por execução IA",
       "default": "10",
       "description": "Limite de segurança por execução manual ou worker."
+    },
+    {
+      "fieldname": "qapi_max_requests_per_run",
+      "fieldtype": "Int",
+      "label": "Máximo de créditos QAPI por execução",
+      "default": "0",
+      "description": "0 bloqueia chamadas pagas. Chamadas de provas custam 200 créditos; as demais custam 1. A reserva é descontada deste limite."
+    },
+    {
+      "fieldname": "qapi_min_credit_reserve",
+      "fieldtype": "Int",
+      "label": "Reserva mínima de créditos QAPI",
+      "default": "1",
+      "description": "Créditos que o limite configurado mantém reservados e não gasta na execução."
     }
   ],
   "permissions": [
@@ -238,6 +254,18 @@
       "role": "System Manager",
       "read": 1,
       "write": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
     }
   ]
 }

@@ -1,0 +1,23 @@
+[
+  {
+    "doctype": "Role",
+    "role_name": "Trivia Editor",
+    "desk_access": 1,
+    "is_custom": 1,
+    "name": "Trivia Editor"
+  },
+  {
+    "doctype": "Role",
+    "role_name": "Trivia Reviewer",
+    "desk_access": 1,
+    "is_custom": 1,
+    "name": "Trivia Reviewer"
+  },
+  {
+    "doctype": "Role",
+    "role_name": "Trivia Integrator",
+    "desk_access": 1,
+    "is_custom": 1,
+    "name": "Trivia Integrator"
+  }
+]

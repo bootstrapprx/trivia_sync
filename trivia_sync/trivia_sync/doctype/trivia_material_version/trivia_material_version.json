@@ -1,0 +1,95 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Material Version",
+  "module": "Trivia Sync",
+  "field_order": [
+    "level",
+    "version",
+    "content",
+    "summary",
+    "source_hash",
+    "source_keys",
+    "model",
+    "status",
+    "approved_by",
+    "approved_at",
+    "review_reason",
+    "published_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "level",
+      "fieldtype": "Select",
+      "label": "Nível",
+      "options": "mais\n180\n360",
+      "reqd": 1
+    },
+    {
+      "fieldname": "version",
+      "fieldtype": "Int",
+      "label": "Versão",
+      "reqd": 1
+    },
+    {
+      "fieldname": "content",
+      "fieldtype": "Text Editor",
+      "label": "Conteúdo",
+      "reqd": 1
+    },
+    {
+      "fieldname": "summary",
+      "fieldtype": "Small Text",
+      "label": "Resumo"
+    },
+    {
+      "fieldname": "source_hash",
+      "fieldtype": "Data",
+      "label": "Hash das fontes",
+      "reqd": 1
+    },
+    {
+      "fieldname": "source_keys",
+      "fieldtype": "Code",
+      "label": "Identidades de origem",
+      "options": "JSON"
+    },
+    {
+      "fieldname": "model",
+      "fieldtype": "Data",
+      "label": "Modelo",
+      "reqd": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Estado",
+      "options": "Draft\nApproved\nPublished\nStale",
+      "default": "Draft",
+      "reqd": 1
+    },
+    {
+      "fieldname": "approved_by",
+      "fieldtype": "Link",
+      "label": "Aprovado por",
+      "options": "User"
+    },
+    {
+      "fieldname": "approved_at",
+      "fieldtype": "Datetime",
+      "label": "Aprovado em"
+    },
+    {
+      "fieldname": "review_reason",
+      "fieldtype": "Small Text",
+      "label": "Motivo da aprovação"
+    },
+    {
+      "fieldname": "published_at",
+      "fieldtype": "Datetime",
+      "label": "Publicado em"
+    }
+  ],
+  "istable": 1,
+  "track_changes": 1,
+  "permissions": []
+}

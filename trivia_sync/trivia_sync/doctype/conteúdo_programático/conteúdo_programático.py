@@ -1,0 +1,3 @@
+from trivia_sync.trivia_sync.doctype.trivia_conteudo.trivia_conteudo import TriviaConteudo
+
+ConteúdoProgramático = TriviaConteudo

@@ -1,9 +1,23 @@
+import json
+
 import frappe
 from frappe.utils import cint
 from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.qapi import sync_qapi_questions, test_qapi_connection
-from trivia_sync.integrations.sync import sync_qapi_full
+from trivia_sync.integrations.sync import ingest_source
 from trivia_sync.integrations.ai_enricher import enrich_pending_questions
+from trivia_sync.integrations.reconciliation import question_coverage
+from trivia_sync.integrations.editorial import review_question as apply_question_review, decide_redistribution
+from trivia_sync.integrations.lms_questions import sync_lms_question
+from trivia_sync.integrations.exams import build_simulado as assemble_simulado, publish_prova as publish_exam
+from trivia_sync.integrations.learning_content import (
+	approve_lesson_material,
+	approve_apostila_material,
+	export_apostila as export_approved_pdf,
+	generate_apostila_material,
+	generate_lesson_material as generate_lesson_draft,
+	publish_lesson_material as publish_approved_lesson_material,
+)
 
 
 def _admin():
@@ -22,11 +36,21 @@ def onboarding_status():
 		"last_sync": doc.last_qapi_sync_at,
 		"full_sync": bool(doc.sync_catalogs),
 		"sync_exams": bool(doc.sync_exams),
+		"request_budget": doc.qapi_max_requests_per_run or 0,
+		"credit_reserve": max(1, int(doc.qapi_min_credit_reserve or 1)),
+		"paid_sync_available": int(doc.qapi_max_requests_per_run or 0) > max(1, int(doc.qapi_min_credit_reserve or 1)),
 	}
 
 
 @frappe.whitelist()
-def save_onboarding(qapi_api_key=None, qapi_enabled=0, qapi_sync_frequency="Hourly", qapi_base_url=None):
+def save_onboarding(
+	qapi_api_key=None,
+	qapi_enabled=0,
+	qapi_sync_frequency="Hourly",
+	qapi_base_url=None,
+	qapi_max_requests_per_run=None,
+	qapi_min_credit_reserve=None,
+):
 	_admin()
 	if qapi_sync_frequency not in ("Hourly", "Every scheduler tick"):
 		frappe.throw("Frequência de sincronização inválida.")
@@ -34,6 +58,12 @@ def save_onboarding(qapi_api_key=None, qapi_enabled=0, qapi_sync_frequency="Hour
 	doc.qapi_enabled = cint(qapi_enabled)
 	doc.qapi_sync_frequency = qapi_sync_frequency
 	doc.qapi_base_url = (qapi_base_url or "https://qapi.otunac.com/api").strip().rstrip("/")
+	if qapi_max_requests_per_run is not None:
+		doc.qapi_max_requests_per_run = max(0, cint(qapi_max_requests_per_run))
+	if qapi_min_credit_reserve is not None:
+		doc.qapi_min_credit_reserve = max(1, cint(qapi_min_credit_reserve))
+	if doc.qapi_enabled and int(doc.qapi_max_requests_per_run or 0) <= max(1, int(doc.qapi_min_credit_reserve or 1)):
+		frappe.throw("Defina um limite de chamadas maior que a reserva antes de ativar a sincronização paga.")
 	if qapi_api_key:
 		doc.qapi_api_key = qapi_api_key
 	doc.save()
@@ -41,15 +71,22 @@ def save_onboarding(qapi_api_key=None, qapi_enabled=0, qapi_sync_frequency="Hour
 
 
 @frappe.whitelist()
-def enqueue_qapi_sync(full=1):
+def enqueue_qapi_sync(full=1, dry_run=0, budget=None, max_pages=0, filters=None):
 	_admin()
-	method = (
-		"trivia_sync.integrations.sync.sync_qapi_full"
-		if cint(full)
-		else "trivia_sync.integrations.qapi.sync_qapi_questions"
+	parsed_filters = json.loads(filters) if isinstance(filters, str) and filters else filters or {}
+	frappe.enqueue(
+		"trivia_sync.integrations.sync.ingest_source",
+		source_name="QAPI",
+		filters=parsed_filters,
+		dry_run=bool(cint(dry_run)),
+		include_catalogs=bool(cint(full)),
+		budget=None if budget in (None, "") else cint(budget),
+		max_pages=cint(max_pages),
+		queue="long",
+		job_name="trivia_sync_qapi_full" if cint(full) else "trivia_sync_qapi_questions",
+		enqueue_after_commit=True,
 	)
-	frappe.enqueue(method, queue="long", job_name="trivia_sync_qapi_full", enqueue_after_commit=True)
-	return {"queued": True, "job": "trivia_sync_qapi_full"}
+	return {"queued": True, "job": "trivia_sync_qapi_full" if cint(full) else "trivia_sync_qapi_questions"}
 
 
 @frappe.whitelist()
@@ -71,9 +108,123 @@ def qapi_status():
 
 
 @frappe.whitelist()
-def run_qapi_sync_now():
+def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None):
 	_admin()
-	return sync_qapi_full()
+	parsed_filters = json.loads(filters) if isinstance(filters, str) and filters else filters or {}
+	return ingest_source(
+		"QAPI",
+		filters=parsed_filters,
+		dry_run=bool(cint(dry_run)),
+		include_catalogs=True,
+		budget=None if budget in (None, "") else cint(budget),
+		max_pages=cint(max_pages),
+	)
+
+
+@frappe.whitelist()
+def resume_qapi_sync(run_name, budget=None):
+	_admin()
+	run = frappe.get_doc("Trivia Sync Run", run_name)
+	if run.source != "QAPI" or run.status not in ("Partial", "Failed", "Blocked"):
+		frappe.throw("Somente uma execução QAPI parcial, bloqueada ou com falha pode ser retomada.")
+	parameters = json.loads(run.parameters_json or "{}")
+	return ingest_source(
+		"QAPI",
+		filters=parameters.get("filters"),
+		max_pages=parameters.get("max_pages", 0),
+		include_catalogs=parameters.get("include_catalogs", True),
+		budget=None if budget in (None, "") else cint(budget),
+		resume_run=run_name,
+	)
+
+
+@frappe.whitelist()
+def cargo_question_coverage(concurso_cargo):
+	_admin()
+	if not frappe.db.exists("Concurso Cargo", concurso_cargo):
+		frappe.throw("Cargo do concurso não encontrado.")
+	return question_coverage(concurso_cargo)
+
+
+@frappe.whitelist()
+def review_question(question_name, decision, reason=""):
+	return apply_question_review(question_name, decision, reason)
+
+
+@frappe.whitelist()
+def decide_question_redistribution(question_name, decision, reason=""):
+	return decide_redistribution(question_name, decision, reason)
+
+
+@frappe.whitelist()
+def project_question(question_name):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	source = frappe.get_doc("Trivia Question", question_name)
+	try:
+		name = sync_lms_question(source)
+		return {"name": name, "status": "Projected"}
+	except Exception as exc:
+		source.projection_status = "Failed"
+		source.projection_error = f"{type(exc).__name__}: {str(exc)[:300]}"
+		source.save(ignore_permissions=True)
+		return {"name": question_name, "status": "Failed", "error": source.projection_error}
+
+
+@frappe.whitelist()
+def build_simulado(prova_name):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	return assemble_simulado(prova_name)
+
+
+@frappe.whitelist()
+def publish_prova(prova_name, lesson_name=None):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	return publish_exam(prova_name, lesson_name)
+
+
+@frappe.whitelist()
+def set_contest_publication(concurso_name, status):
+	_admin()
+	if status not in ("Draft", "Published", "Archived"):
+		frappe.throw("Estado de publicação inválido.")
+	doc = frappe.get_doc("Concurso", concurso_name)
+	doc.publication_status = status
+	doc.save()
+	return {"name": doc.name, "publication_status": doc.publication_status}
+
+
+@frappe.whitelist()
+def generate_lesson_material(recipe_name, level):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	return generate_lesson_draft(recipe_name, level)
+
+
+@frappe.whitelist()
+def generate_apostila_recipe_material(recipe_name, level):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	return generate_apostila_material(recipe_name, level)
+
+
+@frappe.whitelist()
+def approve_lesson_recipe_material(recipe_name, level, version, reason=""):
+	return approve_lesson_material(recipe_name, level, version, reason)
+
+
+@frappe.whitelist()
+def approve_apostila_recipe_material(recipe_name, level, version, reason=""):
+	return approve_apostila_material(recipe_name, level, version, reason)
+
+
+@frappe.whitelist()
+def publish_lesson_material(recipe_name, level):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	return publish_approved_lesson_material(recipe_name, level)
+
+
+@frappe.whitelist()
+def export_apostila(recipe_name, levels):
+	frappe.only_for("Trivia Integrator", "System Manager")
+	return export_approved_pdf(recipe_name, levels)
 
 
 @frappe.whitelist()

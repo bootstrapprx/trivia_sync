@@ -4,5 +4,10 @@
   "module": "Trivia Sync",
   "standard": "Yes",
   "title": "Trivia Sync Dashboard",
-  "roles": [{"role": "System Manager"}]
+  "roles": [
+    {"role": "System Manager"},
+    {"role": "Trivia Reviewer"},
+    {"role": "Trivia Integrator"},
+    {"role": "Trivia Editor"}
+  ]
 }

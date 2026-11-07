@@ -1,22 +1,171 @@
 {
- "doctype": "DocType",
- "name": "Trivia Sync Run",
- "autoname": "hash",
- "module": "Trivia Sync",
- "read_only": 1,
- "field_order": ["source", "operation", "status", "started_at", "finished_at", "page", "records_created", "records_updated", "records_skipped", "records_errors", "error_log"],
- "fields": [
-  {"fieldname":"source","fieldtype":"Select","label":"Fonte","options":"QAPI\nFrappe LMS","in_list_view":1},
-  {"fieldname":"operation","fieldtype":"Select","label":"Operação","options":"Pull questions\nPush LMS content\nFull QAPI sync\nAI enrichment","in_list_view":1},
-  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Queued\nRunning\nCompleted\nPartial\nFailed","in_list_view":1},
-  {"fieldname":"started_at","fieldtype":"Datetime","label":"Início"},
-  {"fieldname":"finished_at","fieldtype":"Datetime","label":"Fim"},
-  {"fieldname":"page","fieldtype":"Int","label":"Última página"},
-  {"fieldname":"records_created","fieldtype":"Int","label":"Criados"},
-  {"fieldname":"records_updated","fieldtype":"Int","label":"Atualizados"},
-  {"fieldname":"records_skipped","fieldtype":"Int","label":"Ignorados"},
-  {"fieldname":"records_errors","fieldtype":"Int","label":"Erros"},
-  {"fieldname":"error_log","fieldtype":"Long Text","label":"Log de erros"}
- ],
- "permissions": [{"role":"System Manager","read":1,"write":1}]
+  "doctype": "DocType",
+  "name": "Trivia Sync Run",
+  "autoname": "hash",
+  "module": "Trivia Sync",
+  "read_only": 1,
+  "field_order": [
+    "source",
+    "operation",
+    "status",
+    "started_at",
+    "finished_at",
+    "page",
+    "records_created",
+    "records_updated",
+    "records_skipped",
+    "records_errors",
+    "error_log",
+    "operator",
+    "parameters_json",
+    "request_budget",
+    "credit_reserve",
+    "requests_made",
+    "credits_used",
+    "current_operation",
+    "resume_operation",
+    "resume_page"
+  ],
+  "fields": [
+    {
+      "fieldname": "source",
+      "fieldtype": "Select",
+      "label": "Fonte",
+      "options": "QAPI\nFrappe LMS\nIA",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "operation",
+      "fieldtype": "Select",
+      "label": "Operação",
+      "options": "Pull questions\nPush LMS content\nFull QAPI sync\nQAPI ingestion\nAI enrichment",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Queued\nRunning\nCompleted\nPartial\nFailed\nBlocked",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "started_at",
+      "fieldtype": "Datetime",
+      "label": "Início"
+    },
+    {
+      "fieldname": "finished_at",
+      "fieldtype": "Datetime",
+      "label": "Fim"
+    },
+    {
+      "fieldname": "page",
+      "fieldtype": "Int",
+      "label": "Última página"
+    },
+    {
+      "fieldname": "records_created",
+      "fieldtype": "Int",
+      "label": "Criados"
+    },
+    {
+      "fieldname": "records_updated",
+      "fieldtype": "Int",
+      "label": "Atualizados"
+    },
+    {
+      "fieldname": "records_skipped",
+      "fieldtype": "Int",
+      "label": "Ignorados"
+    },
+    {
+      "fieldname": "records_errors",
+      "fieldtype": "Int",
+      "label": "Erros"
+    },
+    {
+      "fieldname": "error_log",
+      "fieldtype": "Long Text",
+      "label": "Log de erros"
+    },
+    {
+      "fieldname": "operator",
+      "fieldtype": "Link",
+      "label": "Operador",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "parameters_json",
+      "fieldtype": "Code",
+      "label": "Parâmetros",
+      "options": "JSON",
+      "read_only": 1
+    },
+    {
+      "fieldname": "request_budget",
+      "fieldtype": "Int",
+      "label": "Orçamento de créditos aplicado",
+      "read_only": 1
+    },
+    {
+      "fieldname": "credit_reserve",
+      "fieldtype": "Int",
+      "label": "Reserva aplicada",
+      "read_only": 1
+    },
+    {
+      "fieldname": "requests_made",
+      "fieldtype": "Int",
+      "label": "Chamadas realizadas",
+      "read_only": 1
+    },
+    {
+      "fieldname": "credits_used",
+      "fieldtype": "Int",
+      "label": "Créditos consumidos",
+      "read_only": 1
+    },
+    {
+      "fieldname": "current_operation",
+      "fieldtype": "Data",
+      "label": "Operação atual",
+      "read_only": 1
+    },
+    {
+      "fieldname": "resume_operation",
+      "fieldtype": "Data",
+      "label": "Retomar em operação",
+      "read_only": 1
+    },
+    {
+      "fieldname": "resume_page",
+      "fieldtype": "Int",
+      "label": "Retomar na página",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1
+    }
+  ]
 }

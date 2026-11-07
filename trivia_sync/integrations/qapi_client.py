@@ -3,15 +3,25 @@ import frappe
 
 BASE_DEFAULT = "https://qapi.otunac.com/api"
 MCP_DEFAULT = "https://qapi.otunac.com/mcp"
+QAPI_METHOD_COSTS = {"provas": 200, "prova": 200}
 
 
 class QAPIError(RuntimeError):
 	pass
 
 
+class QAPIBudgetError(QAPIError):
+	pass
+
+
 class QAPIClient:
-	def __init__(self, settings_doc=None):
+	def __init__(self, settings_doc=None, max_requests=None):
 		self.settings = settings_doc or frappe.get_single("Trivia Sync Settings")
+		configured = int(getattr(self.settings, "qapi_max_requests_per_run", 0) or 0)
+		reserve = max(1, int(getattr(self.settings, "qapi_min_credit_reserve", 1) or 1))
+		self.max_requests = max(0, configured - reserve) if max_requests is None else max(0, int(max_requests))
+		self.requests_made = 0
+		self.credits_used = 0
 		self.base_url = (self.settings.qapi_base_url or BASE_DEFAULT).rstrip("/")
 		self.mcp_url = (self.settings.mcp_base_url or MCP_DEFAULT).rstrip("/")
 		self.api_key = self.settings.get_password("qapi_api_key") if self.settings.qapi_api_key else ""
@@ -21,7 +31,15 @@ class QAPIClient:
 		self.session = requests.Session()
 		self.session.headers.update({"Accept": "application/json", "Q-Api-Key": self.api_key})
 
-	def get(self, path, params=None):
+	def _reserve_request(self, cost=1):
+		cost = max(1, int(cost))
+		if self.credits_used + cost > self.max_requests:
+			raise QAPIBudgetError("Limite local de créditos QAPI atingido; nenhuma nova chamada foi enviada.")
+		self.requests_made += 1
+		self.credits_used += cost
+
+	def get(self, path, params=None, cost=1):
+		self._reserve_request(cost)
 		response = self.session.get(
 			f"{self.base_url}/{path.lstrip('/')}", params=params or {}, timeout=self.timeout
 		)
@@ -31,7 +49,8 @@ class QAPIClient:
 			raise QAPIError(f"QAPI {response.status_code}: {response.text[:500]}") from exc
 		return response.json()
 
-	def post(self, path, payload=None):
+	def post(self, path, payload=None, cost=1):
+		self._reserve_request(cost)
 		response = self.session.post(
 			f"{self.base_url}/{path.lstrip('/')}", json=payload or {}, timeout=self.timeout
 		)
@@ -41,7 +60,8 @@ class QAPIClient:
 			raise QAPIError(f"QAPI {response.status_code}: {response.text[:500]}") from exc
 		return response.json()
 
-	def mcp_call(self, tool, arguments=None):
+	def mcp_call(self, tool, arguments=None, cost=1):
+		self._reserve_request(cost)
 		response = requests.post(
 			self.mcp_url,
 			headers={
@@ -63,16 +83,16 @@ class QAPIClient:
 			raise QAPIError(str(payload["error"]))
 		return payload.get("result", payload)
 
-	def call(self, path, params=None, tool=None):
+	def call(self, path, params=None, tool=None, cost=1):
 		if getattr(self.settings, "mcp_enabled", 0) and tool:
-			return self.mcp_call(tool, params)
-		return self.get(path, params)
+			return self.mcp_call(tool, params, cost=cost)
+		return self.get(path, params, cost=cost)
 
-	def page(self, path, params=None, tool=None):
+	def page(self, path, params=None, tool=None, cost=1):
 		params = dict(params or {})
 		params["page"] = max(1, int(params.get("page", 1)))
 		params["size"] = min(10, max(1, int(params.get("size", 10))))
-		return self.call(path, params, tool)
+		return self.call(path, params, tool, cost=cost)
 
 	def questoes(self, **params):
 		return self.page("questoes", params, "get_questoes")
@@ -98,10 +118,10 @@ class QAPIClient:
 		return self.page("assuntos", params, "get_assuntos")
 
 	def provas(self, **params):
-		return self.page("provas", params, "get_provas")
+		return self.page("provas", params, "get_provas", cost=QAPI_METHOD_COSTS["provas"])
 
 	def prova(self, rid):
-		return self.call(f"provas/{rid}", {"id": rid}, tool="get_prova_por_id")
+		return self.call(f"provas/{rid}", {"id": rid}, tool="get_prova_por_id", cost=QAPI_METHOD_COSTS["prova"])
 
 	def concursos(self, **params):
 		return self.page("concursos", params, "get_concursos")

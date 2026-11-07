@@ -1,0 +1,55 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Exam Block",
+  "module": "Trivia Sync",
+  "custom": 0,
+  "istable": 1,
+  "track_changes": 1,
+  "field_order": [
+    "titulo",
+    "ordem",
+    "marks",
+    "passing_score",
+    "conteudos_programaticos",
+    "question_count"
+  ],
+  "fields": [
+    {
+      "fieldname": "titulo",
+      "fieldtype": "Data",
+      "label": "Bloco",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "ordem",
+      "fieldtype": "Int",
+      "label": "Ordem",
+      "reqd": 1
+    },
+    {
+      "fieldname": "marks",
+      "fieldtype": "Float",
+      "label": "Pontuação por questão",
+      "default": "1"
+    },
+    {
+      "fieldname": "passing_score",
+      "fieldtype": "Float",
+      "label": "Nota mínima"
+    },
+    {
+      "fieldname": "conteudos_programaticos",
+      "fieldtype": "Table MultiSelect",
+      "label": "Tópicos",
+      "options": "Trivia Exam Block Syllabus Topic"
+    },
+    {
+      "fieldname": "question_count",
+      "fieldtype": "Int",
+      "label": "Questões do bloco",
+      "non_negative": 1
+    }
+  ],
+  "permissions": []
+}

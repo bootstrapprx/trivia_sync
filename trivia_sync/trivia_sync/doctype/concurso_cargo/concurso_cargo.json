@@ -1,0 +1,122 @@
+{
+  "doctype": "DocType",
+  "name": "Concurso Cargo",
+  "module": "Trivia Sync",
+  "custom": 0,
+  "istable": 0,
+  "track_changes": 1,
+  "field_order": [
+    "concurso",
+    "cargo",
+    "codigo",
+    "titulo",
+    "lms_course",
+    "requisitos",
+    "vagas",
+    "syllabus_version",
+    "is_active",
+    "source_type",
+    "source_id",
+    "source_key"
+  ],
+  "fields": [
+    {
+      "fieldname": "concurso",
+      "fieldtype": "Link",
+      "label": "Concurso",
+      "options": "Concurso",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "cargo",
+      "fieldtype": "Link",
+      "label": "Cargo de catálogo",
+      "options": "Cargo",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "codigo",
+      "fieldtype": "Data",
+      "label": "Código no edital"
+    },
+    {
+      "fieldname": "titulo",
+      "fieldtype": "Data",
+      "label": "Cargo no edital",
+      "reqd": 1
+    },
+    {
+      "fieldname": "lms_course",
+      "fieldtype": "Link",
+      "label": "Curso LMS existente",
+      "options": "LMS Course",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "requisitos",
+      "fieldtype": "Text Editor",
+      "label": "Requisitos"
+    },
+    {
+      "fieldname": "vagas",
+      "fieldtype": "Int",
+      "label": "Vagas"
+    },
+    {
+      "fieldname": "syllabus_version",
+      "fieldtype": "Data",
+      "label": "Versão da ementa"
+    },
+    {
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "label": "Ativo",
+      "default": "1"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Tipo de fonte",
+      "default": "Manual"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "ID na fonte"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Chave estável da fonte",
+      "unique": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    }
+  ]
+}

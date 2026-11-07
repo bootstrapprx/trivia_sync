@@ -2,12 +2,11 @@ import hashlib
 import json
 
 import frappe
+from trivia_sync.integrations.editorial import validate_projection_eligibility
 
 
 def sync_lms_question(source):
-	options = json.loads(source.options or "{}")
-	if len(options) < 2 or source.correct_option not in options:
-		return "skipped"
+	options = validate_projection_eligibility(source)
 
 	text = frappe.get_doc("Texto de Apoio", source.texto_apoio) if source.texto_apoio else None
 	question_text = source.enunciado
@@ -18,6 +17,8 @@ def sync_lms_question(source):
 		"type": "Choices",
 		"marks": 1,
 		"trivia_qcode": source.qcode,
+		"trivia_source_key": source.source_key,
+		"trivia_question": source.name,
 		"trivia_banca": source.banca,
 		"trivia_orgao": source.orgao,
 		"trivia_cargo": source.cargo,
@@ -46,12 +47,28 @@ def sync_lms_question(source):
 		).encode("utf-8")
 	).hexdigest()
 	fields["trivia_sync_hash"] = sync_hash
+	projection_key = hashlib.sha256(f"{source.source_key}:{sync_hash}".encode("utf-8")).hexdigest()
+	fields["trivia_projection_key"] = projection_key
 
-	name = frappe.db.get_value("LMS Question", {"trivia_qcode": source.qcode}, "name")
+	name = frappe.db.get_value("LMS Question", {"trivia_projection_key": projection_key}, "name")
+	if not name:
+		name = frappe.db.get_value("LMS Question", {"trivia_source_key": source.source_key}, "name")
+	if not name and source.qcode:
+		name = frappe.db.get_value("LMS Question", {"trivia_qcode": source.qcode}, "name")
 	if name:
 		question = frappe.get_doc("LMS Question", name)
-		if question.trivia_sync_hash == sync_hash:
-			return "skipped"
+		if question.trivia_source_key and question.trivia_source_key != source.source_key:
+			frappe.throw("O código legado da questão LMS aponta para outra identidade de fonte.")
+		if question.trivia_sync_hash == sync_hash and question.trivia_source_key == source.source_key:
+			source.lms_question = question.name
+			source.projection_status = "Projected"
+			source.projection_hash = sync_hash
+			source.projected_at = frappe.utils.now_datetime()
+			source.projection_error = None
+			source.save(ignore_permissions=True)
+			return question.name
+		if question.trivia_sync_hash != sync_hash and frappe.db.exists("LMS Quiz Question", {"question": question.name}):
+			question = frappe.new_doc("LMS Question")
 	else:
 		question = frappe.new_doc("LMS Question")
 
@@ -60,6 +77,12 @@ def sync_lms_question(source):
 
 	if question.is_new():
 		question.insert(ignore_permissions=True)
-		return "created"
-	question.save(ignore_permissions=True)
-	return "updated"
+	else:
+		question.save(ignore_permissions=True)
+	source.lms_question = question.name
+	source.projection_status = "Projected"
+	source.projection_hash = sync_hash
+	source.projected_at = frappe.utils.now_datetime()
+	source.projection_error = None
+	source.save(ignore_permissions=True)
+	return question.name

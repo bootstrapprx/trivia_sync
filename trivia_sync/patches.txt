@@ -8,3 +8,5 @@
 [post_fixture_sync]
 # Patches added in this section will be executed after fixtures and customizations
 # (Custom Field, Property Setter, etc) are synced
+trivia_sync.patches.v0_2.backfill_contest_relations
+trivia_sync.patches.v0_3.backfill_legacy_lms_questions

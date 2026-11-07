@@ -14,7 +14,10 @@
     "materia",
     "raw_payload",
     "sync_hash",
-    "last_synced_at"
+    "last_synced_at",
+    "source_type",
+    "source_id",
+    "source_key"
   ],
   "fields": [
     {
@@ -37,7 +40,8 @@
     {
       "fieldname": "concurso",
       "fieldtype": "Link",
-      "label": "Concurso"
+      "label": "Concurso",
+      "options": "Concurso"
     },
     {
       "fieldname": "cargo",
@@ -65,6 +69,23 @@
       "fieldname": "last_synced_at",
       "fieldtype": "Datetime",
       "label": "Última sincronização"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Tipo de fonte",
+      "default": "QAPI"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "ID na fonte"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Chave estável da fonte",
+      "unique": 1
     }
   ],
   "permissions": [
@@ -74,6 +95,18 @@
       "write": 1,
       "create": 1,
       "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
     }
   ]
 }

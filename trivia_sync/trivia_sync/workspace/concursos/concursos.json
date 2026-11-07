@@ -5,14 +5,14 @@
   "title": "Concursos",
   "module": "Trivia Sync",
   "icon": "education",
-  "public": 1,
+  "public": 0,
   "is_hidden": 0,
-  "content": "[{\"id\":\"concurso-setup\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuração QAPI\",\"col\":6}},{\"id\":\"concurso-questions\",\"type\":\"card\",\"data\":{\"card_name\":\"Banco LMS\",\"col\":6}}]",
+  "content": "[{\"id\":\"contest-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operação de concursos\",\"col\":6}},{\"id\":\"contest-editorial\",\"type\":\"card\",\"data\":{\"card_name\":\"Banco editorial\",\"col\":6}},{\"id\":\"contest-content\",\"type\":\"card\",\"data\":{\"card_name\":\"Materiais\",\"col\":6}}]",
   "links": [
     {
       "type": "Card Break",
-      "label": "Configuração QAPI",
-      "link_count": 1,
+      "label": "Concursos e sincronização",
+      "link_count": 6,
       "hidden": 0,
       "is_query_report": 0,
       "onboard": 0
@@ -27,25 +27,34 @@
       "is_query_report": 0,
       "onboard": 0
     },
+    {"type":"Link","label":"Concursos","link_type":"DocType","link_to":"Concurso","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Cargos do concurso","link_type":"DocType","link_to":"Concurso Cargo","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Conteúdo programático","link_type":"DocType","link_to":"Conteúdo Programático","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Provas e simulados","link_type":"DocType","link_to":"Prova","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Execuções de sincronização","link_type":"DocType","link_to":"Trivia Sync Run","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Dashboard","link_type":"Page","link_to":"trivia-sync-dashboard","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
     {
       "type": "Card Break",
-      "label": "Banco LMS",
-      "link_count": 1,
+      "label": "Banco editorial e revisão",
+      "link_count": 4,
       "hidden": 0,
       "is_query_report": 0,
       "onboard": 0
     },
     {
       "type": "Link",
-      "label": "Questões",
+      "label": "Fila de revisão e banco de questões",
       "link_type": "DocType",
-      "link_to": "LMS Question",
+      "link_to": "Trivia Question",
       "link_count": 0,
       "hidden": 0,
       "is_query_report": 0,
       "onboard": 0
-    }
+    },
+    {"type":"Link","label":"Apostilas","link_type":"DocType","link_to":"Trivia Apostila Recipe","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Receitas de aula","link_type":"DocType","link_to":"Trivia Lesson Recipe","link_count":0,"hidden":0,"is_query_report":0,"onboard":0},
+    {"type":"Link","label":"Metodologias","link_type":"DocType","link_to":"Trivia Methodology","link_count":0,"hidden":0,"is_query_report":0,"onboard":0}
   ],
-  "roles": [{"role": "System Manager"}],
+  "roles": [{"role":"System Manager"},{"role":"Trivia Editor"},{"role":"Trivia Reviewer"},{"role":"Trivia Integrator"}],
   "sequence_id": 1
 }

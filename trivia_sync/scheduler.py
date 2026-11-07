@@ -12,6 +12,7 @@ def run_qapi_sync_if_enabled():
 	if (
 		settings
 		and settings.qapi_enabled
+		and int(settings.qapi_max_requests_per_run or 0) > max(1, int(settings.qapi_min_credit_reserve or 1))
 		and settings.qapi_sync_frequency in ("Hourly", "Every scheduler tick")
 	):
 		frappe.enqueue(

@@ -1,8 +1,9 @@
 import frappe
+from trivia_sync.integrations.reconciliation import question_coverage
 
 
 def _admin():
-	frappe.only_for("System Manager")
+	frappe.only_for("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor")
 
 
 def _safe_count(doctype, filters=None):
@@ -56,14 +57,61 @@ def metrics():
 			"records_updated",
 			"records_skipped",
 			"records_errors",
+			"requests_made",
+			"credits_used",
+			"request_budget",
+			"credit_reserve",
+			"current_operation",
+			"resume_operation",
+			"resume_page",
 		],
 		order_by="creation desc",
 		limit_page_length=12,
 	)
 	running = sum(1 for row in run_rows if row.status == "Running")
 	failed = sum(1 for row in run_rows if row.status in {"Failed", "Partial"})
+	oldest_pending = frappe.get_all(
+		"Trivia Question", filters={"review_status": "Pending"}, fields=["creation"],
+		order_by="creation asc", page_length=1,
+	)
+	oldest_days = 0
+	if oldest_pending and oldest_pending[0].creation:
+		oldest_days = max(0, int((frappe.utils.now_datetime() - oldest_pending[0].creation).total_seconds() // 86400))
+	settings = frappe.get_single("Trivia Sync Settings")
+	latest_qapi_run = frappe.get_all(
+		"Trivia Sync Run", filters={"source": "QAPI"},
+		fields=["name", "status", "started_at", "finished_at", "requests_made", "credits_used", "request_budget", "credit_reserve", "current_operation", "resume_operation", "resume_page"],
+		order_by="creation desc", page_length=1,
+	)
+	cargo_rows = frappe.get_all(
+		"Concurso Cargo", fields=["name", "concurso", "cargo", "lms_course"],
+		order_by="modified desc", page_length=25,
+	)
+	cargo_coverage = []
+	for cargo in cargo_rows:
+		coverage = question_coverage(cargo.name)
+		cargo_coverage.append({
+			"concurso_cargo": cargo.name, "concurso": cargo.concurso, "cargo": cargo.cargo,
+			"lms_course": cargo.lms_course, "questions": coverage["total"], "eligible": coverage["eligible"],
+			"subjects": coverage["subject"], "topics": coverage["topic"], "review": coverage["review"],
+			"license": coverage["license"], "source": coverage["source"],
+		})
 	return {
 		"workers": {"running": running, "failed_recent": failed, "recent_runs": run_rows},
+		"editorial": {
+			"pending_review": _safe_count("Trivia Question", {"review_status": "Pending"}),
+			"oldest_pending_days": oldest_days,
+			"projection_pending": _safe_count("Trivia Question", {"projection_status": "Pending"}),
+			"projection_failed": _safe_count("Trivia Question", {"projection_status": "Failed"}),
+		},
+		"source_sync": {
+			"enabled": bool(settings.qapi_enabled), "last_run": latest_qapi_run[0] if latest_qapi_run else None,
+			"last_sync": settings.last_qapi_sync_at,
+			"request_budget": int(settings.qapi_max_requests_per_run or 0),
+			"credit_reserve": max(1, int(settings.qapi_min_credit_reserve or 1)),
+			"paid_sync_available": int(settings.qapi_max_requests_per_run or 0) > max(1, int(settings.qapi_min_credit_reserve or 1)),
+		},
+		"syllabus_coverage": cargo_coverage,
 		"questions": {
 			"total": total_questions,
 			"enriched": enriched_questions,
