@@ -1,0 +1,122 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Contest Position",
+  "module": "Trivia Sync",
+  "custom": 0,
+  "istable": 0,
+  "track_changes": 1,
+  "field_order": [
+    "concurso",
+    "cargo",
+    "codigo",
+    "titulo",
+    "lms_course",
+    "requisitos",
+    "vagas",
+    "syllabus_version",
+    "is_active",
+    "source_type",
+    "source_id",
+    "source_key"
+  ],
+  "fields": [
+    {
+      "fieldname": "concurso",
+      "fieldtype": "Link",
+      "label": "Contest",
+      "options": "Trivia Contest",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "cargo",
+      "fieldtype": "Link",
+      "label": "Catalog position",
+      "options": "Trivia Position",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "codigo",
+      "fieldtype": "Data",
+      "label": "Notice code"
+    },
+    {
+      "fieldname": "titulo",
+      "fieldtype": "Data",
+      "label": "Notice position",
+      "reqd": 1
+    },
+    {
+      "fieldname": "lms_course",
+      "fieldtype": "Link",
+      "label": "Existing LMS course",
+      "options": "LMS Course",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "requisitos",
+      "fieldtype": "Text Editor",
+      "label": "Requirements"
+    },
+    {
+      "fieldname": "vagas",
+      "fieldtype": "Int",
+      "label": "Vacancies"
+    },
+    {
+      "fieldname": "syllabus_version",
+      "fieldtype": "Data",
+      "label": "Syllabus version"
+    },
+    {
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "label": "Active",
+      "default": "1"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Source type",
+      "default": "Manual"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "Source ID"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Stable source key",
+      "unique": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    }
+  ]
+}

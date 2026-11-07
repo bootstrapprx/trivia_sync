@@ -17,37 +17,37 @@
     {
       "fieldname": "titulo",
       "fieldtype": "Data",
-      "label": "Bloco",
+      "label": "Block",
       "reqd": 1,
       "in_list_view": 1
     },
     {
       "fieldname": "ordem",
       "fieldtype": "Int",
-      "label": "Ordem",
+      "label": "Order",
       "reqd": 1
     },
     {
       "fieldname": "marks",
       "fieldtype": "Float",
-      "label": "Pontuação por questão",
+      "label": "Marks per question",
       "default": "1"
     },
     {
       "fieldname": "passing_score",
       "fieldtype": "Float",
-      "label": "Nota mínima"
+      "label": "Passing score"
     },
     {
       "fieldname": "conteudos_programaticos",
       "fieldtype": "Table MultiSelect",
-      "label": "Tópicos",
+      "label": "Topics",
       "options": "Trivia Exam Block Syllabus Topic"
     },
     {
       "fieldname": "question_count",
       "fieldtype": "Int",
-      "label": "Questões do bloco",
+      "label": "Block questions",
       "non_negative": 1
     }
   ],

@@ -18,64 +18,64 @@
     {
       "fieldname": "title",
       "fieldtype": "Data",
-      "label": "Título",
+      "label": "Title",
       "reqd": 1
     },
     {
       "fieldname": "course",
       "fieldtype": "Link",
-      "label": "Curso LMS",
+      "label": "LMS course",
       "options": "LMS Course",
       "reqd": 1
     },
     {
       "fieldname": "course_lesson",
       "fieldtype": "Link",
-      "label": "Aula LMS existente",
+      "label": "Existing LMS lesson",
       "options": "Course Lesson",
       "reqd": 1
     },
     {
       "fieldname": "concurso_cargo",
       "fieldtype": "Link",
-      "label": "Cargo do concurso",
-      "options": "Concurso Cargo"
+      "label": "Contest position",
+      "options": "Trivia Contest Position"
     },
     {
       "fieldname": "methodology",
       "fieldtype": "Link",
-      "label": "Metodologia",
+      "label": "Methodology",
       "options": "Trivia Methodology"
     },
     {
       "fieldname": "prompt",
       "fieldtype": "Small Text",
-      "label": "Instrução adicional"
+      "label": "Additional instructions"
     },
     {
       "fieldname": "source_hash",
       "fieldtype": "Data",
-      "label": "Hash das fontes",
+      "label": "Source hash",
       "read_only": 1
     },
     {
       "fieldname": "source_keys",
       "fieldtype": "Code",
-      "label": "Identidades de origem",
+      "label": "Source identities",
       "options": "JSON",
       "read_only": 1
     },
     {
       "fieldname": "status",
       "fieldtype": "Select",
-      "label": "Estado",
+      "label": "Status",
       "options": "Draft\nPublished\nArchived",
       "default": "Draft"
     },
     {
       "fieldname": "material_versions",
       "fieldtype": "Table",
-      "label": "Versões de conteúdo",
+      "label": "Content versions",
       "options": "Trivia Material Version"
     }
   ],

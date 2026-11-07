@@ -3,7 +3,7 @@ from typing import Protocol
 from trivia_sync.integrations.qapi_client import QAPIClient, QAPI_METHOD_COSTS
 
 
-class SourceAdapter(Protocol):
+class FonteAdapter(Protocol):
 	source_type: str
 
 	def request_cost(self, operation: str) -> int: ...

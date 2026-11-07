@@ -1,0 +1,172 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Contest",
+  "autoname": "field:qapi_id",
+  "module": "Trivia Sync",
+  "title_field": "titulo",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "qapi_id",
+    "titulo",
+    "orgao",
+    "banca",
+    "status",
+    "ano",
+    "regiao",
+    "estado",
+    "raw_payload",
+    "sync_hash",
+    "last_synced_at",
+    "source_type",
+    "source_id",
+    "source_key",
+    "is_obsolete",
+    "public_section",
+    "public_slug",
+    "public_summary",
+    "publication_status",
+    "published_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "identity_section",
+      "fieldtype": "Section Break",
+      "label": "Identity"
+    },
+    {
+      "fieldname": "qapi_id",
+      "fieldtype": "Data",
+      "label": "QAPI ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "titulo",
+      "fieldtype": "Data",
+      "label": "Title",
+      "reqd": 1
+    },
+    {
+      "fieldname": "orgao",
+      "fieldtype": "Data",
+      "label": "Organization"
+    },
+    {
+      "fieldname": "banca",
+      "fieldtype": "Data",
+      "label": "Exam board"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Data",
+      "label": "Status"
+    },
+    {
+      "fieldname": "ano",
+      "fieldtype": "Int",
+      "label": "Year"
+    },
+    {
+      "fieldname": "regiao",
+      "fieldtype": "Data",
+      "label": "Region"
+    },
+    {
+      "fieldname": "estado",
+      "fieldtype": "Data",
+      "label": "Status"
+    },
+    {
+      "fieldname": "raw_payload",
+      "fieldtype": "Code",
+      "label": "Raw payload",
+      "options": "JSON",
+      "hidden": 1
+    },
+    {
+      "fieldname": "sync_hash",
+      "fieldtype": "Data",
+      "label": "Hash"
+    },
+    {
+      "fieldname": "last_synced_at",
+      "fieldtype": "Datetime",
+      "label": "Last synced at"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Source type",
+      "default": "QAPI"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "Source ID"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Stable source key",
+      "unique": 1
+    },
+    {
+      "fieldname": "is_obsolete",
+      "fieldtype": "Check",
+      "label": "Obsolete"
+    },
+    {
+      "fieldname": "public_section",
+      "fieldtype": "Section Break",
+      "label": "Public listing"
+    },
+    {
+      "fieldname": "public_slug",
+      "fieldtype": "Data",
+      "label": "Public identifier",
+      "unique": 1
+    },
+    {
+      "fieldname": "public_summary",
+      "fieldtype": "Small Text",
+      "label": "Public summary"
+    },
+    {
+      "fieldname": "publication_status",
+      "fieldtype": "Select",
+      "label": "Publication status",
+      "options": "Draft\nPublished\nArchived",
+      "default": "Draft"
+    },
+    {
+      "fieldname": "published_at",
+      "fieldtype": "Datetime",
+      "label": "Published at"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1
+    }
+  ]
+}

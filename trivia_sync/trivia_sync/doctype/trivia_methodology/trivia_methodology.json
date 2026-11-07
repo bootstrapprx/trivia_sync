@@ -12,13 +12,13 @@
     {
       "fieldname": "title",
       "fieldtype": "Data",
-      "label": "Título",
+      "label": "Title",
       "reqd": 1
     },
     {
       "fieldname": "activity_type",
       "fieldtype": "Select",
-      "label": "Tipo",
+      "label": "Type",
       "options": "Lesson\nExercise\nReview",
       "default": "Lesson",
       "reqd": 1
@@ -26,13 +26,13 @@
     {
       "fieldname": "instructions",
       "fieldtype": "Text Editor",
-      "label": "Instruções editoriais",
+      "label": "Editorial instructions",
       "reqd": 1
     },
     {
       "fieldname": "active",
       "fieldtype": "Check",
-      "label": "Ativa",
+      "label": "Active",
       "default": "1"
     }
   ],

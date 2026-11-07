@@ -1,8 +1,8 @@
 # Trivia Sync
 
-Camada editorial e de concursos para Frappe LMS. O app importa catálogos e questões da QAPI, organiza concursos, cargos e conteúdo programático, exige revisão e decisão de redistribuição antes de projetar questões no LMS e monta provas preservando quizzes e tentativas anteriores.
+Editorial and public-exam contest tools for Frappe LMS. The app imports QAPI catalogs and questions, organizes contests, positions, and syllabus topics, requires editorial review and redistribution clearance before projecting questions to the LMS, and builds exams while preserving existing quizzes and attempts.
 
-## Instalação e configuração
+## Installation and setup
 
 ```bash
 bench get-app https://github.com/bootstrapprx/trivia_sync --branch main
@@ -10,40 +10,40 @@ bench --site <site> install-app trivia_sync
 bench --site <site> migrate
 ```
 
-Abra **Trivia Sync Onboarding** ou **Trivia Sync Settings** para configurar endpoint e chave da QAPI. Segredos são armazenados como Password e não devem ser incluídos em logs, issues ou comandos compartilhados. Faça backup antes de migrar um site existente. A migração adiciona campos e DocTypes; patches legados podem ser repetidos.
+Open **Contest Setup** or **Trivia Sync Settings** to configure the QAPI endpoint and key. Secrets are stored as Password fields and must not be included in logs, issues, or shared shell commands. Back up an existing site before migration. The migration renames Portuguese DocTypes to ASCII English names and updates their Link fields while preserving their records; it also applies additive schema updates and legacy patches.
 
-## Importação e orçamento
+## Import and request budgets
 
-QAPI pode cobrar por chamada: listagens de provas custam 200 créditos; as demais chamadas conhecidas custam 1. `qapi_max_requests_per_run=0` bloqueia a sincronização paga; defina um limite de créditos e `qapi_min_credit_reserve` antes de executar. O modo dry-run estima o custo em créditos sem gravar registros nem chamar endpoints pagos. O agendamento de sincronização paga permanece desativado por padrão; habilite-o apenas depois de configurar limite e reserva. Execuções registram operador, parâmetros, chamadas, créditos consumidos, erros e cursor de retomada. Retome execuções incompletas pelo onboarding/API após conferir saldo e filtros.
+QAPI may charge per request: exam listings cost 200 credits per call; other known requests cost 1. `qapi_max_requests_per_run=0` blocks paid sync. Set a credit limit and `qapi_min_credit_reserve` before running it. Dry-run estimates costs without writing records or calling paid endpoints. Paid scheduling is disabled by default; enable it only after setting a limit and reserve. Runs record the operator, parameters, requests, credits used, errors, and resume cursor. Review the available balance and filters before resuming an incomplete run through onboarding or the API.
 
-Importações usam identidade estável e atualizam apenas campos pertencentes à fonte. Campos editoriais e notas locais são preservados. Quando conteúdo avaliável muda, a aprovação dependente desse conteúdo volta para revisão e o enriquecimento IA fica desatualizado. Correspondências ambíguas de banca, órgão, matéria, assunto ou cargo ficam sem vínculo para reconciliação manual. Nós de ementa ausentes ficam obsoletos; não são apagados.
+Imports use stable source identities and update only source-owned fields. Editorial fields and local notes are preserved. A change to assessable content returns its approval to review and marks AI enrichment stale. Ambiguous exam board, organization, subject, topic, or position matches remain unlinked for manual reconciliation. Missing syllabus nodes become obsolete; they are not deleted.
 
-## Direitos, revisão e projeção LMS
+## Rights, review, and LMS projection
 
-Registro de licença/atribuição e decisão de redistribuição são independentes da revisão editorial. Configure a licença e confirme explicitamente o direito de redistribuir antes de projetar uma questão. Um revisor aprova ou rejeita com motivo; IA nunca aprova conteúdo.
+License/attribution records and redistribution decisions are separate from editorial review. Record the license and explicitly confirm redistribution rights before projecting a question. A reviewer approves or rejects each question with a reason; AI never approves content.
 
-Somente questões válidas, aprovadas, liberadas para redistribuição e com licença registrada podem virar `LMS Question`. Projeções são repetíveis e versionadas por hash de conteúdo. Uma questão LMS já usada em quiz não é alterada quando a fonte muda: uma nova versão é criada. Os patches `v0_2` e `v0_3` fazem backfill aditivo de classificações e vínculos LMS legados; revise contagens de não correspondidos/ambíguos após a migração.
+Only valid questions that are editorially approved, cleared for redistribution, and have a recorded license can become `LMS Question` records. Projections are repeatable and versioned by content hash. An LMS question already used in a quiz is not changed when its source changes; a new version is created instead. Patches `v0_2` and `v0_3` additively backfill classifications and legacy LMS links. Review unresolved and ambiguous counts after migration.
 
-## Cargos, simulados e tentativas
+## Contest positions, mock tests, and attempts
 
-`Concurso Cargo` liga concurso, cargo, curso LMS existente e ementa. A importação não cria cursos nem aulas. A cobertura por cargo separa banco total, questões elegíveis, tópicos, revisão, licença e fonte.
+`Trivia Contest Position` links a contest, catalog position, existing LMS course, and syllabus. Imports do not create courses or lessons. Position coverage separates the full bank from eligible questions by topic, review, license, and source.
 
-Monte o blueprint da `Prova` com blocos/tópicos e quantidade desejada. A montagem calcula primeiro o conjunto elegível e não grava quiz parcial se o banco for insuficiente. Publicar exige curso e aula existentes e permissão de escrita no curso. O quiz ativo é colocado no conteúdo da aula sem substituir blocos alheios. Alterações após tentativas criam uma versão nova; quizzes antigos e submissões permanecem preservados.
+Build a `Trivia Exam` blueprint with blocks, topics, and requested counts. Assembly calculates the eligible pool first and writes no partial quiz when the pool is insufficient. Publishing requires an existing course and lesson plus write permission on the course. The active quiz is placed in lesson content without replacing unrelated blocks. Changes after submissions create a new version; old quizzes and submissions remain intact.
 
-## Catálogo público e materiais assistidos
+## Public catalog and assisted materials
 
-O catálogo público está em `/concursos`. Só concursos publicados com cursos LMS publicados aparecem. Respostas, explicações, payloads de fonte e dados de aluno não são expostos pelas APIs públicas.
+The public catalog is available at `/concursos`. Only published contests linked to published LMS courses are shown. Public APIs do not expose answers, explanations, source payloads, or student data.
 
-Receitas de aula/apostila usam apenas fontes aprovadas e licenciadas. Geração assistida cria versões em rascunho; aprovação humana é necessária para publicar. Mudança nas fontes invalida a versão. PDFs são privados por padrão e só ficam públicos para curso publicado e gratuito.
+Lesson and study-guide recipes use approved, licensed sources. Assisted generation creates draft versions; a human must approve them before publication. Source changes make a version stale. PDFs are private by default and can be public only for a published, free course.
 
-## Recuperação e validação
+## Recovery and validation
 
-Faça backup do site antes de `bench migrate`. Se migração ou backfill falhar, preserve logs e backup, corrija o app e repita a migração/patch idempotente; não apague questões, quizzes ou tentativas para contornar erro. Falhas de projeção podem ser retomadas sem desfazer a aprovação. Para parar chamadas pagas, zere o limite e desative o agendamento.
+Back up the site before `bench migrate`. If migration or a backfill fails, preserve logs and backups, fix the app, and rerun the idempotent migration/patch. Do not delete questions, quizzes, or attempts to work around an error. Projection failures can be retried without revoking approval. To stop paid requests, set the limit to zero and disable scheduling.
 
-Execute a suíte no bench:
+Run the app suite in the bench:
 
 ```bash
 bench --site <site> run-tests --app trivia_sync
 ```
 
-Ver detalhes de recuperação e publicação em [`docs/runbooks/trivia-sync-operations.md`](docs/runbooks/trivia-sync-operations.md).
+See [`docs/runbooks/trivia-sync-operations.md`](docs/runbooks/trivia-sync-operations.md) for recovery and publishing details.

@@ -52,6 +52,6 @@ class TestSourceOwnership(unittest.TestCase):
     def test_resource_update_ignores_fields_outside_source_allowlist(self):
         doc = types.SimpleNamespace(nome="Original", editorial_notes="Local")
         self.module.update_source_owned_fields(
-            doc, {"nome": "From source", "editorial_notes": "Overwritten"}, "Banca"
+            doc, {"nome": "From source", "editorial_notes": "Overwritten"}, "Trivia Exam Board"
         )
         self.assertEqual((doc.nome, doc.editorial_notes), ("From source", "Local"))

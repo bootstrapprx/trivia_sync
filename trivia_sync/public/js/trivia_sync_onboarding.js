@@ -1,7 +1,7 @@
 frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("Configuração de Concursos"),
+		title: __("Contest Setup"),
 		single_column: true,
 	});
 	const main = page.main.addClass("trivia-onboarding-page").empty();
@@ -9,29 +9,29 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	main.html(`
 		<div class="trivia-onboarding-header">
 			<div class="trivia-onboarding-eyebrow">TRIVIA SYNC</div>
-			<h2>Prepare seu banco de questões</h2>
-			<p>Configure a origem, o orçamento de créditos e encaminhe questões à revisão editorial antes do LMS.</p>
+			<h2>Prepare your question bank</h2>
+			<p>Configure the source and credit budget, then send questions for editorial review before they reach the LMS.</p>
 		</div>
 		<div class="trivia-onboarding-grid">
 			<section class="frappe-card trivia-onboarding-step">
-				<div class="trivia-onboarding-step-title"><span>1</span><div><h3>Conectar à QAPI</h3><p>Informe a URL e sua chave de acesso.</p></div></div>
+				<div class="trivia-onboarding-step-title"><span>1</span><div><h3>Connect to QAPI</h3><p>Enter the URL and your API key.</p></div></div>
 				<div data-field="qapi_base_url"></div>
 				<div data-field="qapi_api_key"></div>
 				<div data-field="qapi_enabled"></div>
 				<div data-field="qapi_sync_frequency"></div>
 				<div data-field="qapi_max_requests_per_run"></div>
 				<div data-field="qapi_min_credit_reserve"></div>
-				<button class="btn btn-primary" data-action="save">Salvar configuração</button>
+				<button class="btn btn-primary" data-action="save">Save settings</button>
 			</section>
 			<section class="frappe-card trivia-onboarding-step">
-				<div class="trivia-onboarding-step-title"><span>2</span><div><h3>Testar conexão</h3><p>Confirme que a chave permite acessar a QAPI.</p></div></div>
+				<div class="trivia-onboarding-step-title"><span>2</span><div><h3>Test connection</h3><p>Confirm that the key can access QAPI.</p></div></div>
 			<div class="trivia-onboarding-status text-muted" data-status></div>
-			<button class="btn btn-default" data-action="test">Testar QAPI</button>
+			<button class="btn btn-default" data-action="test">Test QAPI</button>
 			</section>
 			<section class="frappe-card trivia-onboarding-step">
-			<div class="trivia-onboarding-step-title"><span>3</span><div><h3>Prévia e importação</h3><p>A importação cria questões pendentes na fila editorial. Só itens aprovados e liberados serão projetados no LMS.</p></div></div>
-			<button class="btn btn-default" data-action="dry-run">Simular custo</button>
-			<button class="btn btn-primary" data-action="sync">Importar questões para revisão</button>
+			<div class="trivia-onboarding-step-title"><span>3</span><div><h3>Preview and import</h3><p>Imports create questions in the editorial review queue. Only approved and cleared items are projected to the LMS.</p></div></div>
+			<button class="btn btn-default" data-action="dry-run">Estimate cost</button>
+			<button class="btn btn-primary" data-action="sync">Import questions for review</button>
 			</section>
 		</div>`);
 
@@ -39,36 +39,36 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 		qapi_base_url: {
 			fieldname: "qapi_base_url",
 			fieldtype: "Data",
-			label: __("URL base"),
+			label: __("Base URL"),
 			reqd: 1,
 		},
 		qapi_api_key: {
 			fieldname: "qapi_api_key",
 			fieldtype: "Password",
-			label: __("Chave Q-Api-Key"),
-			placeholder: __("Cole sua chave da QAPI"),
+			label: __("Q-Api-Key"),
+			placeholder: __("Paste your QAPI key"),
 		},
 		qapi_enabled: {
 			fieldname: "qapi_enabled",
 			fieldtype: "Check",
-			label: __("Habilitar sincronização automática"),
+			label: __("Enable automatic sync"),
 		},
 		qapi_sync_frequency: {
 			fieldname: "qapi_sync_frequency",
 			fieldtype: "Select",
-			label: __("Frequência"),
+			label: __("Frequency"),
 			options: "Hourly\nEvery scheduler tick",
 		},
 		qapi_max_requests_per_run: {
 			fieldname: "qapi_max_requests_per_run",
 			fieldtype: "Int",
-			label: __("Limite de créditos QAPI por execução (0 desativa; provas custam 200)"),
+			label: __("QAPI credit limit per run (0 disables sync; exams cost 200)"),
 			default: 0,
 		},
 		qapi_min_credit_reserve: {
 			fieldname: "qapi_min_credit_reserve",
 			fieldtype: "Int",
-			label: __("Créditos para manter reservados"),
+			label: __("Credits to keep in reserve"),
 			default: 1,
 		},
 	};
@@ -92,7 +92,7 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 			controls.qapi_max_requests_per_run.set_value(message.request_budget || 0);
 			controls.qapi_min_credit_reserve.set_value(message.credit_reserve || 0);
 			main.find("[data-status]").text(
-				`${message.configured ? __("Chave configurada") : __("Chave pendente")} · ${__("Limite efetivo")}: ${message.paid_sync_available ? message.request_budget - message.credit_reserve : 0} ${__("créditos")} · ${__("Última sincronização")}: ${message.last_sync || __("nunca")}`
+				`${message.configured ? __("Key configured") : __("Key missing")} · ${__("Effective limit")}: ${message.paid_sync_available ? message.request_budget - message.credit_reserve : 0} ${__("credits")} · ${__("Last sync")}: ${message.last_sync || __("never")}`
 			);
 		});
 
@@ -111,7 +111,7 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 			})
 			.then(({ message }) => {
 				controls.qapi_api_key.set_value("");
-				showStatus(__("Configuração salva."), "green");
+				showStatus(__("Settings saved."), "green");
 				loadStatus();
 			})
 	);
@@ -119,8 +119,8 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	main.find('[data-action="test"]').on("click", () =>
 		frappe.call("trivia_sync.api.qapi_status").then(({ message }) => {
 			const text = message?.ok
-				? `${__("Conexão OK")} · ${message.total ?? __("QAPI acessível")}`
-				: message?.error || __("Falha ao testar QAPI");
+				? `${__("Connection successful")} · ${message.total ?? __("QAPI is reachable")}`
+				: message?.error || __("QAPI connection test failed");
 			main.find("[data-status]").text(text);
 			showStatus(text, message?.ok ? "green" : "red");
 		})
@@ -128,13 +128,13 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 
 	main.find('[data-action="sync"]').on("click", () =>
 		frappe.call("trivia_sync.api.enqueue_qapi_sync").then(() =>
-			showStatus(__("Importação enfileirada."), "green")
+			showStatus(__("Import queued."), "green")
 		)
 	);
 
 	main.find('[data-action="dry-run"]').on("click", () =>
 		frappe.call({ method: "trivia_sync.api.run_qapi_sync_now", args: { dry_run: 1 } }).then(({ message }) => {
-			const text = `${__("Custo máximo estimado")}: ${message?.projected_request_cost ?? 0} ${__("créditos")} · ${__("Nenhuma gravação")}`;
+			const text = `${__("Estimated maximum cost")}: ${message?.projected_request_cost ?? 0} ${__("credits")} · ${__("No data will be written")}`;
 			main.find("[data-status]").text(text);
 			showStatus(text, "blue");
 		})

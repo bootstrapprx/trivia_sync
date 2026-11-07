@@ -8,7 +8,7 @@ from trivia_sync.integrations.editorial import validate_projection_eligibility
 def sync_lms_question(source):
 	options = validate_projection_eligibility(source)
 
-	text = frappe.get_doc("Texto de Apoio", source.texto_apoio) if source.texto_apoio else None
+	text = frappe.get_doc("Trivia Supporting Text", source.texto_apoio) if source.texto_apoio else None
 	question_text = source.enunciado
 	if text and text.conteudo:
 		question_text = f"<p><strong>Texto de apoio</strong></p>{text.conteudo}<hr>{question_text}"
@@ -58,7 +58,7 @@ def sync_lms_question(source):
 	if name:
 		question = frappe.get_doc("LMS Question", name)
 		if question.trivia_source_key and question.trivia_source_key != source.source_key:
-			frappe.throw("O código legado da questão LMS aponta para outra identidade de fonte.")
+			frappe.throw("The legacy LMS question code points to a different source identity.")
 		if question.trivia_sync_hash == sync_hash and question.trivia_source_key == source.source_key:
 			source.lms_question = question.name
 			source.projection_status = "Projected"

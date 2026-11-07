@@ -10,12 +10,12 @@
 		<h2>Cursos associados</h2>
 		<ul>{% for course in contest.courses %}<li>{{ course.title }}</li>{% endfor %}</ul>
 	{% else %}
-		<h1>Concursos públicos</h1>
+		<h1>Public contests</h1>
 		{% if contests %}
 			<ul class="list-unstyled">{% for row in contests %}
 				<li class="border-bottom py-3"><h2><a href="/concursos?slug={{ row.slug }}">{{ row.title }}</a></h2><p>{{ row.summary }}</p><small>{{ row.year }}{% if row.state %} · {{ row.state }}{% endif %}</small></li>
 			{% endfor %}</ul>
-		{% else %}<p>Nenhum concurso está publicado no momento.</p>{% endif %}
+		{% else %}<p>No contests are currently published.</p>{% endif %}
 	{% endif %}
 </main>
 {% endblock %}

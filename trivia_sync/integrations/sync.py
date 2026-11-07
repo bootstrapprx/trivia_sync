@@ -12,15 +12,15 @@ from trivia_sync.integrations.reconciliation import (
 )
 
 RESOURCE_MAP = {
-	"bancas": ("Banca", "bancas"),
-	"orgaos": ("Órgão", "orgaos"),
-	"cargos": ("Cargo", "cargos"),
-	"materias": ("Matéria", "materias"),
-	"assuntos": ("Assunto", "assuntos"),
-	"concursos": ("Concurso", "concursos"),
-	"provas": ("Prova", "provas"),
-	"disciplinas": ("Disciplina", "disciplinas"),
-	"conteudos": ("Conteúdo Programático", "conteudos"),
+	"bancas": ("Trivia Exam Board", "bancas"),
+	"orgaos": ("Trivia Organization", "orgaos"),
+	"cargos": ("Trivia Position", "cargos"),
+	"materias": ("Trivia Subject", "materias"),
+	"assuntos": ("Trivia Topic", "assuntos"),
+	"concursos": ("Trivia Contest", "concursos"),
+	"provas": ("Trivia Exam", "provas"),
+	"disciplinas": ("Trivia Discipline", "disciplinas"),
+	"conteudos": ("Trivia Syllabus Topic", "conteudos"),
 	"flashcards": ("Flashcard", "flashcards"),
 }
 
@@ -95,15 +95,15 @@ def _tree_rows(payload, parent_id="", level=0):
 def _find_existing(doctype, data, legacy_key):
 	matches = set()
 	if data.get("source_key"):
-		name = frappe.db.exists(doctype, {"source_key": data["source_key"]})
+		name = frappe.db.get_value(doctype, {"source_key": data["source_key"]}, "name")
 		if name:
 			matches.add(name)
 	if data.get(legacy_key):
-		name = frappe.db.exists(doctype, {legacy_key: data[legacy_key]})
+		name = frappe.db.get_value(doctype, {legacy_key: data[legacy_key]}, "name")
 		if name:
 			matches.add(name)
 	if len(matches) > 1:
-		frappe.throw(f"Identidade ambígua para {doctype}; a importação foi interrompida sem escolher um registro.")
+		frappe.throw(f"Ambiguous identity for {doctype}; import stopped without selecting a record.")
 	return next(iter(matches), None)
 
 
@@ -140,8 +140,8 @@ def _sync_text(adapter, codigo):
 	data["codigo"] = data.get("codigo") or codigo
 	data["source_id"] = str(codigo)
 	data["source_key"] = f"qapi:{codigo}"
-	_upsert("Texto de Apoio", data, "codigo")
-	return frappe.db.get_value("Texto de Apoio", {"codigo": data["codigo"]}, "name")
+	_upsert("Trivia Supporting Text", data, "codigo")
+	return frappe.db.get_value("Trivia Supporting Text", {"codigo": data["codigo"]}, "name")
 
 
 def _save_question(adapter, row, settings_doc):
@@ -150,7 +150,7 @@ def _save_question(adapter, row, settings_doc):
 		return "skipped"
 	texto_name = _sync_text(adapter, data["texto_codigo"]) if settings_doc.sync_support_texts else None
 	if texto_name:
-		texto_hash = frappe.db.get_value("Texto de Apoio", texto_name, "sync_hash") or ""
+		texto_hash = frappe.db.get_value("Trivia Supporting Text", texto_name, "sync_hash") or ""
 		data["content_hash"] = hashlib.sha256(f"{data['content_hash']}:{texto_hash}".encode()).hexdigest()
 	data["texto_apoio"] = texto_name
 	name = _find_existing("Trivia Question", data, "qcode")
@@ -218,7 +218,7 @@ def _validate_filters(filters):
 	allowed = {"concurso", "cargo", "banca", "materia", "ano"}
 	filters = filters or {}
 	if not isinstance(filters, dict) or set(filters) - allowed:
-		frappe.throw("Filtros aceitos: concurso, cargo, banca, matéria e ano.")
+		frappe.throw("Supported filters: contest, position, exam board, subject, and year.")
 	return {key: value for key, value in filters.items() if value not in (None, "")}
 
 
@@ -264,7 +264,7 @@ def ingest_source(
 	source_name="QAPI", filters=None, dry_run=False, max_pages=0, budget=None, resume_run=None, include_catalogs=True
 ):
 	if source_name != "QAPI":
-		frappe.throw(f"Fonte não implementada: {source_name}.")
+		frappe.throw(f"Source not implemented: {source_name}.")
 	settings = frappe.get_single("Trivia Sync Settings")
 	filters = _validate_filters(filters)
 	include_catalogs = bool(include_catalogs and settings.sync_catalogs)
@@ -299,7 +299,7 @@ def ingest_source(
 	}
 	if spend_limit <= 0:
 		run.status = "Blocked"
-		run.error_log = "Orçamento pago indisponível: configure limite de créditos maior que a reserva."
+		run.error_log = "Paid budget unavailable: set a credit limit above the reserve."
 		run.finished_at = frappe.utils.now_datetime()
 		run.save(ignore_permissions=True)
 		frappe.db.commit()
@@ -308,7 +308,7 @@ def ingest_source(
 	try:
 		adapter = QAPIAdapter(settings, max_requests=spend_limit)
 		if not adapter.is_available():
-			frappe.throw("QAPI indisponível: configure uma chave e um orçamento local positivo.")
+			frappe.throw("QAPI is unavailable: configure an API key and a positive local budget.")
 		page_size = min(10, max(1, int(settings.qapi_page_size or 10)))
 		resume_operation = run.resume_operation if resume_run else ""
 		resume_page = int(run.resume_page or 1) if resume_run else 1
@@ -320,7 +320,7 @@ def ingest_source(
 				if kind == "flashcards" and not settings.sync_flashcards:
 					continue
 				tasks.append((method, doctype, kind))
-			tasks.append(("syllabus_tree", "Conteúdo Programático", "conteudos"))
+			tasks.append(("syllabus_tree", "Trivia Syllabus Topic", "conteudos"))
 		resume_reached = not resume_operation
 		for operation, doctype, kind in tasks:
 			if not resume_reached:
@@ -362,7 +362,7 @@ def ingest_source(
 					run.page = 1
 					payload = adapter.fetch_syllabus_tree(filters)
 					cargo_id = filters.get("cargo")
-					cargo_name = frappe.db.get_value("Concurso Cargo", {"source_id": str(cargo_id)}, "name") if cargo_id else None
+					cargo_name = frappe.db.get_value("Trivia Contest Position", {"source_id": str(cargo_id)}, "name") if cargo_id else None
 					if cargo_name:
 						rows = payload.get("data", payload) if isinstance(payload, dict) else payload
 						version = str(payload.get("version") or payload.get("updated_at") or "") if isinstance(payload, dict) else ""
@@ -393,7 +393,7 @@ def ingest_source(
 			run.records_errors = totals["errors"]
 			frappe.db.commit()
 		if not resume_reached:
-			frappe.throw("A etapa salva para retomada não está mais habilitada nas configurações atuais.")
+			frappe.throw("The saved resume step is no longer enabled in the current settings.")
 		run.status = "Partial" if totals["errors"] else "Completed"
 		run.resume_operation = None
 		run.resume_page = 0

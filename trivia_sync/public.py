@@ -6,7 +6,7 @@ CONTEST_FIELDS = ["name", "public_slug", "titulo", "public_summary", "ano", "reg
 
 def _public_courses(contest_names):
 	links = frappe.get_all(
-		"Concurso Cargo",
+		"Trivia Contest Position",
 		filters={"concurso": ["in", contest_names]},
 		fields=["concurso", "lms_course"],
 	)
@@ -42,7 +42,7 @@ def _dto(contest, courses):
 
 def list_public_contests():
 	contests = frappe.get_all(
-		"Concurso",
+		"Trivia Contest",
 		filters={"publication_status": "Published", "published_at": ["<=", frappe.utils.now_datetime()]},
 		fields=CONTEST_FIELDS,
 		order_by="published_at desc",
@@ -55,7 +55,7 @@ def list_public_contests():
 
 def get_public_contest(slug):
 	contests = frappe.get_all(
-		"Concurso",
+		"Trivia Contest",
 		filters={
 			"public_slug": slug,
 			"publication_status": "Published",
@@ -65,11 +65,11 @@ def get_public_contest(slug):
 		page_length=1,
 	)
 	if not contests:
-		frappe.throw("Concurso não encontrado.", frappe.DoesNotExistError)
+		frappe.throw("Contest not found.", frappe.DoesNotExistError)
 	contest = contests[0]
 	courses = _public_courses([contest.get("name")]).get(contest.get("name"))
 	if not courses:
-		frappe.throw("Concurso não encontrado.", frappe.DoesNotExistError)
+		frappe.throw("Contest not found.", frappe.DoesNotExistError)
 	return _dto(contest, courses)
 
 

@@ -1,0 +1,102 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Study Guide Recipe",
+  "module": "Trivia Sync",
+  "field_order": [
+    "title",
+    "course",
+    "concurso_cargo",
+    "methodology",
+    "prompt",
+    "source_hash",
+    "source_keys",
+    "status",
+    "material_versions"
+  ],
+  "fields": [
+    {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "label": "Title",
+      "reqd": 1
+    },
+    {
+      "fieldname": "course",
+      "fieldtype": "Link",
+      "label": "LMS course",
+      "options": "LMS Course",
+      "reqd": 1
+    },
+    {
+      "fieldname": "concurso_cargo",
+      "fieldtype": "Link",
+      "label": "Contest position",
+      "options": "Trivia Contest Position"
+    },
+    {
+      "fieldname": "methodology",
+      "fieldtype": "Link",
+      "label": "Methodology",
+      "options": "Trivia Methodology"
+    },
+    {
+      "fieldname": "prompt",
+      "fieldtype": "Small Text",
+      "label": "Additional instructions"
+    },
+    {
+      "fieldname": "source_hash",
+      "fieldtype": "Data",
+      "label": "Source hash",
+      "read_only": 1
+    },
+    {
+      "fieldname": "source_keys",
+      "fieldtype": "Code",
+      "label": "Source identities",
+      "options": "JSON",
+      "read_only": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Draft\nPublished\nArchived",
+      "default": "Draft"
+    },
+    {
+      "fieldname": "material_versions",
+      "fieldtype": "Table",
+      "label": "Content versions",
+      "options": "Trivia Material Version"
+    }
+  ],
+  "istable": 0,
+  "track_changes": 1,
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1
+    }
+  ],
+  "autoname": "field:title"
+}

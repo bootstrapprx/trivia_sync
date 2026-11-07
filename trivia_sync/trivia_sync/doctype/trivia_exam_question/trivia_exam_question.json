@@ -15,7 +15,7 @@
     {
       "fieldname": "question",
       "fieldtype": "Link",
-      "label": "Questão editorial",
+      "label": "Editorial question",
       "options": "Trivia Question",
       "reqd": 1,
       "in_list_view": 1
@@ -23,19 +23,19 @@
     {
       "fieldname": "exam_block",
       "fieldtype": "Link",
-      "label": "Bloco",
+      "label": "Block",
       "options": "Trivia Exam Block"
     },
     {
       "fieldname": "ordem",
       "fieldtype": "Int",
-      "label": "Ordem",
+      "label": "Order",
       "reqd": 1
     },
     {
       "fieldname": "marks",
       "fieldtype": "Float",
-      "label": "Pontuação",
+      "label": "Marks",
       "default": "1"
     }
   ],

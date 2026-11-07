@@ -15,8 +15,8 @@ def _select_pool(pool, blocks):
 		candidates.sort(key=lambda row: row.get("source_key") or row["name"])
 		if len(candidates) < count:
 			label = block.get("name") or "prova"
-			criteria = ", ".join(sorted(topics)) if topics else "pool elegível"
-			raise ValueError(f"{label}: necessárias {count}, elegíveis {len(candidates)} para {criteria}.")
+			criteria = ", ".join(sorted(topics)) if topics else "eligible pool"
+			raise ValueError(f"{label}: {count} required, {len(candidates)} eligible for {criteria}.")
 		for row in candidates[:count]:
 			selected.append((block.get("name"), row))
 			used.add(row["name"])
@@ -60,12 +60,12 @@ def _requested_blocks(prova):
 				"exam_block": row.name,
 			})
 		if not any(block["count"] for block in blocks):
-			frappe.throw("Defina a quantidade de questões em cada bloco da prova.")
+			frappe.throw("Set the number of questions in each exam block.")
 		if prova.requested_questions and sum(block["count"] for block in blocks) != int(prova.requested_questions):
-			frappe.throw("A soma das questões dos blocos deve corresponder à quantidade solicitada.")
+			frappe.throw("The total number of questions in the blocks must match the requested count.")
 		return blocks
 	if int(prova.requested_questions or 0) < 1:
-		frappe.throw("Defina a quantidade de questões solicitadas.")
+		frappe.throw("Set the requested number of questions.")
 	return [{"name": prova.titulo or prova.name, "count": int(prova.requested_questions), "topics": set(), "exam_block": None}]
 
 
@@ -78,17 +78,17 @@ def _blueprint_hash(selected):
 
 
 def build_simulado(prova_name):
-	prova = frappe.get_doc("Prova", prova_name)
+	prova = frappe.get_doc("Trivia Exam", prova_name)
 	if prova.status in ("Superseded", "Archived"):
-		frappe.throw("Provas substituídas ou arquivadas não podem gerar um novo simulado.")
+		frappe.throw("Superseded or archived exams cannot generate a new mock test.")
 	if not prova.concurso_cargo or not prova.lms_course or not prova.lms_lesson:
-		frappe.throw("Vincule cargo do concurso, curso e aula LMS antes de montar o simulado.")
-	cargo = frappe.get_doc("Concurso Cargo", prova.concurso_cargo)
+		frappe.throw("Link a contest position, LMS course, and LMS lesson before building the mock test.")
+	cargo = frappe.get_doc("Trivia Contest Position", prova.concurso_cargo)
 	if cargo.lms_course != prova.lms_course or cargo.concurso != prova.concurso:
-		frappe.throw("O curso e o concurso da prova devem corresponder ao cargo vinculado.")
+		frappe.throw("The exam course and contest must match the linked position.")
 	lesson = frappe.get_doc("Course Lesson", prova.lms_lesson)
 	if lesson.course != prova.lms_course:
-		frappe.throw("A aula LMS deve pertencer ao curso vinculado ao cargo.")
+		frappe.throw("The LMS lesson must belong to the course linked to the position.")
 	lesson.check_permission("write")
 	blocks = _requested_blocks(prova)
 	try:
@@ -136,9 +136,9 @@ def _rewrite_lesson(lesson, new_quiz, old_quizzes):
 		try:
 			content = frappe.parse_json(lesson.content)
 		except (TypeError, ValueError):
-			frappe.throw("O conteúdo da aula não é um documento EditorJS válido; não foi alterado.")
+			frappe.throw("The lesson content is not a valid EditorJS document; it was not changed.")
 		if not isinstance(content, dict) or not isinstance(content.get("blocks"), list):
-			frappe.throw("O conteúdo da aula não contém blocos EditorJS; não foi alterado.")
+			frappe.throw("The lesson content has no EditorJS blocks; it was not changed.")
 		blocks = [
 			block for block in content["blocks"]
 			if not (block.get("type") == "quiz" and (block.get("data") or {}).get("quiz") in old_quizzes)
@@ -159,19 +159,19 @@ def _rewrite_lesson(lesson, new_quiz, old_quizzes):
 
 
 def publish_prova(prova_name, lesson_name=None):
-	prova = frappe.get_doc("Prova", prova_name)
+	prova = frappe.get_doc("Trivia Exam", prova_name)
 	if prova.status not in ("Ready", "Published") or not prova.lms_quiz:
-		frappe.throw("Monte e valide o simulado antes de publicar.")
+		frappe.throw("Build and validate the mock test before publishing.")
 	lesson_name = lesson_name or prova.lms_lesson
 	if not lesson_name:
-		frappe.throw("Informe uma aula LMS para publicar a prova.")
+		frappe.throw("Select an LMS lesson to publish the exam.")
 	lesson = frappe.get_doc("Course Lesson", lesson_name)
 	if lesson.course != prova.lms_course:
-		frappe.throw("A aula de destino precisa pertencer ao curso do cargo.")
+		frappe.throw("The destination lesson must belong to the position course.")
 	lesson.check_permission("write")
 	version_row = next((row for row in prova.exam_versions if row.version == prova.exam_version), None)
 	if not version_row:
-		frappe.throw("A versão atual do simulado não foi registrada.")
+		frappe.throw("The current mock test version has not been recorded.")
 	if version_row.status == "Published" and version_row.lesson == lesson_name:
 		return {"quiz": prova.lms_quiz, "status": "Published", "reused": True}
 	old_quizzes = []

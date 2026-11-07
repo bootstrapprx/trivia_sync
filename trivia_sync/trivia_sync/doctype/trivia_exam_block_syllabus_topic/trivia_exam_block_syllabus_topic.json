@@ -12,8 +12,8 @@
     {
       "fieldname": "conteudo_programatico",
       "fieldtype": "Link",
-      "label": "Tópico",
-      "options": "Conteúdo Programático",
+      "label": "Topic",
+      "options": "Trivia Syllabus Topic",
       "reqd": 1
     }
   ],

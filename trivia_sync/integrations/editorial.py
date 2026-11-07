@@ -4,13 +4,13 @@ import frappe
 def _require_role(role):
 	roles = frappe.get_roles(frappe.session.user)
 	if role not in roles and "System Manager" not in roles:
-		frappe.throw("Você não tem permissão para esta decisão editorial.", frappe.PermissionError)
+		frappe.throw("You do not have permission to make this editorial decision.", frappe.PermissionError)
 
 
 def review_question(question_name, decision, reason=""):
 	_require_role("Trivia Reviewer")
 	if decision not in ("approved", "rejected"):
-		frappe.throw("A decisão deve ser approved ou rejected.")
+		frappe.throw("Decision must be approved or rejected.")
 	doc = frappe.get_doc("Trivia Question", question_name)
 	doc.review_status = "Approved" if decision == "approved" else "Rejected"
 	doc.reviewed_by = frappe.session.user
@@ -23,10 +23,10 @@ def review_question(question_name, decision, reason=""):
 def decide_redistribution(question_name, decision, reason=""):
 	_require_role("Trivia Integrator")
 	if decision not in ("approved", "rejected"):
-		frappe.throw("A decisão deve ser approved ou rejected.")
+		frappe.throw("Decision must be approved or rejected.")
 	doc = frappe.get_doc("Trivia Question", question_name)
 	if decision == "approved" and not (doc.source_license or doc.redistribution_reference):
-		frappe.throw("Registre a licença da fonte ou a referência dos termos antes de autorizar redistribuição.")
+		frappe.throw("Record the source license or terms reference before authorizing redistribution.")
 	doc.redistribution_status = "Approved" if decision == "approved" else "Rejected"
 	doc.redistribution_reference = (reason or doc.redistribution_reference or "").strip()
 	doc.redistribution_decided_by = frappe.session.user
@@ -37,23 +37,23 @@ def decide_redistribution(question_name, decision, reason=""):
 
 def validate_projection_eligibility(source):
 	if not source.source_key:
-		frappe.throw("A questão precisa ter uma identidade estável de fonte.")
+		frappe.throw("The question must have a stable source identity.")
 	if source.review_status != "Approved":
-		frappe.throw("A questão precisa estar aprovada editorialmente.")
+		frappe.throw("The question must be editorially approved.")
 	if source.redistribution_status != "Approved":
-		frappe.throw("A redistribuição precisa estar autorizada.")
+		frappe.throw("Redistribution must be authorized.")
 	if not (source.source_license or source.redistribution_reference):
-		frappe.throw("A licença ou referência de redistribuição precisa estar registrada.")
+		frappe.throw("A license or redistribution reference must be recorded.")
 	if not source.enunciado or not source.correct_option:
-		frappe.throw("Enunciado e gabarito são obrigatórios para projetar a questão.")
+		frappe.throw("Question text and answer key are required to project the question.")
 	try:
 		options = frappe.parse_json(source.options or "{}")
 	except (TypeError, ValueError):
-		frappe.throw("As alternativas da questão estão inválidas.")
+		frappe.throw("The question options are invalid.")
 	if not isinstance(options, dict) or len([value for value in options.values() if value]) < 2:
-		frappe.throw("A questão precisa ter pelo menos duas alternativas.")
+		frappe.throw("The question must have at least two options.")
 	if source.correct_option not in options or not options[source.correct_option]:
-		frappe.throw("O gabarito precisa corresponder a uma alternativa existente.")
-	if source.texto_apoio and not frappe.db.exists("Texto de Apoio", source.texto_apoio):
-		frappe.throw("O texto de apoio vinculado não existe.")
+		frappe.throw("The answer key must match an existing option.")
+	if source.texto_apoio and not frappe.db.exists("Trivia Supporting Text", source.texto_apoio):
+		frappe.throw("The linked supporting text does not exist.")
 	return options

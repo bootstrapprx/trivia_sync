@@ -6,11 +6,11 @@
   "editable_grid": 1,
   "field_order": ["version", "quiz", "lesson", "status", "published_at"],
   "fields": [
-    {"fieldname": "version", "fieldtype": "Int", "label": "Versão", "reqd": 1},
-    {"fieldname": "quiz", "fieldtype": "Link", "label": "Quiz LMS", "options": "LMS Quiz", "reqd": 1},
-    {"fieldname": "lesson", "fieldtype": "Link", "label": "Aula LMS", "options": "Course Lesson"},
-    {"fieldname": "status", "fieldtype": "Select", "label": "Estado", "options": "Ready\nPublished\nSuperseded\nArchived", "default": "Ready", "reqd": 1},
-    {"fieldname": "published_at", "fieldtype": "Datetime", "label": "Publicado em"}
+    {"fieldname": "version", "fieldtype": "Int", "label": "Version", "reqd": 1},
+    {"fieldname": "quiz", "fieldtype": "Link", "label": "LMS quiz", "options": "LMS Quiz", "reqd": 1},
+    {"fieldname": "lesson", "fieldtype": "Link", "label": "LMS lesson", "options": "Course Lesson"},
+    {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Ready\nPublished\nSuperseded\nArchived", "default": "Ready", "reqd": 1},
+    {"fieldname": "published_at", "fieldtype": "Datetime", "label": "Published at"}
   ],
   "permissions": []
 }

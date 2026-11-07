@@ -8,9 +8,6 @@ def _admin():
 
 def _safe_count(doctype, filters=None):
 	try:
-		if doctype == "Órgão":
-			quote = "`" if frappe.db.db_type == "mariadb" else '"'
-			return frappe.db.sql(f"SELECT COUNT(*) FROM {quote}tabÓrgão{quote}")[0][0]
 		return frappe.db.count(doctype, filters=filters or {})
 	except Exception:
 		return 0
@@ -87,7 +84,7 @@ def metrics():
 		order_by="creation desc", page_length=1,
 	)
 	cargo_rows = frappe.get_all(
-		"Concurso Cargo", fields=["name", "concurso", "cargo", "lms_course"],
+		"Trivia Contest Position", fields=["name", "concurso", "cargo", "lms_course"],
 		order_by="modified desc", page_length=25,
 	)
 	cargo_coverage = []
@@ -125,10 +122,10 @@ def metrics():
 			**_difficulty_metrics(),
 		},
 		"catalogs": {
-			"bancas": _safe_count("Banca"),
-			"orgaos": _safe_count("Órgão"),
-			"concursos": _safe_count("Concurso"),
-			"provas": _safe_count("Prova"),
+			"bancas": _safe_count("Trivia Exam Board"),
+			"orgaos": _safe_count("Trivia Organization"),
+			"concursos": _safe_count("Trivia Contest"),
+			"provas": _safe_count("Trivia Exam"),
 			"flashcards": _safe_count("Flashcard"),
 		},
 		"generated_at": frappe.utils.now_datetime(),

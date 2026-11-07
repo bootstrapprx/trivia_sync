@@ -53,7 +53,7 @@ def save_onboarding(
 ):
 	_admin()
 	if qapi_sync_frequency not in ("Hourly", "Every scheduler tick"):
-		frappe.throw("Frequência de sincronização inválida.")
+		frappe.throw("Invalid sync frequency.")
 	doc = frappe.get_single("Trivia Sync Settings")
 	doc.qapi_enabled = cint(qapi_enabled)
 	doc.qapi_sync_frequency = qapi_sync_frequency
@@ -63,7 +63,7 @@ def save_onboarding(
 	if qapi_min_credit_reserve is not None:
 		doc.qapi_min_credit_reserve = max(1, cint(qapi_min_credit_reserve))
 	if doc.qapi_enabled and int(doc.qapi_max_requests_per_run or 0) <= max(1, int(doc.qapi_min_credit_reserve or 1)):
-		frappe.throw("Defina um limite de chamadas maior que a reserva antes de ativar a sincronização paga.")
+		frappe.throw("Set a request budget above the reserve before enabling paid sync.")
 	if qapi_api_key:
 		doc.qapi_api_key = qapi_api_key
 	doc.save()
@@ -126,7 +126,7 @@ def resume_qapi_sync(run_name, budget=None):
 	_admin()
 	run = frappe.get_doc("Trivia Sync Run", run_name)
 	if run.source != "QAPI" or run.status not in ("Partial", "Failed", "Blocked"):
-		frappe.throw("Somente uma execução QAPI parcial, bloqueada ou com falha pode ser retomada.")
+		frappe.throw("Only partial, blocked, or failed QAPI runs can be resumed.")
 	parameters = json.loads(run.parameters_json or "{}")
 	return ingest_source(
 		"QAPI",
@@ -141,8 +141,8 @@ def resume_qapi_sync(run_name, budget=None):
 @frappe.whitelist()
 def cargo_question_coverage(concurso_cargo):
 	_admin()
-	if not frappe.db.exists("Concurso Cargo", concurso_cargo):
-		frappe.throw("Cargo do concurso não encontrado.")
+	if not frappe.db.exists("Trivia Contest Position", concurso_cargo):
+		frappe.throw("Contest position not found.")
 	return question_coverage(concurso_cargo)
 
 
@@ -186,8 +186,8 @@ def publish_prova(prova_name, lesson_name=None):
 def set_contest_publication(concurso_name, status):
 	_admin()
 	if status not in ("Draft", "Published", "Archived"):
-		frappe.throw("Estado de publicação inválido.")
-	doc = frappe.get_doc("Concurso", concurso_name)
+		frappe.throw("Invalid publication status.")
+	doc = frappe.get_doc("Trivia Contest", concurso_name)
 	doc.publication_status = status
 	doc.save()
 	return {"name": doc.name, "publication_status": doc.publication_status}

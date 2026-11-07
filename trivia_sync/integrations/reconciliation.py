@@ -6,51 +6,16 @@ import unicodedata
 import frappe
 
 
-ACCENTED_CATALOG_COLUMNS = {
-	"Órgão": {"name", "source_id", "qapi_id", "nome"},
-	"Matéria": {"name", "source_id", "qapi_id", "nome"},
-	"Conteúdo Programático": {"name", "concurso_cargo", "source_path", "is_obsolete"},
-}
-
-
-def _catalog_query(doctype, action, fields, filters=None, value=None):
-	allowed = ACCENTED_CATALOG_COLUMNS[doctype]
-	if any(field not in allowed for field in fields + list((filters or {}).keys())):
-		frappe.throw(f"Campo inválido para reconciliação de {doctype}.")
-	quotes = {"mariadb": "`", "postgres": '"', "sqlite": '"'}
-	quote = quotes.get(frappe.db.db_type, '"')
-	table = f"{quote}tab{doctype}{quote}"
-	quoted_fields = ", ".join(f"{quote}{field}{quote}" for field in fields)
-	where = " AND ".join(f"{quote}{field}{quote} = %s" for field in (filters or {}))
-	values = tuple((filters or {}).values())
-	if action == "select":
-		query = f"SELECT {quoted_fields} FROM {table}" + (f" WHERE {where}" if where else "") + (" LIMIT 1" if value == "first" else "")
-		return frappe.db.sql(query, values, as_dict=True)
-	if action == "update" and len(fields) == 1 and where:
-		query = f"UPDATE {table} SET {quote}{fields[0]}{quote} = %s WHERE {where}"
-		frappe.db.sql(query, (value, *values))
-		return
-	frappe.throw("Operação SQL inválida para reconciliação.")
-
-
 def _catalog_get_value(doctype, filters, field):
-	if doctype in ACCENTED_CATALOG_COLUMNS:
-		rows = _catalog_query(doctype, "select", [field], filters, value="first")
-		return rows[0].get(field) if rows else None
 	return frappe.db.get_value(doctype, filters, field)
 
 
 def _catalog_get_all(doctype, filters, fields):
-	if doctype in ACCENTED_CATALOG_COLUMNS:
-		return _catalog_query(doctype, "select", fields, filters)
 	return frappe.get_all(doctype, filters=filters, fields=fields)
 
 
 def _catalog_set_value(doctype, name, field, value):
-	if doctype in ACCENTED_CATALOG_COLUMNS:
-		_catalog_query(doctype, "update", [field], {"name": name}, value)
-	else:
-		frappe.db.set_value(doctype, name, field, value)
+	frappe.db.set_value(doctype, name, field, value)
 
 
 def normalize_name(value):
@@ -78,14 +43,14 @@ def resolve_catalog(doctype, external_id=None, name=None):
 
 
 CLASSIFICATION_FIELDS = {
-	"banca": ("Banca", "trivia_banca"),
-	"orgao": ("Órgão", "trivia_orgao"),
-	"cargo": ("Cargo", "trivia_cargo"),
-	"materia": ("Matéria", "trivia_materia"),
-	"assunto": ("Assunto", "trivia_assunto"),
-	"concurso": ("Concurso", "concurso"),
-	"prova": ("Prova", "prova"),
-	"concurso_cargo": ("Concurso Cargo", "concurso_cargo"),
+	"banca": ("Trivia Exam Board", "trivia_banca"),
+	"orgao": ("Trivia Organization", "trivia_orgao"),
+	"cargo": ("Trivia Position", "trivia_cargo"),
+	"materia": ("Trivia Subject", "trivia_materia"),
+	"assunto": ("Trivia Topic", "trivia_assunto"),
+	"concurso": ("Trivia Contest", "concurso"),
+	"prova": ("Trivia Exam", "prova"),
+	"concurso_cargo": ("Trivia Contest Position", "concurso_cargo"),
 }
 
 
@@ -139,15 +104,15 @@ def sync_syllabus_tree(concurso_cargo, rows, source_version):
 		)
 		digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
 		filters = {"concurso_cargo": concurso_cargo, "source_path": path}
-		name = _catalog_get_value("Conteúdo Programático", filters, "name")
+		name = _catalog_get_value("Trivia Syllabus Topic", filters, "name")
 		if name:
-			doc = frappe.get_doc("Conteúdo Programático", name)
+			doc = frappe.get_doc("Trivia Syllabus Topic", name)
 			if doc.source_hash == digest and doc.source_version == source_version and not doc.is_obsolete:
 				unchanged += 1
 				parent_names[path] = name
 				continue
 		else:
-			doc = frappe.new_doc("Conteúdo Programático")
+			doc = frappe.new_doc("Trivia Syllabus Topic")
 			doc.qapi_id = hashlib.sha256(f"{concurso_cargo}:{path}".encode()).hexdigest()[:24]
 			doc.source_type = "QAPI"
 			doc.source_id = f"{concurso_cargo}:{row.get('id') or row.get('_id') or row.get('codigo') or path}"
@@ -172,9 +137,9 @@ def sync_syllabus_tree(concurso_cargo, rows, source_version):
 			doc.insert(ignore_permissions=True)
 		parent_names[path] = doc.name
 	obsolete = 0
-	for doc in _catalog_get_all("Conteúdo Programático", {"concurso_cargo": concurso_cargo, "is_obsolete": 0}, ["name", "source_path"]):
+	for doc in _catalog_get_all("Trivia Syllabus Topic", {"concurso_cargo": concurso_cargo, "is_obsolete": 0}, ["name", "source_path"]):
 		if doc.get("source_path") not in seen:
-			_catalog_set_value("Conteúdo Programático", doc.get("name"), "is_obsolete", 1)
+			_catalog_set_value("Trivia Syllabus Topic", doc.get("name"), "is_obsolete", 1)
 			obsolete += 1
 	return {"created": created, "updated": updated, "unchanged": unchanged, "obsolete": obsolete, "deleted": 0}
 
@@ -212,10 +177,10 @@ def resolve_resource_links(doctype, data):
 	except (TypeError, ValueError):
 		raw = {}
 	links = {
-		"Conteúdo Programático": {"disciplina": "Disciplina", "parent_conteudo": "Conteúdo Programático", "concurso_cargo": "Concurso Cargo"},
-		"Disciplina": {"concurso": "Concurso"},
-		"Prova": {"concurso": "Concurso", "concurso_cargo": "Concurso Cargo"},
-		"Flashcard": {"conteudo": "Conteúdo Programático"},
+		"Trivia Syllabus Topic": {"disciplina": "Trivia Discipline", "parent_conteudo": "Trivia Syllabus Topic", "concurso_cargo": "Trivia Contest Position"},
+		"Trivia Discipline": {"concurso": "Trivia Contest"},
+		"Trivia Exam": {"concurso": "Trivia Contest", "concurso_cargo": "Trivia Contest Position"},
+		"Flashcard": {"conteudo": "Trivia Syllabus Topic"},
 	}.get(doctype, {})
 	for field, target in links.items():
 		value = raw.get(field) or raw.get(f"{field}Id") or raw.get(f"{field}_id") or data.get(field)

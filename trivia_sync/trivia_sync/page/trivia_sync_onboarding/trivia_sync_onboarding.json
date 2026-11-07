@@ -2,7 +2,7 @@
   "doctype": "Page",
   "name": "trivia-sync-onboarding",
   "page_name": "trivia-sync-onboarding",
-  "title": "Configuração de Concursos",
+  "title": "Contest Setup",
   "module": "Trivia Sync",
   "standard": "Yes",
   "system_page": 1,

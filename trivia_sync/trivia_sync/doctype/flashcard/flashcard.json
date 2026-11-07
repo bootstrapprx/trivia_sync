@@ -23,46 +23,46 @@
     {
       "fieldname": "identity_section",
       "fieldtype": "Section Break",
-      "label": "Identificação"
+      "label": "Identity"
     },
     {
       "fieldname": "qapi_id",
       "fieldtype": "Data",
-      "label": "ID QAPI",
+      "label": "QAPI ID",
       "reqd": 1
     },
     {
       "fieldname": "frente",
       "fieldtype": "Text Editor",
-      "label": "Frente",
+      "label": "Front",
       "reqd": 1
     },
     {
       "fieldname": "verso",
       "fieldtype": "Text Editor",
-      "label": "Verso",
+      "label": "Back",
       "reqd": 1
     },
     {
       "fieldname": "conteudo",
       "fieldtype": "Link",
-      "label": "Conteúdo",
-      "options": "Conteúdo Programático"
+      "label": "Content",
+      "options": "Trivia Syllabus Topic"
     },
     {
       "fieldname": "materia",
       "fieldtype": "Data",
-      "label": "Matéria"
+      "label": "Subject"
     },
     {
       "fieldname": "assunto",
       "fieldtype": "Data",
-      "label": "Assunto"
+      "label": "Topic"
     },
     {
       "fieldname": "raw_payload",
       "fieldtype": "Code",
-      "label": "Payload bruto",
+      "label": "Raw payload",
       "options": "JSON",
       "hidden": 1
     },
@@ -74,18 +74,18 @@
     {
       "fieldname": "source_type",
       "fieldtype": "Data",
-      "label": "Tipo de fonte",
+      "label": "Source type",
       "default": "QAPI"
     },
     {
       "fieldname": "source_id",
       "fieldtype": "Data",
-      "label": "ID na fonte"
+      "label": "Source ID"
     },
     {
       "fieldname": "source_key",
       "fieldtype": "Data",
-      "label": "Chave estável da fonte",
+      "label": "Stable source key",
       "unique": 1
     }
   ],

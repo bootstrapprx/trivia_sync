@@ -37,7 +37,7 @@ class OpenAICompatibleAdapter:
         self.model = self.settings.ai_model or DEFAULT_MODEL
         self.timeout = max(15, int(self.settings.ai_timeout or 90))
         if not self.api_key:
-            raise AIEnrichmentError("Configure a chave do adaptador IA antes de enriquecer questões.")
+            raise AIEnrichmentError("Configure an AI provider key before enriching questions.")
 
     def enrich(self, question: dict[str, Any]) -> dict[str, Any]:
         source = json.dumps(question, ensure_ascii=False, sort_keys=True, default=str)
@@ -73,10 +73,10 @@ class OpenAICompatibleAdapter:
             content = payload["choices"][0]["message"]["content"]
             result = json.loads(content)
         except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise AIEnrichmentError(f"Falha no adaptador IA: {exc}") from exc
+            raise AIEnrichmentError(f"AI adapter failed: {exc}") from exc
         stars = int(result.get("difficulty_stars", 0))
         if stars not in range(1, 6):
-            raise AIEnrichmentError("O adaptador IA retornou uma dificuldade fora do intervalo de 1 a 5 estrelas.")
+            raise AIEnrichmentError("The AI adapter returned a difficulty outside the 1 to 5 star range.")
         result["enrichment_hash"] = enrichment_hash
         result["model"] = self.model
         return result
@@ -105,9 +105,9 @@ class OpenAICompatibleAdapter:
             response.raise_for_status()
             result = json.loads(response.json()["choices"][0]["message"]["content"])
         except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise AIEnrichmentError(f"Falha ao gerar material didático: {exc}") from exc
+            raise AIEnrichmentError(f"Failed to generate learning material: {exc}") from exc
         if not result.get("title") or not result.get("content"):
-            raise AIEnrichmentError("O provedor retornou material vazio.")
+            raise AIEnrichmentError("The provider returned empty material.")
         return {**result, "model": self.model}
 
 
@@ -137,7 +137,7 @@ def enrich_question_doc(doc, settings_doc=None):
 def enrich_pending_questions():
     settings = frappe.get_single("Trivia Sync Settings")
     if not settings.ai_enabled:
-        raise frappe.ValidationError("Ative o enriquecimento IA nas configurações antes de executar.")
+        raise frappe.ValidationError("Enable AI enrichment in settings before running it.")
     adapter = OpenAICompatibleAdapter(settings)
     run = frappe.new_doc("Trivia Sync Run")
     run.source = "IA"

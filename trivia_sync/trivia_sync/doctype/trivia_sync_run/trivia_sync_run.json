@@ -30,14 +30,14 @@
     {
       "fieldname": "source",
       "fieldtype": "Select",
-      "label": "Fonte",
+      "label": "Source",
       "options": "QAPI\nFrappe LMS\nIA",
       "in_list_view": 1
     },
     {
       "fieldname": "operation",
       "fieldtype": "Select",
-      "label": "Operação",
+      "label": "Operation",
       "options": "Pull questions\nPush LMS content\nFull QAPI sync\nQAPI ingestion\nAI enrichment",
       "in_list_view": 1
     },
@@ -51,97 +51,97 @@
     {
       "fieldname": "started_at",
       "fieldtype": "Datetime",
-      "label": "Início"
+      "label": "Started at"
     },
     {
       "fieldname": "finished_at",
       "fieldtype": "Datetime",
-      "label": "Fim"
+      "label": "Finished at"
     },
     {
       "fieldname": "page",
       "fieldtype": "Int",
-      "label": "Última página"
+      "label": "Last page"
     },
     {
       "fieldname": "records_created",
       "fieldtype": "Int",
-      "label": "Criados"
+      "label": "Created"
     },
     {
       "fieldname": "records_updated",
       "fieldtype": "Int",
-      "label": "Atualizados"
+      "label": "Updated"
     },
     {
       "fieldname": "records_skipped",
       "fieldtype": "Int",
-      "label": "Ignorados"
+      "label": "Skipped"
     },
     {
       "fieldname": "records_errors",
       "fieldtype": "Int",
-      "label": "Erros"
+      "label": "Errors"
     },
     {
       "fieldname": "error_log",
       "fieldtype": "Long Text",
-      "label": "Log de erros"
+      "label": "Error log"
     },
     {
       "fieldname": "operator",
       "fieldtype": "Link",
-      "label": "Operador",
+      "label": "Operator",
       "options": "User",
       "read_only": 1
     },
     {
       "fieldname": "parameters_json",
       "fieldtype": "Code",
-      "label": "Parâmetros",
+      "label": "Parameters",
       "options": "JSON",
       "read_only": 1
     },
     {
       "fieldname": "request_budget",
       "fieldtype": "Int",
-      "label": "Orçamento de créditos aplicado",
+      "label": "Credit budget",
       "read_only": 1
     },
     {
       "fieldname": "credit_reserve",
       "fieldtype": "Int",
-      "label": "Reserva aplicada",
+      "label": "Reserve applied",
       "read_only": 1
     },
     {
       "fieldname": "requests_made",
       "fieldtype": "Int",
-      "label": "Chamadas realizadas",
+      "label": "Requests made",
       "read_only": 1
     },
     {
       "fieldname": "credits_used",
       "fieldtype": "Int",
-      "label": "Créditos consumidos",
+      "label": "Credits used",
       "read_only": 1
     },
     {
       "fieldname": "current_operation",
       "fieldtype": "Data",
-      "label": "Operação atual",
+      "label": "Current operation",
       "read_only": 1
     },
     {
       "fieldname": "resume_operation",
       "fieldtype": "Data",
-      "label": "Retomar em operação",
+      "label": "Resume operation",
       "read_only": 1
     },
     {
       "fieldname": "resume_page",
       "fieldtype": "Int",
-      "label": "Retomar na página",
+      "label": "Resume page",
       "read_only": 1
     }
   ],

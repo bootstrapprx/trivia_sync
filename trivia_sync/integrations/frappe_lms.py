@@ -53,7 +53,7 @@ def build_lms_payload():
 				"layer": "trivia",
 				"description": course_doc.short_introduction
 				or course_doc.description
-				or "Conteúdo do Frappe LMS.",
+				or "Frappe LMS content.",
 				"source": "frappe-lms",
 				"sourceId": course_doc.name,
 				"modules": modules,
@@ -82,7 +82,7 @@ def sync_existing_lms_to_trivia():
 			}
 		else:
 			if not doc.trivia_api_url:
-				raise frappe.ValidationError("Configure a URL da API da trivia360.")
+				raise frappe.ValidationError("Configure the Trivia360 API URL.")
 			token = doc.get_password("trivia_api_token") if doc.trivia_api_token else ""
 			response = requests.post(
 				doc.trivia_api_url.rstrip("/"),

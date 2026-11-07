@@ -1,0 +1,229 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Exam",
+  "autoname": "field:qapi_id",
+  "module": "Trivia Sync",
+  "title_field": "titulo",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "qapi_id",
+    "titulo",
+    "concurso",
+    "banca",
+    "orgao",
+    "cargo",
+    "ano",
+    "pdf_url",
+    "raw_payload",
+    "sync_hash",
+    "last_synced_at",
+    "source_type",
+    "source_id",
+    "source_key",
+    "prova_type",
+    "status",
+    "concurso_cargo",
+    "lms_course",
+    "lms_lesson",
+    "lms_quiz",
+    "duration_minutes",
+    "exam_version",
+    "exam_blocks",
+    "exam_questions",
+    "requested_questions",
+    "blueprint_hash",
+    "exam_versions"
+  ],
+  "fields": [
+    {
+      "fieldname": "identity_section",
+      "fieldtype": "Section Break",
+      "label": "Identity"
+    },
+    {
+      "fieldname": "qapi_id",
+      "fieldtype": "Data",
+      "label": "QAPI ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "titulo",
+      "fieldtype": "Data",
+      "label": "Title",
+      "reqd": 1
+    },
+    {
+      "fieldname": "concurso",
+      "fieldtype": "Link",
+      "label": "Contest",
+      "options": "Trivia Contest"
+    },
+    {
+      "fieldname": "banca",
+      "fieldtype": "Data",
+      "label": "Exam board"
+    },
+    {
+      "fieldname": "orgao",
+      "fieldtype": "Data",
+      "label": "Organization"
+    },
+    {
+      "fieldname": "cargo",
+      "fieldtype": "Data",
+      "label": "Position"
+    },
+    {
+      "fieldname": "ano",
+      "fieldtype": "Int",
+      "label": "Year"
+    },
+    {
+      "fieldname": "pdf_url",
+      "fieldtype": "Data",
+      "label": "PDF"
+    },
+    {
+      "fieldname": "raw_payload",
+      "fieldtype": "Code",
+      "label": "Raw payload",
+      "options": "JSON",
+      "hidden": 1
+    },
+    {
+      "fieldname": "sync_hash",
+      "fieldtype": "Data",
+      "label": "Hash"
+    },
+    {
+      "fieldname": "last_synced_at",
+      "fieldtype": "Datetime",
+      "label": "Last synced at"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Source type",
+      "default": "QAPI"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "Source ID"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Stable source key",
+      "unique": 1
+    },
+    {
+      "fieldname": "prova_type",
+      "fieldtype": "Select",
+      "label": "Type",
+      "options": "Official\nPractice",
+      "default": "Official"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Draft\nReady\nPublished\nSuperseded\nArchived",
+      "default": "Draft",
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "concurso_cargo",
+      "fieldtype": "Link",
+      "label": "Contest position",
+      "options": "Trivia Contest Position"
+    },
+    {
+      "fieldname": "lms_course",
+      "fieldtype": "Link",
+      "label": "LMS course",
+      "options": "LMS Course"
+    },
+    {
+      "fieldname": "lms_lesson",
+      "fieldtype": "Link",
+      "label": "LMS lesson",
+      "options": "Course Lesson"
+    },
+    {
+      "fieldname": "lms_quiz",
+      "fieldtype": "Link",
+      "label": "LMS quiz",
+      "options": "LMS Quiz",
+      "read_only": 1
+    },
+    {
+      "fieldname": "duration_minutes",
+      "fieldtype": "Int",
+      "label": "Duration (minutes)"
+    },
+    {
+      "fieldname": "exam_version",
+      "fieldtype": "Int",
+      "label": "Version",
+      "default": "1",
+      "read_only": 1
+    },
+    {
+      "fieldname": "exam_blocks",
+      "fieldtype": "Table",
+      "label": "Blocks",
+      "options": "Trivia Exam Block"
+    },
+    {
+      "fieldname": "exam_questions",
+      "fieldtype": "Table",
+      "label": "Questions",
+      "options": "Trivia Exam Question"
+    },
+    {
+      "fieldname": "requested_questions",
+      "fieldtype": "Int",
+      "label": "Requested questions"
+    },
+    {
+      "fieldname": "blueprint_hash",
+      "fieldtype": "Data",
+      "label": "Blueprint hash"
+    },
+    {
+      "fieldname": "exam_versions",
+      "fieldtype": "Table",
+      "label": "Mock exam versions",
+      "options": "Trivia Exam Version"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    }
+  ]
+}

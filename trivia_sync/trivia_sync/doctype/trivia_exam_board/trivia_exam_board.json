@@ -1,0 +1,99 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Exam Board",
+  "autoname": "field:qapi_id",
+  "module": "Trivia Sync",
+  "title_field": "nome",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "qapi_id",
+    "nome",
+    "sigla",
+    "raw_payload",
+    "sync_hash",
+    "last_synced_at",
+    "source_type",
+    "source_id",
+    "source_key"
+  ],
+  "fields": [
+    {
+      "fieldname": "identity_section",
+      "fieldtype": "Section Break",
+      "label": "Identity"
+    },
+    {
+      "fieldname": "qapi_id",
+      "fieldtype": "Data",
+      "label": "QAPI ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "nome",
+      "fieldtype": "Data",
+      "label": "Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sigla",
+      "fieldtype": "Data",
+      "label": "Abbreviation"
+    },
+    {
+      "fieldname": "raw_payload",
+      "fieldtype": "Code",
+      "label": "Raw payload",
+      "options": "JSON",
+      "hidden": 1
+    },
+    {
+      "fieldname": "sync_hash",
+      "fieldtype": "Data",
+      "label": "Hash"
+    },
+    {
+      "fieldname": "last_synced_at",
+      "fieldtype": "Datetime",
+      "label": "Last synced at"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Source type",
+      "default": "QAPI"
+    },
+    {
+      "fieldname": "source_id",
+      "fieldtype": "Data",
+      "label": "Source ID"
+    },
+    {
+      "fieldname": "source_key",
+      "fieldtype": "Data",
+      "label": "Stable source key",
+      "unique": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    }
+  ]
+}

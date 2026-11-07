@@ -72,12 +72,12 @@
     {
       "fieldname": "identity_section",
       "fieldtype": "Section Break",
-      "label": "Identidade"
+      "label": "Identity"
     },
     {
       "fieldname": "qcode",
       "fieldtype": "Data",
-      "label": "Código da questão",
+      "label": "Question code",
       "reqd": 0,
       "unique": 1,
       "in_list_view": 1
@@ -85,7 +85,7 @@
     {
       "fieldname": "source",
       "fieldtype": "Select",
-      "label": "Fonte",
+      "label": "Source",
       "options": "QAPI\nManual",
       "default": "QAPI",
       "read_only": 1
@@ -93,110 +93,110 @@
     {
       "fieldname": "enunciado",
       "fieldtype": "Text Editor",
-      "label": "Enunciado",
+      "label": "Question text",
       "reqd": 1
     },
     {
       "fieldname": "metadata_section",
       "fieldtype": "Section Break",
-      "label": "Classificação"
+      "label": "Classification"
     },
     {
       "fieldname": "texto_apoio",
       "fieldtype": "Link",
-      "options": "Texto de Apoio",
-      "label": "Texto de apoio",
+      "options": "Trivia Supporting Text",
+      "label": "Supporting text",
       "in_list_view": 1
     },
     {
       "fieldname": "banca",
       "fieldtype": "Data",
-      "label": "Banca",
+      "label": "Exam board",
       "in_list_view": 1,
       "in_standard_filter": 1
     },
     {
       "fieldname": "orgao",
       "fieldtype": "Data",
-      "label": "Órgão",
+      "label": "Organization",
       "in_standard_filter": 1
     },
     {
       "fieldname": "cargo",
       "fieldtype": "Data",
-      "label": "Cargo",
+      "label": "Position",
       "in_standard_filter": 1
     },
     {
       "fieldname": "ano",
       "fieldtype": "Int",
-      "label": "Ano",
+      "label": "Year",
       "in_standard_filter": 1
     },
     {
       "fieldname": "materia",
       "fieldtype": "Data",
-      "label": "Matéria",
+      "label": "Subject",
       "in_list_view": 1,
       "in_standard_filter": 1
     },
     {
       "fieldname": "assunto",
       "fieldtype": "Data",
-      "label": "Assunto",
+      "label": "Topic",
       "in_list_view": 1,
       "in_standard_filter": 1
     },
     {
       "fieldname": "options",
       "fieldtype": "Code",
-      "label": "Alternativas JSON",
+      "label": "Answer options (JSON)",
       "options": "JSON"
     },
     {
       "fieldname": "correct_option",
       "fieldtype": "Select",
-      "label": "Gabarito",
+      "label": "Answer key",
       "options": "A\nB\nC\nD\nE"
     },
     {
       "fieldname": "explanation",
       "fieldtype": "Text Editor",
-      "label": "Comentário / explicação"
+      "label": "Comment / explanation"
     },
     {
       "fieldname": "source_url",
       "fieldtype": "Data",
-      "label": "URL da fonte"
+      "label": "Source URL"
     },
     {
       "fieldname": "raw_payload",
       "fieldtype": "Code",
-      "label": "Payload bruto",
+      "label": "Raw payload",
       "options": "JSON",
       "hidden": 1
     },
     {
       "fieldname": "sync_hash",
       "fieldtype": "Data",
-      "label": "Hash de sincronização",
+      "label": "Sync hash",
       "hidden": 1
     },
     {
       "fieldname": "last_synced_at",
       "fieldtype": "Datetime",
-      "label": "Última sincronização",
+      "label": "Last synced at",
       "read_only": 1
     },
     {
       "fieldname": "ai_section",
       "fieldtype": "Section Break",
-      "label": "Enriquecimento por IA"
+      "label": "AI enrichment"
     },
     {
       "fieldname": "ai_difficulty_stars",
       "fieldtype": "Rating",
-      "label": "Dificuldade (estrelas)",
+      "label": "Difficulty (stars)",
       "in_list_view": 1,
       "in_standard_filter": 1,
       "read_only": 1
@@ -204,51 +204,51 @@
     {
       "fieldname": "ai_difficulty_label",
       "fieldtype": "Data",
-      "label": "Nível de dificuldade",
+      "label": "Difficulty level",
       "read_only": 1
     },
     {
       "fieldname": "ai_difficulty_reason",
       "fieldtype": "Small Text",
-      "label": "Justificativa da dificuldade",
+      "label": "Difficulty rationale",
       "read_only": 1
     },
     {
       "fieldname": "ai_learning_objective",
       "fieldtype": "Small Text",
-      "label": "Objetivo de aprendizagem",
+      "label": "Learning objective",
       "read_only": 1
     },
     {
       "fieldname": "ai_topics",
       "fieldtype": "Code",
-      "label": "Tópicos IA",
+      "label": "AI topics",
       "options": "JSON",
       "read_only": 1
     },
     {
       "fieldname": "ai_model",
       "fieldtype": "Data",
-      "label": "Modelo IA",
+      "label": "AI model",
       "read_only": 1
     },
     {
       "fieldname": "ai_enrichment_hash",
       "fieldtype": "Data",
-      "label": "Hash do enriquecimento IA",
+      "label": "AI enrichment hash",
       "hidden": 1,
       "read_only": 1
     },
     {
       "fieldname": "ai_enriched_at",
       "fieldtype": "Datetime",
-      "label": "Enriquecida em",
+      "label": "Enriched at",
       "read_only": 1
     },
     {
       "fieldname": "source_type",
       "fieldtype": "Select",
-      "label": "Tipo de fonte",
+      "label": "Source type",
       "options": "QAPI\nGitHub\nHugging Face\nManual",
       "default": "QAPI",
       "in_standard_filter": 1
@@ -256,31 +256,31 @@
     {
       "fieldname": "source_id",
       "fieldtype": "Data",
-      "label": "ID na fonte"
+      "label": "Source ID"
     },
     {
       "fieldname": "source_key",
       "fieldtype": "Data",
-      "label": "Chave estável da fonte",
+      "label": "Stable source key",
       "unique": 1,
       "read_only": 1
     },
     {
       "fieldname": "content_hash",
       "fieldtype": "Data",
-      "label": "Hash de conteúdo avaliável",
+      "label": "Assessable content hash",
       "read_only": 1,
       "hidden": 1
     },
     {
       "fieldname": "review_section",
       "fieldtype": "Section Break",
-      "label": "Revisão e redistribuição"
+      "label": "Review and redistribution"
     },
     {
       "fieldname": "review_status",
       "fieldtype": "Select",
-      "label": "Estado da revisão",
+      "label": "Review status",
       "options": "Pending\nApproved\nRejected",
       "default": "Pending",
       "in_list_view": 1,
@@ -289,40 +289,40 @@
     {
       "fieldname": "reviewed_by",
       "fieldtype": "Link",
-      "label": "Revisado por",
+      "label": "Reviewed by",
       "options": "User",
       "read_only": 1
     },
     {
       "fieldname": "reviewed_at",
       "fieldtype": "Datetime",
-      "label": "Revisado em",
+      "label": "Reviewed at",
       "read_only": 1
     },
     {
       "fieldname": "review_reason",
       "fieldtype": "Small Text",
-      "label": "Motivo da decisão"
+      "label": "Decision reason"
     },
     {
       "fieldname": "editorial_notes",
       "fieldtype": "Text Editor",
-      "label": "Notas editoriais"
+      "label": "Editorial notes"
     },
     {
       "fieldname": "source_license",
       "fieldtype": "Data",
-      "label": "Licença declarada pela fonte"
+      "label": "Source-declared license"
     },
     {
       "fieldname": "source_attribution",
       "fieldtype": "Small Text",
-      "label": "Atribuição exigida"
+      "label": "Attribution required"
     },
     {
       "fieldname": "redistribution_status",
       "fieldtype": "Select",
-      "label": "Direito de redistribuição",
+      "label": "Redistribution rights",
       "options": "Pending\nApproved\nRejected",
       "default": "Pending",
       "in_standard_filter": 1
@@ -330,96 +330,96 @@
     {
       "fieldname": "redistribution_reference",
       "fieldtype": "Data",
-      "label": "Referência dos termos/licença"
+      "label": "Terms/license reference"
     },
     {
       "fieldname": "redistribution_decided_by",
       "fieldtype": "Link",
-      "label": "Direito confirmado por",
+      "label": "Rights confirmed by",
       "options": "User",
       "read_only": 1
     },
     {
       "fieldname": "redistribution_decided_at",
       "fieldtype": "Datetime",
-      "label": "Direito confirmado em",
+      "label": "Rights confirmed at",
       "read_only": 1
     },
     {
       "fieldname": "classification_section",
       "fieldtype": "Section Break",
-      "label": "Classificação relacionada"
+      "label": "Related classification"
     },
     {
       "fieldname": "trivia_banca",
       "fieldtype": "Link",
-      "label": "Banca relacionada",
-      "options": "Banca"
+      "label": "Related exam board",
+      "options": "Trivia Exam Board"
     },
     {
       "fieldname": "trivia_orgao",
       "fieldtype": "Link",
-      "label": "Órgão relacionado",
-      "options": "Órgão"
+      "label": "Related organization",
+      "options": "Trivia Organization"
     },
     {
       "fieldname": "trivia_cargo",
       "fieldtype": "Link",
-      "label": "Cargo de catálogo",
-      "options": "Cargo"
+      "label": "Catalog position",
+      "options": "Trivia Position"
     },
     {
       "fieldname": "concurso",
       "fieldtype": "Link",
-      "label": "Concurso",
-      "options": "Concurso"
+      "label": "Contest",
+      "options": "Trivia Contest"
     },
     {
       "fieldname": "concurso_cargo",
       "fieldtype": "Link",
-      "label": "Cargo no concurso",
-      "options": "Concurso Cargo"
+      "label": "Contest position",
+      "options": "Trivia Contest Position"
     },
     {
       "fieldname": "prova",
       "fieldtype": "Link",
-      "label": "Prova de origem",
-      "options": "Prova"
+      "label": "Source exam",
+      "options": "Trivia Exam"
     },
     {
       "fieldname": "trivia_materia",
       "fieldtype": "Link",
-      "label": "Matéria relacionada",
-      "options": "Matéria"
+      "label": "Related subject",
+      "options": "Trivia Subject"
     },
     {
       "fieldname": "trivia_assunto",
       "fieldtype": "Link",
-      "label": "Assunto relacionado",
-      "options": "Assunto"
+      "label": "Related topic",
+      "options": "Trivia Topic"
     },
     {
       "fieldname": "conteudos_programaticos",
       "fieldtype": "Table MultiSelect",
-      "label": "Tópicos da ementa",
+      "label": "Syllabus topics",
       "options": "Trivia Question Syllabus Topic"
     },
     {
       "fieldname": "projection_section",
       "fieldtype": "Section Break",
-      "label": "Projeção para o LMS"
+      "label": "LMS projection"
     },
     {
       "fieldname": "lms_question",
       "fieldtype": "Link",
-      "label": "Questão LMS",
+      "label": "LMS question",
       "options": "LMS Question",
       "read_only": 1
     },
     {
       "fieldname": "projection_status",
       "fieldtype": "Select",
-      "label": "Estado da projeção",
+      "label": "Projection status",
       "options": "Not Projected\nPending\nProjected\nFailed",
       "default": "Not Projected",
       "read_only": 1,
@@ -428,26 +428,26 @@
     {
       "fieldname": "projection_hash",
       "fieldtype": "Data",
-      "label": "Hash projetada",
+      "label": "Projected hash",
       "read_only": 1,
       "hidden": 1
     },
     {
       "fieldname": "projection_error",
       "fieldtype": "Small Text",
-      "label": "Erro de projeção",
+      "label": "Projection error",
       "read_only": 1
     },
     {
       "fieldname": "projected_at",
       "fieldtype": "Datetime",
-      "label": "Projetada em",
+      "label": "Projected at",
       "read_only": 1
     },
     {
       "fieldname": "ai_enrichment_status",
       "fieldtype": "Select",
-      "label": "Atualização da IA",
+      "label": "AI refresh",
       "options": "Pending\nFresh\nStale",
       "default": "Pending",
       "read_only": 1,

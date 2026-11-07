@@ -1,7 +1,7 @@
 app_name = "trivia_sync"
 app_title = "Trivia Sync"
 app_publisher = "trivia360"
-app_description = "Sincronização completa da QAPI com Frappe LMS."
+app_description = "Full QAPI sync for Frappe LMS."
 app_email = "dev@trivia360.app"
 app_license = "MIT"
 required_apps = ["lms"]

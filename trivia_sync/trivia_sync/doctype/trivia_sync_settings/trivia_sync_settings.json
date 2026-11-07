@@ -44,7 +44,7 @@
     {
       "fieldname": "qapi_section",
       "fieldtype": "Section Break",
-      "label": "QAPI · questões de concursos"
+      "label": "QAPI · contest questions"
     },
     {
       "fieldname": "qapi_base_url",
@@ -57,132 +57,132 @@
       "fieldname": "qapi_api_key",
       "fieldtype": "Password",
       "label": "Q-Api-Key",
-      "description": "Nunca exponha esta chave no frontend ou no repositório."
+      "description": "Never expose this key in the frontend or repository."
     },
     {
       "fieldname": "qapi_enabled",
       "fieldtype": "Check",
-      "label": "Ativar sincronização QAPI",
+      "label": "Enable QAPI sync",
       "default": "0"
     },
     {
       "fieldname": "qapi_sync_frequency",
       "fieldtype": "Select",
-      "label": "Frequência QAPI",
+      "label": "QAPI frequency",
       "options": "Hourly\nEvery scheduler tick",
       "default": "Hourly"
     },
     {
       "fieldname": "qapi_page_size",
       "fieldtype": "Int",
-      "label": "Itens por página",
+      "label": "Items per page",
       "default": "10",
-      "description": "A QAPI limita listagens a 10 itens por página."
+      "description": "QAPI list endpoints are limited to 10 items per page."
     },
     {
       "fieldname": "qapi_max_pages",
       "fieldtype": "Int",
-      "label": "Máximo de páginas por execução",
+      "label": "Max pages per run",
       "default": "10"
     },
     {
       "fieldname": "lms_section",
       "fieldtype": "Section Break",
-      "label": "Frappe LMS → trivia"
+      "label": "Frappe LMS → Trivia"
     },
     {
       "fieldname": "lms_sync_enabled",
       "fieldtype": "Check",
-      "label": "Ativar sincronização LMS",
+      "label": "Enable LMS sync",
       "default": "0"
     },
     {
       "fieldname": "lms_sync_frequency",
       "fieldtype": "Select",
-      "label": "Frequência LMS",
+      "label": "LMS frequency",
       "options": "Daily\nEvery scheduler tick",
       "default": "Daily"
     },
     {
       "fieldname": "trivia_api_url",
       "fieldtype": "Data",
-      "label": "URL da API da trivia360",
+      "label": "Trivia360 API URL",
       "description": "Endpoint que recebe o payload normalizado de cursos existentes do LMS."
     },
     {
       "fieldname": "trivia_api_token",
       "fieldtype": "Password",
-      "label": "Token da API da trivia360"
+      "label": "Trivia360 API token"
     },
     {
       "fieldname": "trivia_sync_mode",
       "fieldtype": "Select",
-      "label": "Modo de envio",
+      "label": "Delivery mode",
       "options": "Push normalized payload\nDry run",
       "default": "Push normalized payload"
     },
     {
       "fieldname": "only_published",
       "fieldtype": "Check",
-      "label": "Enviar somente cursos publicados",
+      "label": "Send published courses only",
       "default": "1"
     },
     {
       "fieldname": "audit_section",
       "fieldtype": "Section Break",
-      "label": "Auditoria"
+      "label": "Audit"
     },
     {
       "fieldname": "last_qapi_sync_at",
       "fieldtype": "Datetime",
-      "label": "Última sincronização QAPI",
+      "label": "Last QAPI sync",
       "read_only": 1
     },
     {
       "fieldname": "last_lms_sync_at",
       "fieldtype": "Datetime",
-      "label": "Última sincronização LMS",
+      "label": "Last LMS sync",
       "read_only": 1
     },
     {
       "fieldname": "catalog_section",
       "fieldtype": "Section Break",
-      "label": "Catálogos e recursos QAPI"
+      "label": "QAPI catalogs and resources"
     },
     {
       "fieldname": "sync_catalogs",
       "fieldtype": "Check",
-      "label": "Sincronizar catálogos",
+      "label": "Sync catalogs",
       "default": "1"
     },
     {
       "fieldname": "sync_support_texts",
       "fieldtype": "Check",
-      "label": "Sincronizar textos e vincular às questões",
+      "label": "Sync supporting texts and link to questions",
       "default": "1"
     },
     {
       "fieldname": "sync_exams",
       "fieldtype": "Check",
-      "label": "Sincronizar provas (200 cotas/chamada)",
+      "label": "Sync exams (200 credits per call)",
       "default": "0"
     },
     {
       "fieldname": "sync_flashcards",
       "fieldtype": "Check",
-      "label": "Sincronizar flashcards",
+      "label": "Sync flashcards",
       "default": "1"
     },
     {
       "fieldname": "qapi_timeout",
       "fieldtype": "Int",
-      "label": "Timeout HTTP (segundos)",
+      "label": "HTTP timeout (seconds)",
       "default": "60"
     },
     {
       "fieldname": "mcp_enabled",
       "fieldtype": "Check",
-      "label": "Habilitar fallback MCP",
+      "label": "Enable MCP fallback",
       "default": "0"
     },
     {
@@ -194,59 +194,59 @@
     {
       "fieldname": "ai_section",
       "fieldtype": "Section Break",
-      "label": "Adaptador IA · enriquecimento de questões"
+      "label": "AI adapter · question enrichment"
     },
     {
       "fieldname": "ai_enabled",
       "fieldtype": "Check",
-      "label": "Habilitar enriquecimento IA",
+      "label": "Enable AI enrichment",
       "default": "0",
-      "description": "O enriquecimento é opt-in e consome chamadas do provedor configurado."
+      "description": "AI enrichment is opt-in and consumes requests from the configured provider."
     },
     {
       "fieldname": "ai_base_url",
       "fieldtype": "Data",
-      "label": "URL base IA",
+      "label": "AI base URL",
       "default": "https://api.openai.com/v1"
     },
     {
       "fieldname": "ai_api_key",
       "fieldtype": "Password",
-      "label": "Chave do provedor IA",
-      "description": "Nunca exponha esta chave no frontend ou no repositório."
+      "label": "AI provider key",
+      "description": "Never expose this key in the frontend or repository."
     },
     {
       "fieldname": "ai_model",
       "fieldtype": "Data",
-      "label": "Modelo IA",
+      "label": "AI model",
       "default": "gpt-6-luna"
     },
     {
       "fieldname": "ai_timeout",
       "fieldtype": "Int",
-      "label": "Timeout IA (segundos)",
+      "label": "AI timeout (seconds)",
       "default": "90"
     },
     {
       "fieldname": "ai_batch_size",
       "fieldtype": "Int",
-      "label": "Questões por execução IA",
+      "label": "Questions per AI run",
       "default": "10",
-      "description": "Limite de segurança por execução manual ou worker."
+      "description": "Safety limit for each manual run or worker."
     },
     {
       "fieldname": "qapi_max_requests_per_run",
       "fieldtype": "Int",
-      "label": "Máximo de créditos QAPI por execução",
+      "label": "Max QAPI credits per run",
       "default": "0",
-      "description": "0 bloqueia chamadas pagas. Chamadas de provas custam 200 créditos; as demais custam 1. A reserva é descontada deste limite."
+      "description": "0 blocks paid requests. Exam requests cost 200 credits; all others cost 1. The reserve is deducted from this limit."
     },
     {
       "fieldname": "qapi_min_credit_reserve",
       "fieldtype": "Int",
-      "label": "Reserva mínima de créditos QAPI",
+      "label": "Minimum QAPI credit reserve",
       "default": "1",
-      "description": "Créditos que o limite configurado mantém reservados e não gasta na execução."
+      "description": "Credits held in reserve and unavailable to the run."
     }
   ],
   "permissions": [

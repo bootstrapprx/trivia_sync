@@ -20,49 +20,49 @@
     {
       "fieldname": "level",
       "fieldtype": "Select",
-      "label": "Nível",
+      "label": "Level",
       "options": "mais\n180\n360",
       "reqd": 1
     },
     {
       "fieldname": "version",
       "fieldtype": "Int",
-      "label": "Versão",
+      "label": "Version",
       "reqd": 1
     },
     {
       "fieldname": "content",
       "fieldtype": "Text Editor",
-      "label": "Conteúdo",
+      "label": "Content",
       "reqd": 1
     },
     {
       "fieldname": "summary",
       "fieldtype": "Small Text",
-      "label": "Resumo"
+      "label": "Summary"
     },
     {
       "fieldname": "source_hash",
       "fieldtype": "Data",
-      "label": "Hash das fontes",
+      "label": "Source hash",
       "reqd": 1
     },
     {
       "fieldname": "source_keys",
       "fieldtype": "Code",
-      "label": "Identidades de origem",
+      "label": "Source identities",
       "options": "JSON"
     },
     {
       "fieldname": "model",
       "fieldtype": "Data",
-      "label": "Modelo",
+      "label": "Model",
       "reqd": 1
     },
     {
       "fieldname": "status",
       "fieldtype": "Select",
-      "label": "Estado",
+      "label": "Status",
       "options": "Draft\nApproved\nPublished\nStale",
       "default": "Draft",
       "reqd": 1
@@ -70,23 +70,23 @@
     {
       "fieldname": "approved_by",
       "fieldtype": "Link",
-      "label": "Aprovado por",
+      "label": "Approved by",
       "options": "User"
     },
     {
       "fieldname": "approved_at",
       "fieldtype": "Datetime",
-      "label": "Aprovado em"
+      "label": "Approved at"
     },
     {
       "fieldname": "review_reason",
       "fieldtype": "Small Text",
-      "label": "Motivo da aprovação"
+      "label": "Approval reason"
     },
     {
       "fieldname": "published_at",
       "fieldtype": "Datetime",
-      "label": "Publicado em"
+      "label": "Published at"
     }
   ],
   "istable": 1,

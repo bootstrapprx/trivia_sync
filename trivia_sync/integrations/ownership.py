@@ -5,17 +5,17 @@ QUESTION_SOURCE_FIELDS = {
 }
 
 RESOURCE_SOURCE_FIELDS = {
-	"Banca": {"qapi_id", "nome", "sigla", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
-	"Órgão": {"qapi_id", "nome", "sigla", "uf", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
-	"Cargo": {"qapi_id", "nome", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "is_obsolete"},
-	"Matéria": {"qapi_id", "nome", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
-	"Assunto": {"qapi_id", "nome", "materia", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
-	"Concurso": {"qapi_id", "titulo", "orgao", "banca", "status", "ano", "regiao", "estado", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "is_obsolete"},
-	"Prova": {"qapi_id", "titulo", "concurso", "banca", "orgao", "cargo", "ano", "pdf_url", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
-	"Disciplina": {"qapi_id", "titulo", "concurso", "cargo", "materia", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
-	"Conteúdo Programático": {"qapi_id", "titulo", "disciplina", "parent_conteudo", "is_group", "ordem", "nivel", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "source_path", "source_text", "source_version", "source_hash", "concurso_cargo", "is_obsolete"},
+	"Trivia Exam Board": {"qapi_id", "nome", "sigla", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Organization": {"qapi_id", "nome", "sigla", "uf", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Position": {"qapi_id", "nome", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "is_obsolete"},
+	"Trivia Subject": {"qapi_id", "nome", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Topic": {"qapi_id", "nome", "materia", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Contest": {"qapi_id", "titulo", "orgao", "banca", "status", "ano", "regiao", "estado", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "is_obsolete"},
+	"Trivia Exam": {"qapi_id", "titulo", "concurso", "banca", "orgao", "cargo", "ano", "pdf_url", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Discipline": {"qapi_id", "titulo", "concurso", "cargo", "materia", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Syllabus Topic": {"qapi_id", "titulo", "disciplina", "parent_conteudo", "is_group", "ordem", "nivel", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "source_path", "source_text", "source_version", "source_hash", "concurso_cargo", "is_obsolete"},
 	"Flashcard": {"qapi_id", "frente", "verso", "conteudo", "materia", "assunto", "raw_payload", "sync_hash", "source_type", "source_id", "source_key"},
-	"Texto de Apoio": {"codigo", "titulo", "conteudo", "source_url", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
+	"Trivia Supporting Text": {"codigo", "titulo", "conteudo", "source_url", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
 }
 
 

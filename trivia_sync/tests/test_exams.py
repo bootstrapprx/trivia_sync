@@ -28,7 +28,7 @@ class TestExamAssembly(unittest.TestCase):
 		frappe = self.module.frappe
 		class FakeProva:
 			def __init__(self):
-				self.name="PROVA-1"; self.titulo="Prova"; self.status="Draft"; self.concurso_cargo="CC-1"
+				self.name="PROVA-1"; self.titulo="Trivia Exam"; self.status="Draft"; self.concurso_cargo="CC-1"
 				self.lms_course="COURSE-1"; self.lms_lesson="LESSON-1"; self.requested_questions=1
 				self.exam_blocks=[]; self.exam_questions=[]; self.exam_versions=[]; self.exam_version=0; self.blueprint_hash=""; self.lms_quiz=None
 			def set(self, field, value): setattr(self, field, value)

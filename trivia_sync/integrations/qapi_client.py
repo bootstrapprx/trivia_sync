@@ -26,7 +26,7 @@ class QAPIClient:
 		self.mcp_url = (self.settings.mcp_base_url or MCP_DEFAULT).rstrip("/")
 		self.api_key = self.settings.get_password("qapi_api_key") if self.settings.qapi_api_key else ""
 		if not self.api_key:
-			raise QAPIError("Configure o Q-Api-Key antes de sincronizar.")
+			raise QAPIError("Configure the Q-Api-Key before syncing.")
 		self.timeout = max(10, int(self.settings.qapi_timeout or 60))
 		self.session = requests.Session()
 		self.session.headers.update({"Accept": "application/json", "Q-Api-Key": self.api_key})
@@ -34,7 +34,7 @@ class QAPIClient:
 	def _reserve_request(self, cost=1):
 		cost = max(1, int(cost))
 		if self.credits_used + cost > self.max_requests:
-			raise QAPIBudgetError("Limite local de créditos QAPI atingido; nenhuma nova chamada foi enviada.")
+			raise QAPIBudgetError("Local QAPI credit limit reached; no further request was sent.")
 		self.requests_made += 1
 		self.credits_used += cost
 
