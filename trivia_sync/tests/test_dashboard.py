@@ -46,7 +46,7 @@ class TestDashboard(unittest.TestCase):
 		):
 			result = self.module.metrics()
 
-		only_for.assert_called_once_with("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor")
+		only_for.assert_called_once_with(("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor"))
 		self.assertEqual(result["editorial"]["oldest_pending_days"], 3)
 		self.assertEqual(result["editorial"]["projection_failed"], 1)
 		self.assertEqual(result["source_sync"]["last_run"].resume_page, 3)

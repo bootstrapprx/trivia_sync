@@ -158,7 +158,7 @@ def decide_question_redistribution(question_name, decision, reason=""):
 
 @frappe.whitelist()
 def project_question(question_name):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	source = frappe.get_doc("Trivia Question", question_name)
 	try:
 		name = sync_lms_question(source)
@@ -172,13 +172,13 @@ def project_question(question_name):
 
 @frappe.whitelist()
 def build_simulado(prova_name):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return assemble_simulado(prova_name)
 
 
 @frappe.whitelist()
 def publish_prova(prova_name, lesson_name=None):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return publish_exam(prova_name, lesson_name)
 
 
@@ -195,13 +195,13 @@ def set_contest_publication(concurso_name, status):
 
 @frappe.whitelist()
 def generate_lesson_material(recipe_name, level):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return generate_lesson_draft(recipe_name, level)
 
 
 @frappe.whitelist()
 def generate_apostila_recipe_material(recipe_name, level):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return generate_apostila_material(recipe_name, level)
 
 
@@ -217,13 +217,13 @@ def approve_apostila_recipe_material(recipe_name, level, version, reason=""):
 
 @frappe.whitelist()
 def publish_lesson_material(recipe_name, level):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return publish_approved_lesson_material(recipe_name, level)
 
 
 @frappe.whitelist()
 def export_apostila(recipe_name, levels):
-	frappe.only_for("Trivia Integrator", "System Manager")
+	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return export_approved_pdf(recipe_name, levels)
 
 

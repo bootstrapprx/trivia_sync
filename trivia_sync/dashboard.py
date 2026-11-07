@@ -3,7 +3,7 @@ from trivia_sync.integrations.reconciliation import question_coverage
 
 
 def _admin():
-	frappe.only_for("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor")
+	frappe.only_for(("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor"))
 
 
 def _safe_count(doctype, filters=None):
