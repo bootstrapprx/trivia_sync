@@ -31,7 +31,7 @@ class TestDashboard(unittest.TestCase):
 		cargo = types.SimpleNamespace(name="CC-1", concurso="CON-1", cargo="Cargo A", lms_course="COURSE-1")
 		with patch.object(frappe, "only_for") as only_for, patch.object(
 			frappe.db, "count", side_effect=[10, 6, 3, 2, 1, 4, 5, 6, 7, 8]
-		), patch.object(frappe.db, "sql", side_effect=[[], [types.SimpleNamespace(average=3.5)]]), patch.object(
+		), patch.object(frappe.db, "sql", side_effect=[[], [types.SimpleNamespace(average=3.5)], [[8]]]), patch.object(
 			frappe, "get_all", side_effect=[[run], [old_pending], [latest], [cargo]]
 		), patch.object(
 			frappe, "get_single", return_value=types.SimpleNamespace(

@@ -8,6 +8,9 @@ def _admin():
 
 def _safe_count(doctype, filters=None):
 	try:
+		if doctype == "Órgão":
+			quote = "`" if frappe.db.db_type == "mariadb" else '"'
+			return frappe.db.sql(f"SELECT COUNT(*) FROM {quote}tabÓrgão{quote}")[0][0]
 		return frappe.db.count(doctype, filters=filters or {})
 	except Exception:
 		return 0
