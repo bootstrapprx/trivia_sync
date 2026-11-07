@@ -6,6 +6,53 @@ import unicodedata
 import frappe
 
 
+ACCENTED_CATALOG_COLUMNS = {
+	"Órgão": {"name", "source_id", "qapi_id", "nome"},
+	"Matéria": {"name", "source_id", "qapi_id", "nome"},
+	"Conteúdo Programático": {"name", "concurso_cargo", "source_path", "is_obsolete"},
+}
+
+
+def _catalog_query(doctype, action, fields, filters=None, value=None):
+	allowed = ACCENTED_CATALOG_COLUMNS[doctype]
+	if any(field not in allowed for field in fields + list((filters or {}).keys())):
+		frappe.throw(f"Campo inválido para reconciliação de {doctype}.")
+	quotes = {"mariadb": "`", "postgres": '"', "sqlite": '"'}
+	quote = quotes.get(frappe.db.db_type, '"')
+	table = f"{quote}tab{doctype}{quote}"
+	quoted_fields = ", ".join(f"{quote}{field}{quote}" for field in fields)
+	where = " AND ".join(f"{quote}{field}{quote} = %s" for field in (filters or {}))
+	values = tuple((filters or {}).values())
+	if action == "select":
+		query = f"SELECT {quoted_fields} FROM {table}" + (f" WHERE {where}" if where else "") + (" LIMIT 1" if value == "first" else "")
+		return frappe.db.sql(query, values, as_dict=True)
+	if action == "update" and len(fields) == 1 and where:
+		query = f"UPDATE {table} SET {quote}{fields[0]}{quote} = %s WHERE {where}"
+		frappe.db.sql(query, (value, *values))
+		return
+	frappe.throw("Operação SQL inválida para reconciliação.")
+
+
+def _catalog_get_value(doctype, filters, field):
+	if doctype in ACCENTED_CATALOG_COLUMNS:
+		rows = _catalog_query(doctype, "select", [field], filters, value="first")
+		return rows[0].get(field) if rows else None
+	return frappe.db.get_value(doctype, filters, field)
+
+
+def _catalog_get_all(doctype, filters, fields):
+	if doctype in ACCENTED_CATALOG_COLUMNS:
+		return _catalog_query(doctype, "select", fields, filters)
+	return frappe.get_all(doctype, filters=filters, fields=fields)
+
+
+def _catalog_set_value(doctype, name, field, value):
+	if doctype in ACCENTED_CATALOG_COLUMNS:
+		_catalog_query(doctype, "update", [field], {"name": name}, value)
+	else:
+		frappe.db.set_value(doctype, name, field, value)
+
+
 def normalize_name(value):
 	value = unicodedata.normalize("NFKD", str(value or "").casefold())
 	value = "".join(char for char in value if not unicodedata.combining(char))
@@ -15,14 +62,14 @@ def normalize_name(value):
 def resolve_catalog(doctype, external_id=None, name=None):
 	if external_id:
 		for field in ("source_id", "qapi_id"):
-			match = frappe.db.get_value(doctype, {field: str(external_id)}, "name")
+			match = _catalog_get_value(doctype, {field: str(external_id)}, "name")
 			if match:
 				return {"status": "resolved", "name": match, "method": "external_id"}
 	if not name:
 		return {"status": "unmatched", "name": None, "method": None}
 	meta = frappe.get_meta(doctype)
 	fields = ["name"] + [field for field in ("nome", "titulo") if meta.has_field(field)]
-	rows = frappe.db.get_all(doctype, fields=fields)
+	rows = _catalog_get_all(doctype, {}, fields)
 	needle = normalize_name(name)
 	matches = [row.get("name") for row in rows if needle and needle in {normalize_name(row.get("nome")), normalize_name(row.get("titulo"))}]
 	if len(matches) == 1:
@@ -92,7 +139,7 @@ def sync_syllabus_tree(concurso_cargo, rows, source_version):
 		)
 		digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
 		filters = {"concurso_cargo": concurso_cargo, "source_path": path}
-		name = frappe.db.get_value("Conteúdo Programático", filters, "name")
+		name = _catalog_get_value("Conteúdo Programático", filters, "name")
 		if name:
 			doc = frappe.get_doc("Conteúdo Programático", name)
 			if doc.source_hash == digest and doc.source_version == source_version and not doc.is_obsolete:
@@ -125,9 +172,9 @@ def sync_syllabus_tree(concurso_cargo, rows, source_version):
 			doc.insert(ignore_permissions=True)
 		parent_names[path] = doc.name
 	obsolete = 0
-	for doc in frappe.get_all("Conteúdo Programático", filters={"concurso_cargo": concurso_cargo, "is_obsolete": 0}, fields=["name", "source_path"]):
+	for doc in _catalog_get_all("Conteúdo Programático", {"concurso_cargo": concurso_cargo, "is_obsolete": 0}, ["name", "source_path"]):
 		if doc.get("source_path") not in seen:
-			frappe.db.set_value("Conteúdo Programático", doc.get("name"), "is_obsolete", 1)
+			_catalog_set_value("Conteúdo Programático", doc.get("name"), "is_obsolete", 1)
 			obsolete += 1
 	return {"created": created, "updated": updated, "unchanged": unchanged, "obsolete": obsolete, "deleted": 0}
 
