@@ -90,8 +90,12 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	} }).then(() => { controls.qapi_api_key.set_value(""); showStatus(__("Settings saved."), "green"); loadStatus(); }));
 	main.find('[data-action="test"]').on("click", () => frappe.call("trivia_sync.api.qapi_status").then(({ message }) => showStatus(message?.ok ? `${__("Connection successful")} · ${message.total ?? __("QAPI is reachable")}` : message?.error || __("QAPI connection test failed"), message?.ok ? "green" : "red")));
 	main.find('[data-action="dry-run"]').on("click", () => frappe.call({ method: "trivia_sync.api.run_qapi_sync_now", args: { dry_run: 1, full_upgrade: 1, max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(`${__("Full upgrade upper bound")}: ${message?.required_upper_bound ?? message?.projected_request_cost ?? 0} ${__("credits")} · ${__("No data was written")}`, "blue")));
-	main.find('[data-action="full-upgrade"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_full_upgrade", args: { max_pages: controls.qapi_max_pages.get_value() } }).then(() => showStatus(__("Full upgrade queued: all selected read endpoints will run."), "green")));
-	main.find('[data-action="sync"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_sync", args: { full: 1, max_pages: controls.qapi_max_pages.get_value() } }).then(() => showStatus(__("Selected QAPI sync queued."), "green")));
+	const queuedMessage = (message, fallback) => {
+		const job = message?.job || fallback;
+		return `${__("Queued on")}: ${message?.queue || "long"} · ${__("job")}: ${job}${message?.job_id ? ` · ID: ${message.job_id}` : ""}`;
+	};
+	main.find('[data-action="full-upgrade"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_full_upgrade", args: { max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_full"), "green")));
+	main.find('[data-action="sync"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_sync", args: { full: 1, max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_full"), "green")));
 	main.find('[data-action="lms"]').on("click", () => frappe.call("trivia_sync.api.enqueue_lms_sync").then(() => showStatus(__("Frappe LMS sync queued."), "green")));
 	loadStatus();
 };

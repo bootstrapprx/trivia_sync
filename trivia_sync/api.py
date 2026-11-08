@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import frappe
 from frappe.utils import cint
@@ -100,7 +101,8 @@ def save_onboarding(
 def enqueue_qapi_sync(full=1, dry_run=0, budget=None, max_pages=0, filters=None):
 	_admin()
 	parsed_filters = json.loads(filters) if isinstance(filters, str) and filters else filters or {}
-	frappe.enqueue(
+	job_name = f"trivia_sync_qapi_{'full' if cint(full) else 'questions'}_{uuid.uuid4().hex[:10]}"
+	job = frappe.enqueue(
 		"trivia_sync.integrations.sync.ingest_source",
 		source_name="QAPI",
 		filters=parsed_filters,
@@ -109,10 +111,16 @@ def enqueue_qapi_sync(full=1, dry_run=0, budget=None, max_pages=0, filters=None)
 		budget=None if budget in (None, "") else cint(budget),
 		max_pages=cint(max_pages),
 		queue="long",
-		job_name="trivia_sync_qapi_full" if cint(full) else "trivia_sync_qapi_questions",
-		enqueue_after_commit=True,
+		job_name=job_name,
+		enqueue_after_commit=False,
 	)
-	return {"queued": True, "job": "trivia_sync_qapi_full" if cint(full) else "trivia_sync_qapi_questions"}
+	return {
+		"queued": True,
+		"job": job_name,
+		"job_id": getattr(job, "id", None),
+		"queue": "long",
+		"message": "Job enqueued immediately; a running worker_long process is required to execute it.",
+	}
 
 
 @frappe.whitelist()
@@ -128,6 +136,7 @@ def enqueue_qapi_full_upgrade(budget=None, max_pages=0, filters=None):
 	# Full upgrade is read-only by default; creating remote flashcards remains explicit.
 	doc.push_flashcards = 0
 	doc.save(ignore_permissions=True)
+	frappe.db.commit()
 	return enqueue_qapi_sync(full=1, budget=budget, max_pages=max_pages, filters=filters)
 
 
