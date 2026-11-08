@@ -16,6 +16,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       <section class="frappe-card trivia-dashboard-card"><h3>${__("AI difficulty")}</h3><div data-difficulty></div></section>
       <section class="frappe-card trivia-dashboard-card"><h3>${__("Recent workers")}</h3><div class="trivia-dashboard-table-wrap"><table class="table table-sm"><thead><tr><th>${__("Source")}</th><th>${__("Operation")}</th><th>${__("Status")}</th><th>${__("Errors")}</th><th>${__("Requests · credits / limit · reserve")}</th><th>${__("Resume")}</th><th>${__("Finished")}</th></tr></thead><tbody data-runs></tbody></table></div></section>
     </div>
+    <section class="frappe-card trivia-dashboard-card"><h3>${__("Endpoint utilization")}</h3><div class="trivia-dashboard-table-wrap"><table class="table table-sm"><thead><tr><th>${__("Endpoint")}</th><th>${__("Received")}</th><th>${__("Created")}</th><th>${__("Updated")}</th><th>${__("Failed")}</th><th>${__("Utilization")}</th></tr></thead><tbody data-endpoints></tbody></table></div></section>
     <div class="text-muted trivia-dashboard-updated" data-updated></div>`);
 
   const escape = (value) => frappe.utils.escape_html(String(value ?? ""));
@@ -46,6 +47,8 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       card(__("Credits / reserve"), `${s.request_budget || 0} / ${s.credit_reserve || 0}`, s.paid_sync_available ? __("Paid requests available") : __("Set a budget above the reserve"), s.paid_sync_available ? "blue" : "orange"),
       card(__("QAPI run"), s.last_run?.status || __("No runs"), `${s.last_run?.current_operation || "—"} · ${s.last_run?.requests_made || 0} ${__("requests")} / ${s.last_run?.credits_used || 0} ${__("credits")}`, "blue"),
     ].join(""));
+    const endpointRows = Object.entries(s.endpoint_metrics || {}).map(([endpoint, values]) => `<tr><td>${escape(endpoint)}</td><td>${escape(values.received || 0)}</td><td>${escape(values.created || 0)}</td><td>${escape(values.updated || 0)}</td><td>${escape(values.failed || 0)}</td><td>${escape(values.utilization_percent || 0)}%</td></tr>`).join("");
+    main.find("[data-endpoints]").html(endpointRows || `<tr><td colspan="6" class="text-muted">${__("No endpoint metrics recorded yet.")}</td></tr>`);
     main.find("[data-coverage]").html((data.syllabus_coverage || []).map((row) => `<tr><td>${escape(row.concurso || "—")}</td><td>${escape(row.cargo || row.concurso_cargo)}</td><td>${escape(row.questions || 0)}</td><td>${escape(row.eligible || 0)}</td><td>${escape(row.review?.Pending || 0)}</td></tr>`).join("") || `<tr><td colspan="5" class="text-muted">${__("No contest positions are configured.")}</td></tr>`);
     main.find("[data-updated]").text(`${__("Updated at")} ${data.generated_at || "—"}`);
   };

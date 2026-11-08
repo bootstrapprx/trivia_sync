@@ -12,6 +12,16 @@ class TestDashboard(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
 		sys.modules.setdefault("frappe", types.SimpleNamespace())
+		if not hasattr(sys.modules["frappe"], "only_for"):
+			sys.modules["frappe"].only_for = lambda roles: None
+		if not hasattr(sys.modules["frappe"], "db"):
+			sys.modules["frappe"].db = types.SimpleNamespace(count=None, sql=None)
+		if not hasattr(sys.modules["frappe"], "get_all"):
+			sys.modules["frappe"].get_all = None
+		if not hasattr(sys.modules["frappe"], "get_single"):
+			sys.modules["frappe"].get_single = None
+		if not hasattr(sys.modules["frappe"], "utils"):
+			sys.modules["frappe"].utils = types.SimpleNamespace(now_datetime=None)
 		cls.module = importlib.import_module("trivia_sync.dashboard")
 
 	def test_metrics_are_role_gated_and_return_operational_aggregates(self):

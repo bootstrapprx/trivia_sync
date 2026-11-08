@@ -24,6 +24,61 @@ RESOURCE_MAP = {
 	"flashcards": ("Flashcard", "flashcards"),
 }
 
+DETAIL_ENDPOINTS = {
+	"provas": ("prova", 200),
+	"concursos": ("concurso", 1),
+	"disciplinas": ("disciplina", 1),
+}
+
+
+def _metric(metrics, endpoint):
+	return metrics.setdefault(endpoint, {"received": 0, "created": 0, "updated": 0, "failed": 0})
+
+
+def _record_metric(metrics, endpoint, result=None, received=0, failed=0):
+	bucket = _metric(metrics, endpoint)
+	bucket["received"] += int(received or 0)
+	bucket["failed"] += int(failed or 0)
+	if result == "created":
+		bucket["created"] += 1
+	elif result == "updated":
+		bucket["updated"] += 1
+
+
+def _payload_record(payload):
+	if isinstance(payload, dict):
+		for key in ("data", "item", "result"):
+			value = payload.get(key)
+			if isinstance(value, dict):
+				return value
+		return payload
+	return {}
+
+
+def _estimated_request_cost(settings_doc, max_pages, include_catalogs, local_flashcard_count=0):
+	page_size = min(10, max(1, int(settings_doc.qapi_page_size or 10)))
+	question_records = max_pages * page_size
+	cost = max_pages  # get_questoes
+	cost += question_records if settings_doc.sync_support_texts else 0
+	if not include_catalogs or not settings_doc.sync_catalogs:
+		return cost + (local_flashcard_count if getattr(settings_doc, "push_flashcards", 0) else 0)
+	for method, (_, kind) in RESOURCE_MAP.items():
+		if kind == "provas" and not settings_doc.sync_exams:
+			continue
+		if kind == "flashcards" and not settings_doc.sync_flashcards:
+			continue
+		cost += max_pages * QAPI_METHOD_COSTS.get(method, 1)
+		if method in DETAIL_ENDPOINTS:
+			detail_method, detail_cost = DETAIL_ENDPOINTS[method]
+			cost += max_pages * page_size * detail_cost
+	if settings_doc.sync_catalogs:
+		cost += 1  # get_conteudos_arvore
+	if settings_doc.sync_catalogs:
+		cost += 1  # get_status_concurso
+	if getattr(settings_doc, "push_flashcards", 0):
+		cost += local_flashcard_count * QAPI_METHOD_COSTS["criar_flashcard"]
+	return cost
+
 
 def _rows(payload):
 	if isinstance(payload, list):
@@ -131,24 +186,33 @@ def _upsert(doctype, data, key="qapi_id"):
 	return "created"
 
 
-def _sync_text(adapter, codigo):
+def _sync_text(adapter, codigo, metrics=None):
 	if not codigo:
 		return None
-	payload = adapter.fetch_text(codigo)
+	try:
+		payload = adapter.fetch_text(codigo)
+		if metrics is not None:
+			_record_metric(metrics, "get_texto", received=1)
+	except Exception:
+		if metrics is not None:
+			_record_metric(metrics, "get_texto", received=1, failed=1)
+		raise
 	row = payload.get("data", payload) if isinstance(payload, dict) else payload
 	data = normalize_resource(row if isinstance(row, dict) else {"codigo": codigo, "conteudo": row}, "texto")
 	data["codigo"] = data.get("codigo") or codigo
 	data["source_id"] = str(codigo)
 	data["source_key"] = f"qapi:{codigo}"
-	_upsert("Trivia Supporting Text", data, "codigo")
+	result = _upsert("Trivia Supporting Text", data, "codigo")
+	if metrics is not None:
+		_record_metric(metrics, "get_texto", result=result)
 	return frappe.db.get_value("Trivia Supporting Text", {"codigo": data["codigo"]}, "name")
 
 
-def _save_question(adapter, row, settings_doc):
+def _save_question(adapter, row, settings_doc, metrics=None):
 	data = normalize_question(row)
 	if not data["source_id"] or not data["enunciado"]:
 		return "skipped"
-	texto_name = _sync_text(adapter, data["texto_codigo"]) if settings_doc.sync_support_texts else None
+	texto_name = _sync_text(adapter, data["texto_codigo"], metrics) if settings_doc.sync_support_texts else None
 	if texto_name:
 		texto_hash = frappe.db.get_value("Trivia Supporting Text", texto_name, "sync_hash") or ""
 		data["content_hash"] = hashlib.sha256(f"{data['content_hash']}:{texto_hash}".encode()).hexdigest()
@@ -175,7 +239,7 @@ def _save_question(adapter, row, settings_doc):
 
 def _sync_paginated(
 	adapter, method_name, doctype, kind, settings_doc, max_pages, filters, start_page=1, run=None,
-	request_offset=0, credit_offset=0
+	request_offset=0, credit_offset=0, metrics=None
 ):
 	created = updated = skipped = errors = 0
 	for page in range(start_page, max_pages + 1):
@@ -186,8 +250,12 @@ def _sync_paginated(
 			run.resume_page = page
 		payload = adapter.fetch_resource(method_name, page=page, size=min(10, max(1, int(settings_doc.qapi_page_size or 10))))
 		for row in _rows(payload):
+			if metrics is not None:
+				_record_metric(metrics, method_name, received=1)
 			try:
 				result = _upsert(doctype, normalize_resource(row, kind))
+				if metrics is not None:
+					_record_metric(metrics, method_name, result=result)
 				if result == "created":
 					created += 1
 				elif result == "updated":
@@ -196,8 +264,29 @@ def _sync_paginated(
 					skipped += 1
 			except Exception as exc:
 				errors += 1
+				if metrics is not None:
+					_record_metric(metrics, method_name, failed=1)
 				if run:
 					run.error_log = _append_error(run.error_log, doctype, row.get("id") or row.get("codigo"), exc)
+			if method_name in DETAIL_ENDPOINTS:
+				detail_method, _ = DETAIL_ENDPOINTS[method_name]
+				row_id = str(row.get("id") or row.get("_id") or row.get("codigo") or row.get("qCode") or "")
+				if row_id:
+					try:
+						detail = getattr(adapter.client, detail_method)(row_id)
+						if metrics is not None:
+							_record_metric(metrics, f"get_{detail_method}", received=1)
+						detail_row = _payload_record(detail)
+						if detail_row:
+							detail_data = normalize_resource({**row, **detail_row}, kind)
+							detail_result = _upsert(doctype, detail_data)
+							if metrics is not None:
+								_record_metric(metrics, f"get_{detail_method}", result=detail_result)
+					except Exception as exc:
+						if metrics is not None:
+							_record_metric(metrics, f"get_{detail_method}", failed=1)
+						if run:
+							run.error_log = _append_error(run.error_log, doctype, row_id, exc)
 			frappe.db.commit()
 		if run:
 			run.requests_made = request_offset + adapter.requests_made
@@ -234,17 +323,10 @@ def _limits(settings_doc, budget, max_pages):
 
 def _dry_run_result(settings_doc, filters, request_budget, reserve, spend_limit, max_pages, include_catalogs):
 	page_size = min(10, max(1, int(settings_doc.qapi_page_size or 10)))
-	resource_cost = 0
-	if include_catalogs and settings_doc.sync_catalogs:
-		resource_cost = sum(
-			max_pages * QAPI_METHOD_COSTS.get(method, 1)
-			for method, (_, kind) in RESOURCE_MAP.items()
-			if (kind != "provas" or settings_doc.sync_exams)
-			and (kind != "flashcards" or settings_doc.sync_flashcards)
-		)
-		resource_cost += 1  # Árvore de conteúdo programático.
-	text_upper_bound = max_pages * page_size if settings_doc.sync_support_texts else 0
-	projected = max_pages + resource_cost + text_upper_bound
+	local_flashcard_count = 0
+	if getattr(settings_doc, "push_flashcards", 0):
+		local_flashcard_count = frappe.db.count("Flashcard", {"source_type": "LOCAL"})
+	projected = _estimated_request_cost(settings_doc, max_pages, include_catalogs, local_flashcard_count)
 	return {
 		"dry_run": True,
 		"filters": filters,
@@ -254,10 +336,61 @@ def _dry_run_result(settings_doc, filters, request_budget, reserve, spend_limit,
 		"credit_reserve": reserve,
 		"spend_limit": spend_limit,
 		"projected_request_cost": projected,
+		"required_upper_bound": projected,
 		"budget_sufficient_for_upper_bound": spend_limit >= projected,
 		"projection_is_upper_bound": True,
+		"strict_full_utilization": True,
 		"writes": 0,
 	}
+
+
+def _sync_concurso_status(adapter, metrics):
+	try:
+		payload = adapter.client.status_concurso()
+		_record_metric(metrics, "get_status_concurso", received=1)
+		return payload
+	except Exception:
+		_record_metric(metrics, "get_status_concurso", received=1, failed=1)
+		raise
+
+
+def _push_local_flashcards(adapter, metrics):
+	created = updated = failed = 0
+	rows = frappe.get_all(
+		"Flashcard",
+		filters={"source_type": "LOCAL"},
+		fields=["name", "qapi_id", "frente", "verso", "conteudo", "materia", "assunto"],
+		limit_page_length=10000,
+	)
+	for row in rows:
+		_record_metric(metrics, "criar_flashcard", received=1)
+		try:
+			payload = {
+				"front": row.frente,
+				"back": row.verso,
+				"conteudo_id": row.conteudo,
+				"materia": row.materia,
+				"assunto": row.assunto,
+			}
+			response = adapter.client.criar_flashcard(payload)
+			result = _payload_record(response)
+			remote_id = str(result.get("id") or result.get("_id") or result.get("codigo") or "")
+			if not remote_id:
+				raise ValueError("QAPI did not return a flashcard ID")
+			doc = frappe.get_doc("Flashcard", row.name)
+			doc.qapi_id = remote_id
+			doc.source_type = "QAPI"
+			doc.source_id = remote_id
+			doc.source_key = f"qapi:{remote_id}"
+			doc.raw_payload = json.dumps(result, ensure_ascii=False)
+			doc.save(ignore_permissions=True)
+			_record_metric(metrics, "criar_flashcard", result="created")
+			updated += 1
+		except Exception as exc:
+			failed += 1
+			_record_metric(metrics, "criar_flashcard", failed=1)
+			frappe.log_error(f"{type(exc).__name__}: {str(exc)[:300]}", "Trivia Sync · flashcard")
+	return {"created": created, "updated": updated, "failed": failed}
 
 
 def ingest_source(
@@ -271,7 +404,10 @@ def ingest_source(
 	request_budget, reserve, spend_limit, max_pages = _limits(settings, budget, max_pages)
 	if dry_run:
 		return _dry_run_result(settings, filters, request_budget, reserve, spend_limit, max_pages, include_catalogs)
-
+	local_flashcard_count = 0
+	if getattr(settings, "push_flashcards", 0):
+		local_flashcard_count = frappe.db.count("Flashcard", {"source_type": "LOCAL"})
+	required_upper_bound = _estimated_request_cost(settings, max_pages, include_catalogs, local_flashcard_count)
 	run = frappe.get_doc("Trivia Sync Run", resume_run) if resume_run else frappe.new_doc("Trivia Sync Run")
 	if not resume_run:
 		run.source = "QAPI"
@@ -279,24 +415,36 @@ def ingest_source(
 		run.operator = frappe.session.user
 		run.started_at = frappe.utils.now_datetime()
 		run.records_created = run.records_updated = run.records_skipped = run.records_errors = 0
+		run.records_received = 0
+		run.endpoint_metrics = "{}"
 		run.insert(ignore_permissions=True)
 	prior_requests = int(run.requests_made or 0) if resume_run else 0
 	prior_credits = int(run.credits_used or 0) if resume_run else 0
 	run.status = "Running"
-	run.parameters_json = json.dumps(
-		{"source": source_name, "filters": filters, "max_pages": max_pages, "include_catalogs": include_catalogs},
-		ensure_ascii=False,
-	)
 	run.request_budget = int(run.request_budget or 0) + spend_limit if resume_run else spend_limit
 	run.credit_reserve = reserve
-	run.save(ignore_permissions=True)
-	frappe.db.commit()
+	run.parameters_json = json.dumps(
+		{"source": source_name, "filters": filters, "max_pages": max_pages, "include_catalogs": include_catalogs,
+		 "required_upper_bound": required_upper_bound, "strict_full_utilization": True}, ensure_ascii=False
+	)
 	totals = {
 		"created": int(run.records_created or 0) if resume_run else 0,
 		"updated": int(run.records_updated or 0) if resume_run else 0,
 		"skipped": int(run.records_skipped or 0) if resume_run else 0,
 		"errors": int(run.records_errors or 0) if resume_run else 0,
 	}
+	metrics = json.loads(run.endpoint_metrics or "{}") if resume_run and run.endpoint_metrics else {}
+	if spend_limit < required_upper_bound:
+		run.status = "Blocked"
+		run.error_log = (
+			f"Budget preflight blocked the run: {spend_limit} spendable credits available, "
+			f"{required_upper_bound} required for the configured worst-case plan."
+		)
+		run.finished_at = frappe.utils.now_datetime()
+		run.save(ignore_permissions=True)
+		frappe.db.commit()
+		return {**totals, "blocked": True, "required_upper_bound": required_upper_bound,
+				"spend_limit": spend_limit, "requests_made": 0}
 	if spend_limit <= 0:
 		run.status = "Blocked"
 		run.error_log = "Paid budget unavailable: set a credit limit above the reserve."
@@ -304,7 +452,7 @@ def ingest_source(
 		run.save(ignore_permissions=True)
 		frappe.db.commit()
 		return {**totals, "blocked": True, "requests_made": 0}
-
+	adapter = None
 	try:
 		adapter = QAPIAdapter(settings, max_requests=spend_limit)
 		if not adapter.is_available():
@@ -320,7 +468,9 @@ def ingest_source(
 				if kind == "flashcards" and not settings.sync_flashcards:
 					continue
 				tasks.append((method, doctype, kind))
-			tasks.append(("syllabus_tree", "Trivia Syllabus Topic", "conteudos"))
+			tasks.extend([("syllabus_tree", "Trivia Syllabus Topic", "conteudos"), ("contest_status", None, None)])
+		if getattr(settings, "push_flashcards", 0):
+			tasks.append(("create_flashcards", "Flashcard", "flashcards_out"))
 		resume_reached = not resume_operation
 		for operation, doctype, kind in tasks:
 			if not resume_reached:
@@ -331,36 +481,28 @@ def ingest_source(
 			run.current_operation = operation
 			run.resume_operation = operation
 			run.resume_page = start_page
-			run.save(ignore_permissions=True)
 			if operation == "questions":
 				for page in range(start_page, max_pages + 1):
 					run.page = page
-					run.resume_page = page
 					payload = adapter.fetch_questions(filters, page=page, size=page_size)
 					for row in _rows(payload):
+						_record_metric(metrics, "get_questoes", received=1)
 						try:
-							result = _save_question(adapter, row, settings)
+							result = _save_question(adapter, row, settings, metrics)
+							_record_metric(metrics, "get_questoes", result=result)
 							totals[{"created": "created", "updated": "updated"}.get(result, "skipped")] += 1
 						except QAPIBudgetError:
 							raise
 						except Exception as exc:
 							totals["errors"] += 1
+							_record_metric(metrics, "get_questoes", failed=1)
 							run.error_log = _append_error(run.error_log, "Trivia Question", row.get("qCode") or row.get("qcode"), exc)
-						run.requests_made = prior_requests + adapter.requests_made
-						run.credits_used = prior_credits + adapter.credits_used
-						run.records_created = totals["created"]
-						run.records_updated = totals["updated"]
-						run.records_skipped = totals["skipped"]
-						run.records_errors = totals["errors"]
-						frappe.db.commit()
 					if page >= _pages(payload):
 						break
-					run.save(ignore_permissions=True)
-					frappe.db.commit()
 			else:
 				if operation == "syllabus_tree":
-					run.page = 1
 					payload = adapter.fetch_syllabus_tree(filters)
+					_record_metric(metrics, "get_conteudos_arvore", received=1)
 					cargo_id = filters.get("cargo")
 					cargo_name = frappe.db.get_value("Trivia Contest Position", {"source_id": str(cargo_id)}, "name") if cargo_id else None
 					if cargo_name:
@@ -377,21 +519,32 @@ def ingest_source(
 								totals[{"created": "created", "updated": "updated"}.get(result, "skipped")] += 1
 							except Exception as exc:
 								totals["errors"] += 1
+								_record_metric(metrics, "get_conteudos_arvore", failed=1)
 								run.error_log = _append_error(run.error_log, doctype, row.get("id") or row.get("codigo"), exc)
+				elif operation == "contest_status":
+					_sync_concurso_status(adapter, metrics)
+				elif operation == "create_flashcards":
+					result = _push_local_flashcards(adapter, metrics)
+					totals["created"] += result["created"]
+					totals["updated"] += result["updated"]
+					totals["errors"] += result["failed"]
 				else:
 					result = _sync_paginated(
-						adapter, operation, doctype, kind, settings, max_pages, {}, start_page=start_page, run=run,
-						request_offset=prior_requests, credit_offset=prior_credits,
+						adapter, operation, doctype, kind, settings, max_pages, filters, start_page=start_page, run=run,
+						request_offset=prior_requests, credit_offset=prior_credits, metrics=metrics,
 					)
 					for key in totals:
 						totals[key] += result[key]
 			run.requests_made = prior_requests + adapter.requests_made
 			run.credits_used = prior_credits + adapter.credits_used
-			run.records_created = totals["created"]
-			run.records_updated = totals["updated"]
-			run.records_skipped = totals["skipped"]
-			run.records_errors = totals["errors"]
-			frappe.db.commit()
+			run.records_received = sum(item.get("received", 0) for item in metrics.values())
+			run.endpoint_metrics = json.dumps(metrics, ensure_ascii=False)
+		run.records_created = totals["created"]
+		run.records_updated = totals["updated"]
+		run.records_skipped = totals["skipped"]
+		run.records_errors = totals["errors"]
+		run.save(ignore_permissions=True)
+		frappe.db.commit()
 		if not resume_reached:
 			frappe.throw("The saved resume step is no longer enabled in the current settings.")
 		run.status = "Partial" if totals["errors"] else "Completed"
@@ -399,13 +552,13 @@ def ingest_source(
 		run.resume_page = 0
 		settings.last_qapi_sync_at = frappe.utils.now_datetime()
 		settings.save(ignore_permissions=True)
-		return {**totals, "requests_made": run.requests_made, "requests_this_attempt": adapter.requests_made}
+		return {**totals, "requests_made": run.requests_made, "requests_this_attempt": adapter.requests_made,
+				"endpoint_metrics": metrics}
 	except QAPIBudgetError as exc:
 		run.status = "Partial" if prior_requests + adapter.requests_made else "Blocked"
 		run.error_log = _append_error(run.error_log, run.current_operation, run.page, exc)
-		run.requests_made = prior_requests + adapter.requests_made
-		run.credits_used = prior_credits + getattr(locals().get("adapter"), "credits_used", 0)
-		return {**totals, "partial": bool(run.requests_made), "blocked": not bool(run.requests_made), "requests_made": run.requests_made}
+		return {**totals, "partial": bool(run.requests_made), "blocked": not bool(run.requests_made),
+				"requests_made": prior_requests + adapter.requests_made, "endpoint_metrics": metrics}
 	except Exception as exc:
 		run.status = "Failed"
 		run.error_log = _append_error(run.error_log, run.current_operation, run.page, exc)
@@ -413,15 +566,17 @@ def ingest_source(
 		raise
 	finally:
 		run.finished_at = frappe.utils.now_datetime()
-		run.requests_made = prior_requests + getattr(locals().get("adapter"), "requests_made", 0)
-		run.credits_used = prior_credits + getattr(locals().get("adapter"), "credits_used", 0)
+		if adapter:
+			run.requests_made = prior_requests + adapter.requests_made
+			run.credits_used = prior_credits + adapter.credits_used
+		run.records_received = sum(item.get("received", 0) for item in metrics.values())
+		run.endpoint_metrics = json.dumps(metrics, ensure_ascii=False)
 		run.records_created = totals["created"]
 		run.records_updated = totals["updated"]
 		run.records_skipped = totals["skipped"]
 		run.records_errors = totals["errors"]
-		run.save(ignore_permissions=True)
-		frappe.db.commit()
-
+	run.save(ignore_permissions=True)
+	frappe.db.commit()
 
 def sync_qapi_full():
 	return ingest_source("QAPI")

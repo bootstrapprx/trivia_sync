@@ -29,6 +29,7 @@
     "sync_support_texts",
     "sync_exams",
     "sync_flashcards",
+    "push_flashcards",
     "qapi_timeout",
     "mcp_enabled",
     "mcp_base_url",
@@ -172,6 +173,13 @@
       "fieldtype": "Check",
       "label": "Sync flashcards",
       "default": "1"
+    },
+    {
+      "fieldname": "push_flashcards",
+      "fieldtype": "Check",
+      "label": "Create local flashcards in QAPI",
+      "default": "0",
+      "description": "Only Flashcard records with source type LOCAL are sent to QAPI."
     },
     {
       "fieldname": "qapi_timeout",

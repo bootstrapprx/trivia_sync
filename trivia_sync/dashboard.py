@@ -1,6 +1,10 @@
+import json
+
 import frappe
+
 from trivia_sync.integrations.reconciliation import question_coverage
 
+whitelist = getattr(frappe, "whitelist", lambda: (lambda function: function))
 
 def _admin():
 	frappe.only_for(("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor"))
@@ -37,7 +41,22 @@ def _difficulty_metrics():
 	return {"distribution": distribution, "average": round(float(average), 2)}
 
 
-@frappe.whitelist()
+def _endpoint_metrics(run):
+	if not run or not getattr(run, "endpoint_metrics", None):
+		return {}
+	try:
+		metrics = json.loads(run.endpoint_metrics)
+	except (TypeError, ValueError):
+		return {}
+	for values in metrics.values():
+		received = int(values.get("received", 0) or 0)
+		processed = int(values.get("created", 0) or 0) + int(values.get("updated", 0) or 0)
+		values["failed"] = int(values.get("failed", 0) or 0)
+		values["utilization_percent"] = round((processed / received) * 100, 1) if received else 0
+	return metrics
+
+
+@whitelist()
 def metrics():
 	_admin()
 	total_questions = _safe_count("Trivia Question")
@@ -46,24 +65,10 @@ def metrics():
 	run_rows = frappe.get_all(
 		"Trivia Sync Run",
 		fields=[
-			"name",
-			"source",
-			"operation",
-			"status",
-			"started_at",
-			"finished_at",
-			"page",
-			"records_created",
-			"records_updated",
-			"records_skipped",
-			"records_errors",
-			"requests_made",
-			"credits_used",
-			"request_budget",
-			"credit_reserve",
-			"current_operation",
-			"resume_operation",
-			"resume_page",
+			"name", "source", "operation", "status", "started_at", "finished_at", "page",
+			"records_created", "records_updated", "records_skipped", "records_errors", "records_received",
+			"endpoint_metrics", "requests_made", "credits_used", "request_budget", "credit_reserve",
+			"current_operation", "resume_operation", "resume_page",
 		],
 		order_by="creation desc",
 		limit_page_length=12,
@@ -80,9 +85,14 @@ def metrics():
 	settings = frappe.get_single("Trivia Sync Settings")
 	latest_qapi_run = frappe.get_all(
 		"Trivia Sync Run", filters={"source": "QAPI"},
-		fields=["name", "status", "started_at", "finished_at", "requests_made", "credits_used", "request_budget", "credit_reserve", "current_operation", "resume_operation", "resume_page"],
+		fields=[
+			"name", "status", "started_at", "finished_at", "requests_made", "credits_used", "request_budget",
+			"credit_reserve", "current_operation", "resume_operation", "resume_page", "records_received",
+			"endpoint_metrics",
+		],
 		order_by="creation desc", page_length=1,
 	)
+	latest_run = latest_qapi_run[0] if latest_qapi_run else None
 	cargo_rows = frappe.get_all(
 		"Trivia Contest Position", fields=["name", "concurso", "cargo", "lms_course"],
 		order_by="modified desc", page_length=25,
@@ -105,27 +115,23 @@ def metrics():
 			"projection_failed": _safe_count("Trivia Question", {"projection_status": "Failed"}),
 		},
 		"source_sync": {
-			"enabled": bool(settings.qapi_enabled), "last_run": latest_qapi_run[0] if latest_qapi_run else None,
+			"enabled": bool(settings.qapi_enabled), "last_run": latest_run,
 			"last_sync": settings.last_qapi_sync_at,
 			"request_budget": int(settings.qapi_max_requests_per_run or 0),
 			"credit_reserve": max(1, int(settings.qapi_min_credit_reserve or 1)),
 			"paid_sync_available": int(settings.qapi_max_requests_per_run or 0) > max(1, int(settings.qapi_min_credit_reserve or 1)),
+			"endpoint_metrics": _endpoint_metrics(latest_run),
+			"records_received": int(getattr(latest_run, "records_received", 0) or 0) if latest_run else 0,
 		},
 		"syllabus_coverage": cargo_coverage,
 		"questions": {
-			"total": total_questions,
-			"enriched": enriched_questions,
-			"pending": pending_questions,
-			"coverage_percent": round((enriched_questions / total_questions) * 100, 1)
-			if total_questions
-			else 0,
+			"total": total_questions, "enriched": enriched_questions, "pending": pending_questions,
+			"coverage_percent": round((enriched_questions / total_questions) * 100, 1) if total_questions else 0,
 			**_difficulty_metrics(),
 		},
 		"catalogs": {
-			"bancas": _safe_count("Trivia Exam Board"),
-			"orgaos": _safe_count("Trivia Organization"),
-			"concursos": _safe_count("Trivia Contest"),
-			"provas": _safe_count("Trivia Exam"),
+			"bancas": _safe_count("Trivia Exam Board"), "orgaos": _safe_count("Trivia Organization"),
+			"concursos": _safe_count("Trivia Contest"), "provas": _safe_count("Trivia Exam"),
 			"flashcards": _safe_count("Flashcard"),
 		},
 		"generated_at": frappe.utils.now_datetime(),

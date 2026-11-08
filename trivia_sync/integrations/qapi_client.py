@@ -3,7 +3,7 @@ import frappe
 
 BASE_DEFAULT = "https://qapi.otunac.com/api"
 MCP_DEFAULT = "https://qapi.otunac.com/mcp"
-QAPI_METHOD_COSTS = {"provas": 200, "prova": 200}
+QAPI_METHOD_COSTS = {"provas": 200, "prova": 200, "criar_flashcard": 1}
 
 
 class QAPIError(RuntimeError):

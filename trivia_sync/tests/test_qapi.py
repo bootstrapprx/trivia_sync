@@ -167,6 +167,24 @@ class TestQAPI(unittest.TestCase):
         settings.qapi_min_credit_reserve = 4
         self.assertEqual(self.sync_module._limits(settings, None, 0), (10, 4, 6, 5))
 
+    def test_full_plan_reserves_detail_status_and_flashcard_creation_costs(self):
+        settings = FakeSettings()
+        settings.qapi_max_pages = 1
+        settings.qapi_page_size = 10
+        settings.sync_exams = 1
+        settings.push_flashcards = 1
+        cost = self.sync_module._estimated_request_cost(settings, 1, True)
+        self.assertGreaterEqual(cost, 2000)
+        self.assertTrue(self.sync_module.DETAIL_ENDPOINTS["provas"])
+
+    def test_endpoint_metrics_track_received_created_updated_and_failed(self):
+        metrics = {}
+        self.sync_module._record_metric(metrics, "get_concursos", received=2)
+        self.sync_module._record_metric(metrics, "get_concursos", result="created")
+        self.sync_module._record_metric(metrics, "get_concursos", result="updated")
+        self.sync_module._record_metric(metrics, "get_concursos", failed=1)
+        self.assertEqual(metrics["get_concursos"], {"received": 2, "created": 1, "updated": 1, "failed": 1})
+
     def test_repeating_same_question_payload_is_idempotent(self):
         frappe = self.sync_module.frappe
         old = {name: getattr(frappe, name, None) for name in ("db", "utils", "get_doc")}

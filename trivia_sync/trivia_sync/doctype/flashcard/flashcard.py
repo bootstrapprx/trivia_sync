@@ -1,3 +1,7 @@
-from trivia_sync.trivia_sync.doctype.trivia_flashcard.trivia_flashcard import TriviaFlashcard
+from frappe.model.document import Document
 
-Flashcard = TriviaFlashcard
+
+class Flashcard(Document):
+	"""A QAPI flashcard or an explicitly queued local card."""
+
+	pass
