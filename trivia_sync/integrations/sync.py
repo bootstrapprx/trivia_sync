@@ -1,5 +1,6 @@
 import hashlib
 import json
+import copy
 import frappe
 from trivia_sync.integrations.normalization import normalize_question, normalize_resource
 from trivia_sync.integrations.ownership import update_source_owned_fields
@@ -30,6 +31,23 @@ DETAIL_ENDPOINTS = {
 	"disciplinas": ("disciplina", 1),
 }
 
+RESOURCE_SWITCHES = {
+	"bancas": "sync_bancas",
+	"orgaos": "sync_orgaos",
+	"cargos": "sync_cargos",
+	"materias": "sync_materias",
+	"assuntos": "sync_assuntos",
+	"concursos": "sync_concursos",
+	"provas": "sync_exams",
+	"disciplinas": "sync_disciplinas",
+	"conteudos": "sync_conteudos",
+	"flashcards": "sync_flashcards",
+}
+
+
+def _resource_enabled(settings_doc, kind):
+	return bool(getattr(settings_doc, RESOURCE_SWITCHES.get(kind, ""), 1))
+
 
 def _metric(metrics, endpoint):
 	return metrics.setdefault(endpoint, {"received": 0, "created": 0, "updated": 0, "failed": 0})
@@ -58,22 +76,20 @@ def _payload_record(payload):
 def _estimated_request_cost(settings_doc, max_pages, include_catalogs, local_flashcard_count=0):
 	page_size = min(10, max(1, int(settings_doc.qapi_page_size or 10)))
 	question_records = max_pages * page_size
-	cost = max_pages  # get_questoes
-	cost += question_records if settings_doc.sync_support_texts else 0
+	cost = max_pages if getattr(settings_doc, "sync_questions", 1) else 0  # get_questoes
+	cost += question_records if getattr(settings_doc, "sync_questions", 1) and settings_doc.sync_support_texts else 0
 	if not include_catalogs or not settings_doc.sync_catalogs:
 		return cost + (local_flashcard_count if getattr(settings_doc, "push_flashcards", 0) else 0)
 	for method, (_, kind) in RESOURCE_MAP.items():
-		if kind == "provas" and not settings_doc.sync_exams:
-			continue
-		if kind == "flashcards" and not settings_doc.sync_flashcards:
+		if not _resource_enabled(settings_doc, kind):
 			continue
 		cost += max_pages * QAPI_METHOD_COSTS.get(method, 1)
 		if method in DETAIL_ENDPOINTS:
 			detail_method, detail_cost = DETAIL_ENDPOINTS[method]
 			cost += max_pages * page_size * detail_cost
-	if settings_doc.sync_catalogs:
+	if settings_doc.sync_catalogs and _resource_enabled(settings_doc, "conteudos"):
 		cost += 1  # get_conteudos_arvore
-	if settings_doc.sync_catalogs:
+	if settings_doc.sync_catalogs and _resource_enabled(settings_doc, "concursos"):
 		cost += 1  # get_status_concurso
 	if getattr(settings_doc, "push_flashcards", 0):
 		cost += local_flashcard_count * QAPI_METHOD_COSTS["criar_flashcard"]
@@ -394,11 +410,21 @@ def _push_local_flashcards(adapter, metrics):
 
 
 def ingest_source(
-	source_name="QAPI", filters=None, dry_run=False, max_pages=0, budget=None, resume_run=None, include_catalogs=True
+	source_name="QAPI", filters=None, dry_run=False, max_pages=0, budget=None, resume_run=None, include_catalogs=True,
+	force_full_upgrade=False,
 ):
 	if source_name != "QAPI":
 		frappe.throw(f"Source not implemented: {source_name}.")
 	settings = frappe.get_single("Trivia Sync Settings")
+	if force_full_upgrade:
+		settings = copy.copy(settings)
+		settings.sync_catalogs = 1
+		for field in (
+			"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos", "sync_materias",
+			"sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas", "sync_conteudos", "sync_flashcards",
+		):
+			setattr(settings, field, 1)
+		settings.push_flashcards = 0
 	filters = _validate_filters(filters)
 	include_catalogs = bool(include_catalogs and settings.sync_catalogs)
 	request_budget, reserve, spend_limit, max_pages = _limits(settings, budget, max_pages)
@@ -460,15 +486,16 @@ def ingest_source(
 		page_size = min(10, max(1, int(settings.qapi_page_size or 10)))
 		resume_operation = run.resume_operation if resume_run else ""
 		resume_page = int(run.resume_page or 1) if resume_run else 1
-		tasks = [("questions", None, None)]
+		tasks = [("questions", None, None)] if getattr(settings, "sync_questions", 1) else []
 		if include_catalogs:
 			for method, (doctype, kind) in RESOURCE_MAP.items():
-				if kind == "provas" and not settings.sync_exams:
-					continue
-				if kind == "flashcards" and not settings.sync_flashcards:
+				if not _resource_enabled(settings, kind):
 					continue
 				tasks.append((method, doctype, kind))
-			tasks.extend([("syllabus_tree", "Trivia Syllabus Topic", "conteudos"), ("contest_status", None, None)])
+			if _resource_enabled(settings, "conteudos"):
+				tasks.append(("syllabus_tree", "Trivia Syllabus Topic", "conteudos"))
+			if _resource_enabled(settings, "concursos"):
+				tasks.append(("contest_status", None, None))
 		if getattr(settings, "push_flashcards", 0):
 			tasks.append(("create_flashcards", "Flashcard", "flashcards_out"))
 		resume_reached = not resume_operation

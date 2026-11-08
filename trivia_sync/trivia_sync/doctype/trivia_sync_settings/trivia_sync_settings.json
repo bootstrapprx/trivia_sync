@@ -26,8 +26,16 @@
     "last_lms_sync_at",
     "catalog_section",
     "sync_catalogs",
-    "sync_support_texts",
+    "sync_questions",
+    "sync_bancas",
+    "sync_orgaos",
+    "sync_cargos",
+    "sync_materias",
+    "sync_assuntos",
+    "sync_concursos",
     "sync_exams",
+    "sync_disciplinas",
+    "sync_conteudos",
     "sync_flashcards",
     "push_flashcards",
     "qapi_timeout",
@@ -154,6 +162,60 @@
       "fieldname": "sync_catalogs",
       "fieldtype": "Check",
       "label": "Sync catalogs",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_questions",
+      "fieldtype": "Check",
+      "label": "Sync questions",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_bancas",
+      "fieldtype": "Check",
+      "label": "Sync exam boards (bancas)",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_orgaos",
+      "fieldtype": "Check",
+      "label": "Sync organizations (órgãos)",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_cargos",
+      "fieldtype": "Check",
+      "label": "Sync positions (cargos)",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_materias",
+      "fieldtype": "Check",
+      "label": "Sync subjects (matérias)",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_assuntos",
+      "fieldtype": "Check",
+      "label": "Sync topics (assuntos)",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_concursos",
+      "fieldtype": "Check",
+      "label": "Sync contests and contest status",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_disciplinas",
+      "fieldtype": "Check",
+      "label": "Sync disciplines and details",
+      "default": "1"
+    },
+    {
+      "fieldname": "sync_conteudos",
+      "fieldtype": "Check",
+      "label": "Sync program-content tree",
       "default": "1"
     },
     {

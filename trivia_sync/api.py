@@ -35,9 +35,15 @@ def onboarding_status():
 		"base_url": doc.qapi_base_url,
 		"last_sync": doc.last_qapi_sync_at,
 		"full_sync": bool(doc.sync_catalogs),
-		"sync_exams": bool(doc.sync_exams),
+		"sync_options": {field: bool(getattr(doc, field, 0)) for field in (
+			"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos",
+			"sync_materias", "sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas",
+			"sync_conteudos", "sync_flashcards", "push_flashcards",
+		)},
 		"request_budget": doc.qapi_max_requests_per_run or 0,
 		"credit_reserve": max(1, int(doc.qapi_min_credit_reserve or 1)),
+		"page_size": int(doc.qapi_page_size or 10),
+		"max_pages": int(doc.qapi_max_pages or 10),
 		"paid_sync_available": int(doc.qapi_max_requests_per_run or 0) > max(1, int(doc.qapi_min_credit_reserve or 1)),
 	}
 
@@ -50,6 +56,10 @@ def save_onboarding(
 	qapi_base_url=None,
 	qapi_max_requests_per_run=None,
 	qapi_min_credit_reserve=None,
+	qapi_page_size=None,
+	qapi_max_pages=None,
+	sync_catalogs=None,
+	sync_options=None,
 ):
 	_admin()
 	if qapi_sync_frequency not in ("Hourly", "Every scheduler tick"):
@@ -62,10 +72,26 @@ def save_onboarding(
 		doc.qapi_max_requests_per_run = max(0, cint(qapi_max_requests_per_run))
 	if qapi_min_credit_reserve is not None:
 		doc.qapi_min_credit_reserve = max(1, cint(qapi_min_credit_reserve))
+	if qapi_page_size is not None:
+		doc.qapi_page_size = max(1, min(10, cint(qapi_page_size)))
+	if qapi_max_pages is not None:
+		doc.qapi_max_pages = max(1, min(100000, cint(qapi_max_pages)))
 	if doc.qapi_enabled and int(doc.qapi_max_requests_per_run or 0) <= max(1, int(doc.qapi_min_credit_reserve or 1)):
 		frappe.throw("Set a request budget above the reserve before enabling paid sync.")
 	if qapi_api_key:
 		doc.qapi_api_key = qapi_api_key
+	if sync_catalogs is not None:
+		doc.sync_catalogs = cint(sync_catalogs)
+	if isinstance(sync_options, str):
+		sync_options = json.loads(sync_options or "{}")
+	allowed_sync_fields = {
+		"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos",
+		"sync_materias", "sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas",
+		"sync_conteudos", "sync_flashcards", "push_flashcards",
+	}
+	for field, value in (sync_options or {}).items():
+		if field in allowed_sync_fields:
+			setattr(doc, field, cint(value))
 	doc.save()
 	return onboarding_status()
 
@@ -90,6 +116,22 @@ def enqueue_qapi_sync(full=1, dry_run=0, budget=None, max_pages=0, filters=None)
 
 
 @frappe.whitelist()
+def enqueue_qapi_full_upgrade(budget=None, max_pages=0, filters=None):
+	_admin()
+	doc = frappe.get_single("Trivia Sync Settings")
+	doc.sync_catalogs = 1
+	for field in (
+		"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos", "sync_materias",
+		"sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas", "sync_conteudos", "sync_flashcards",
+	):
+		setattr(doc, field, 1)
+	# Full upgrade is read-only by default; creating remote flashcards remains explicit.
+	doc.push_flashcards = 0
+	doc.save(ignore_permissions=True)
+	return enqueue_qapi_sync(full=1, budget=budget, max_pages=max_pages, filters=filters)
+
+
+@frappe.whitelist()
 def enqueue_lms_sync():
 	_admin()
 	frappe.enqueue(
@@ -108,7 +150,7 @@ def qapi_status():
 
 
 @frappe.whitelist()
-def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None):
+def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None, full_upgrade=0):
 	_admin()
 	parsed_filters = json.loads(filters) if isinstance(filters, str) and filters else filters or {}
 	return ingest_source(
@@ -118,6 +160,7 @@ def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None):
 		include_catalogs=True,
 		budget=None if budget in (None, "") else cint(budget),
 		max_pages=cint(max_pages),
+		force_full_upgrade=bool(cint(full_upgrade)),
 	)
 
 

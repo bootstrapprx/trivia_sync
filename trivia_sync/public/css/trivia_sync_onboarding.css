@@ -64,8 +64,21 @@
 	min-height: 24px;
 }
 
+.trivia-onboarding-page .trivia-endpoint-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 16px;
+}
+
+.trivia-onboarding-page .trivia-onboarding-options .form-group {
+	margin-bottom: 10px;
+}
+
 @media (max-width: 767px) {
 	.trivia-onboarding-page .trivia-onboarding-step {
 		padding: 18px;
+	}
+	.trivia-onboarding-page .trivia-endpoint-grid {
+		grid-template-columns: 1fr;
 	}
 }
