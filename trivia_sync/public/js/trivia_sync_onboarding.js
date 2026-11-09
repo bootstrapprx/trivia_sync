@@ -75,6 +75,7 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	const loadStatus = () => frappe.call("trivia_sync.api.onboarding_status").then(({ message }) => {
 		if (!message) return;
 		controls.qapi_base_url.set_value(message.base_url || "https://qapi.otunac.com/api");
+		controls.qapi_api_key.$input.attr("placeholder", message.configured ? __("Leave blank to keep the saved key") : __("Paste your QAPI key"));
 		controls.qapi_enabled.set_value(message.enabled); controls.qapi_sync_frequency.set_value(message.frequency);
 		controls.qapi_page_size.set_value(message.page_size || 10); controls.qapi_max_pages.set_value(message.max_pages || 10);
 		controls.qapi_max_requests_per_run.set_value(message.request_budget || 0); controls.qapi_min_credit_reserve.set_value(message.credit_reserve || 0);
