@@ -226,5 +226,98 @@
     "hidden": 1,
     "insert_after": "trivia_question",
     "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_source_license",
+    "dt": "LMS Question",
+    "fieldname": "trivia_source_license",
+    "label": "Source license",
+    "fieldtype": "Data",
+    "insert_after": "trivia_source_url",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_source_attribution",
+    "dt": "LMS Question",
+    "fieldname": "trivia_source_attribution",
+    "label": "Source attribution",
+    "fieldtype": "Small Text",
+    "insert_after": "trivia_source_license",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_source_authors",
+    "dt": "LMS Question",
+    "fieldname": "trivia_source_authors",
+    "label": "Source authors",
+    "fieldtype": "Small Text",
+    "insert_after": "trivia_source_attribution",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_redistribution_reference",
+    "dt": "LMS Question",
+    "fieldname": "trivia_redistribution_reference",
+    "label": "Terms/license reference",
+    "fieldtype": "Data",
+    "insert_after": "trivia_source_authors",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_redistribution_status",
+    "dt": "LMS Question",
+    "fieldname": "trivia_redistribution_status",
+    "label": "Redistribution rights",
+    "fieldtype": "Select",
+    "options": "Pending\nApproved\nRejected",
+    "insert_after": "trivia_redistribution_reference",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_editorial_difficulty",
+    "dt": "LMS Question",
+    "fieldname": "trivia_editorial_difficulty",
+    "label": "Editorial difficulty (stars)",
+    "fieldtype": "Rating",
+    "in_list_view": 1,
+    "in_standard_filter": 1,
+    "insert_after": "trivia_ai_difficulty_stars",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_detected_option_count",
+    "dt": "LMS Question",
+    "fieldname": "trivia_detected_option_count",
+    "label": "Detected alternatives",
+    "fieldtype": "Int",
+    "insert_after": "trivia_redistribution_status",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_allow_variable_options",
+    "dt": "LMS Question",
+    "fieldname": "trivia_allow_variable_options",
+    "label": "Variable alternatives authorized",
+    "fieldtype": "Check",
+    "insert_after": "trivia_detected_option_count",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Question-trivia_exception_reason",
+    "dt": "LMS Question",
+    "fieldname": "trivia_exception_reason",
+    "label": "Alternative count exception reason",
+    "fieldtype": "Small Text",
+    "insert_after": "trivia_allow_variable_options",
+    "module": "Trivia Sync"
   }
 ]

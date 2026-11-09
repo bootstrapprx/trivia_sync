@@ -1,6 +1,7 @@
 QUESTION_SOURCE_FIELDS = {
 	"qcode", "source", "source_type", "source_id", "source_key", "enunciado", "texto_apoio", "banca", "orgao",
-	"cargo", "ano", "materia", "assunto", "options", "correct_option", "explanation", "source_url",
+	"cargo", "ano", "materia", "assunto", "options", "correct_option", "correct_options", "detected_option_count",
+	"marks", "source_authors", "explanation", "source_url",
 	"raw_payload", "sync_hash", "content_hash", "last_synced_at", "source_license", "source_attribution",
 }
 
@@ -19,6 +20,11 @@ RESOURCE_SOURCE_FIELDS = {
 }
 
 
+def source_fields_changed(doc, data, doctype):
+	fields = QUESTION_SOURCE_FIELDS if doctype == "Trivia Question" else RESOURCE_SOURCE_FIELDS[doctype]
+	return any(getattr(doc, field, None) != data[field] for field in fields if field in data)
+
+
 def update_source_owned_fields(doc, data, doctype):
 	fields = QUESTION_SOURCE_FIELDS if doctype == "Trivia Question" else RESOURCE_SOURCE_FIELDS[doctype]
 	previous_content_hash = getattr(doc, "content_hash", None) if doctype == "Trivia Question" else None
@@ -35,6 +41,7 @@ def update_source_owned_fields(doc, data, doctype):
 		doc.redistribution_decided_at = None
 	if doctype == "Trivia Question" and previous_content_hash and previous_content_hash != data.get("content_hash"):
 		doc.review_status = "Pending"
+		doc.editorial_status = "Pending Review"
 		doc.reviewed_by = None
 		doc.reviewed_at = None
 		doc.review_reason = None

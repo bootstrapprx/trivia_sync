@@ -8,7 +8,11 @@ from trivia_sync.integrations.qapi import sync_qapi_questions, test_qapi_connect
 from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
 from trivia_sync.integrations.ai_enricher import enrich_pending_questions
 from trivia_sync.integrations.reconciliation import question_coverage
-from trivia_sync.integrations.editorial import review_question as apply_question_review, decide_redistribution
+from trivia_sync.integrations.editorial import (
+	decide_redistribution,
+	review_question as apply_question_review,
+	transition_question as apply_editorial_transition,
+)
 from trivia_sync.integrations.lms_questions import sync_lms_question
 from trivia_sync.integrations.exams import build_simulado as assemble_simulado, publish_prova as publish_exam
 from trivia_sync.integrations.learning_content import (
@@ -221,6 +225,11 @@ def cargo_question_coverage(concurso_cargo):
 @frappe.whitelist()
 def review_question(question_name, decision, reason=""):
 	return apply_question_review(question_name, decision, reason)
+
+
+@frappe.whitelist()
+def transition_editorial_status(question_name, status, reason=""):
+	return apply_editorial_transition(question_name, status, reason)
 
 
 @frappe.whitelist()

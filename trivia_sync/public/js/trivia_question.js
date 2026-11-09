@@ -43,6 +43,14 @@
 			return {};
 		}
 	};
+	const parseCorrectOptions = (doc) => {
+		try {
+			const parsed = typeof doc.correct_options === "string" ? JSON.parse(doc.correct_options || "[]") : doc.correct_options || [];
+			return new Set(Array.isArray(parsed) && parsed.length ? parsed : doc.correct_option ? [doc.correct_option] : []);
+		} catch (error) {
+			return new Set(doc.correct_option ? [doc.correct_option] : []);
+		}
+	};
 
 	const renderCockpit = (frm) => {
 		const field = frm.fields_dict.enunciado?.$wrapper;
@@ -54,27 +62,37 @@
 		}
 		const d = frm.doc;
 		const options = parseOptions(d.options);
+		const correctOptions = parseCorrectOptions(d);
 		const optionRows = Object.entries(options).map(([letter, value]) => {
-			const correct = letter === d.correct_option;
+			const correct = correctOptions.has(letter);
 			return `<div class="trivia-option-row ${correct ? "is-correct" : ""}"><span class="trivia-option-letter">${safe(letter)}</span><div class="trivia-option-content">${rich(value)}</div>${correct ? `<span class="indicator-pill green">${__("Answer key")}</span>` : ""}</div>`;
 		}).join("") || `<p class="text-muted">${__("No alternatives were normalized.")}</p>`;
-		const starValue = Number(d.ai_difficulty_stars || 0);
+		const starValue = Number(d.editorial_difficulty || d.ai_difficulty_stars || 0);
 		const stars = "★".repeat(Math.max(0, Math.min(5, starValue))) + "☆".repeat(Math.max(0, 5 - starValue));
+		const status = d.editorial_status || d.review_status || "Imported";
+		const statusColor = ["Approved", "Published"].includes(status) ? "green" : ["Rejected", "Archived"].includes(status) ? "red" : "orange";
 		root.html(`
-			<div class="trivia-cockpit-header"><div><div class="text-muted small">${__("EDITORIAL COCKPIT")}</div><h3>${safe(d.qcode || d.name)}</h3></div><div class="trivia-cockpit-status"><span class="indicator-pill ${d.review_status === "Approved" ? "green" : d.review_status === "Rejected" ? "red" : "orange"}">${safe(d.review_status || "Pending")}</span><span class="indicator-pill blue">${safe(d.projection_status || "Not Projected")}</span></div></div>
-			<div class="trivia-cockpit-meta"><span>${safe(d.banca || "—")}</span><span>${safe(d.materia || "—")}</span><span>${safe(d.assunto || "—")}</span><span>${safe(d.ano || "—")}</span><span class="trivia-stars">${stars}</span></div>
+			<div class="trivia-cockpit-header"><div><div class="text-muted small">${__("EDITORIAL COCKPIT")}</div><h3>${safe(d.qcode || d.name)}</h3></div><div class="trivia-cockpit-status"><span class="indicator-pill ${statusColor}">${safe(status)}</span><span class="indicator-pill blue">${safe(d.projection_status || "Not Projected")}</span></div></div>
+			<div class="trivia-cockpit-meta"><span>${safe(d.banca || "—")}</span><span>${safe(d.materia || "—")}</span><span>${safe(d.assunto || "—")}</span><span>${safe(d.ano || "—")}</span><span>${Object.keys(options).length} ${__("alternatives")}</span><span class="trivia-stars">${stars}</span></div>
 			<div class="trivia-cockpit-block"><h4>${__("Question preview")}</h4><div class="trivia-rich-content">${rich(d.enunciado)}</div></div>
 			${d.texto_apoio ? `<div class="trivia-cockpit-block"><h4>${__("Supporting text")}</h4><p><a class="text-muted" data-action="supporting-text">${safe(d.texto_apoio)}</a></p><p class="text-muted">${__("The linked text is included during LMS projection.")}</p></div>` : ""}
+			${d.allow_variable_options ? `<div class="alert alert-warning">${__("Variable alternative count authorized")}: ${safe(d.exception_reason || __("Reason required"))}</div>` : ""}
 			<div class="trivia-cockpit-block"><h4>${__("Alternatives")}</h4><div class="trivia-options-list">${optionRows}</div></div>
 			${d.explanation ? `<div class="trivia-cockpit-block"><h4>${__("Explanation")}</h4><div class="trivia-rich-content">${rich(d.explanation)}</div></div>` : ""}
 			<div class="trivia-cockpit-actions" data-actions></div>`);
 		const actions = root.find("[data-actions]");
 		const call = (method, args, message) => frappe.call({ method, args }).then(() => { frappe.show_alert({ message, indicator: "green" }); frm.reload_doc(); });
+		const transition = (target, message) => call("trivia_sync.api.transition_editorial_status", { question_name: d.name, status: target }, message);
 		actions.append(`<button class="btn btn-default btn-sm" data-cockpit="reformat">${__("Repair rich formatting")}</button>`);
-		if (d.review_status !== "Approved") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="approve">${__("Approve question")}</button>`);
-		if (d.review_status !== "Rejected") actions.append(`<button class="btn btn-default btn-sm" data-cockpit="reject">${__("Reject")}</button>`);
-		if (d.review_status === "Approved" && d.redistribution_status !== "Approved") actions.append(`<button class="btn btn-default btn-sm" data-cockpit="rights">${__("Authorize redistribution")}</button>`);
-		if (d.review_status === "Approved" && d.redistribution_status === "Approved") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="project">${__("Project to LMS")}</button>`);
+		if (status === "Imported") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="queue">${__("Queue for review")}</button>`);
+		if (status === "Pending Review") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="start">${__("Start review")}</button>`);
+		if (status === "In Review") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="pending-approval">${__("Submit for approval")}</button>`);
+		if (status === "Pending Approval") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="approve">${__("Approve question")}</button><button class="btn btn-default btn-sm" data-cockpit="reject">${__("Reject")}</button>`);
+		if (["Approved", "Published"].includes(status) && d.redistribution_status !== "Approved") actions.append(`<button class="btn btn-default btn-sm" data-cockpit="rights">${__("Authorize redistribution")}</button>`);
+		if (["Approved", "Published"].includes(status) && d.redistribution_status === "Approved") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="project">${__("Project to LMS")}</button>`);
+		actions.find('[data-cockpit="queue"]').on("click", () => transition("Pending Review", __("Question queued for review.")));
+		actions.find('[data-cockpit="start"]').on("click", () => transition("In Review", __("Review started.")));
+		actions.find('[data-cockpit="pending-approval"]').on("click", () => transition("Pending Approval", __("Question submitted for approval.")));
 		actions.find('[data-cockpit="approve"]').on("click", () => call("trivia_sync.api.review_question", { question_name: d.name, decision: "approved" }, __("Question approved.")));
 		actions.find('[data-cockpit="reformat"]').on("click", () => call("trivia_sync.api.repair_qapi_question", { question_name: d.name }, __("Rich content reparsed from the stored QAPI payload.")));
 		actions.find('[data-cockpit="reject"]').on("click", () => {

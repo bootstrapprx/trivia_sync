@@ -17,9 +17,6 @@ fixtures = [
 				[
 					"LMS Question-trivia_section",
 					"LMS Question-trivia_qcode",
-					"LMS Question-trivia_source_key",
-					"LMS Question-trivia_question",
-					"LMS Question-trivia_projection_key",
 					"LMS Question-trivia_banca",
 					"LMS Question-trivia_orgao",
 					"LMS Question-trivia_cargo",
@@ -29,6 +26,25 @@ fixtures = [
 					"LMS Question-trivia_source_url",
 					"LMS Question-trivia_sync_hash",
 					"LMS Question-trivia_texto_apoio",
+					"LMS Question-trivia_ai_difficulty_stars",
+					"LMS Question-trivia_ai_difficulty_label",
+					"LMS Question-trivia_ai_difficulty_reason",
+					"LMS Question-trivia_ai_learning_objective",
+					"LMS Question-trivia_ai_topics",
+					"LMS Question-trivia_ai_model",
+					"LMS Question-trivia_ai_enriched_at",
+					"LMS Question-trivia_source_key",
+					"LMS Question-trivia_question",
+					"LMS Question-trivia_projection_key",
+					"LMS Question-trivia_source_license",
+					"LMS Question-trivia_source_attribution",
+					"LMS Question-trivia_source_authors",
+					"LMS Question-trivia_redistribution_reference",
+					"LMS Question-trivia_redistribution_status",
+					"LMS Question-trivia_editorial_difficulty",
+					"LMS Question-trivia_detected_option_count",
+					"LMS Question-trivia_allow_variable_options",
+					"LMS Question-trivia_exception_reason",
 				],
 			]
 		],
@@ -36,6 +52,7 @@ fixtures = [
 ]
 
 scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enabled"]}
+doc_events = {"LMS Question": {"validate": "trivia_sync.integrations.lms_questions.validate_lms_question"}}
 doctypes_js = {"Trivia Sync Settings": "public/js/trivia_sync_settings.js"}
 doctypes_js.update({"Trivia Question": "public/js/trivia_question.js"})
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}

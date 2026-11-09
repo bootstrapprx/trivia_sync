@@ -1,4 +1,5 @@
 import importlib
+import json
 import sys
 import types
 import unittest
@@ -81,6 +82,43 @@ class TestQAPI(unittest.TestCase):
         self.assertIn("x=2", result["options"])
         self.assertEqual(result["correct_option"], "B")
 
+    def test_normalize_question_preserves_options_beyond_e_and_multiple_answers(self):
+        result = normalize_question({
+            "qCode": "Q-MULTI",
+            "enunciado": "Selecione as corretas",
+            "alternativas": [
+                {"letra": letter, "texto": letter}
+                for letter in "ABCDEF"
+            ],
+            "gabarito": ["B", "F"],
+        })
+        self.assertEqual(json.loads(result["options"]), {letter: letter for letter in "ABCDEF"})
+        self.assertEqual(json.loads(result["correct_options"]), ["B", "F"])
+        self.assertEqual(result["correct_option"], "B")
+        self.assertEqual(result["detected_option_count"], 6)
+
+    def test_normalize_question_preserves_sparse_option_letters(self):
+        result = normalize_question({
+            "qCode": "Q-SPARSE",
+            "alternativas": [
+                {"letra": "A", "texto": "one"},
+                {"letra": "C", "texto": "three"},
+                {"letra": "F", "texto": "six"},
+            ],
+            "gabarito": {"letras": ["C", "F"]},
+        })
+        self.assertEqual(json.loads(result["options"]), {"A": "one", "C": "three", "F": "six"})
+        self.assertEqual(json.loads(result["correct_options"]), ["C", "F"])
+
+    def test_normalize_question_does_not_hide_options_above_lms_capacity(self):
+        result = normalize_question({
+            "qCode": "Q-TOO-MANY",
+            "alternativas": [{"texto": f"option {index}"} for index in range(11)],
+            "gabarito": ["A"],
+        })
+        self.assertEqual(result["detected_option_count"], 11)
+        self.assertEqual(len(json.loads(result["options"])), 11)
+
     def test_client_clamps_page_size_to_qapi_limit(self):
         session = FakeSession()
         with patch.object(self.client_module.requests, "Session", return_value=session):
@@ -150,6 +188,14 @@ class TestQAPI(unittest.TestCase):
         tree = list(self.sync_module._tree_rows({"items": [{"id": "root", "children": [{"id": "child"}]}]}))
         self.assertEqual([row["id"] for row in tree], ["root", "child"])
         self.assertEqual(tree[1]["parent_id"], "root")
+
+    def test_worker_helpers_read_nested_qapi_envelopes_and_page_metadata(self):
+        self.assertEqual(self.sync_module._rows({"data": {"items": [{"id": "Q-1"}]}}), [{"id": "Q-1"}])
+        self.assertEqual(self.sync_module._pages({"meta": {"pagination": {"total_pages": 4}}}), 4)
+
+    def test_worker_rejects_unrecognized_question_page_instead_of_succeeding_empty(self):
+        with self.assertRaises(self.sync_module.QAPIBudgetError.__bases__[0]):
+            self.sync_module._rows({"status": "ok", "payload": "unexpected"})
 
     def test_dry_run_reports_upper_bound_without_writes_or_network(self):
         frappe = self.sync_module.frappe
@@ -237,13 +283,16 @@ class TestQAPI(unittest.TestCase):
             row = {"qCode": "Q-55", "enunciado": "Question?", "opcaoA": "A", "gabarito": "A"}
             first = self.sync_module._save_question(None, row, settings)
             second = self.sync_module._save_question(None, row, settings)
+            store["Q-55"].source_authors = "Legacy normalization output"
+            third = self.sync_module._save_question(None, row, settings)
+            fourth = self.sync_module._save_question(None, row, settings)
         finally:
             for name, value in old.items():
                 if value is None:
                     delattr(frappe, name)
                 else:
                     setattr(frappe, name, value)
-        self.assertEqual((first, second, len(store)), ("created", "skipped", 1))
+        self.assertEqual((first, second, third, fourth, len(store)), ("created", "skipped", "updated", "skipped", 1))
 
 
 if __name__ == "__main__":

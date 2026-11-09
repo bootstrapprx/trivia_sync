@@ -28,6 +28,7 @@ def _eligible_pool(prova):
 		"Trivia Question",
 		filters={
 			"concurso_cargo": prova.concurso_cargo,
+			"editorial_status": "Published",
 			"review_status": "Approved",
 			"redistribution_status": "Approved",
 		},

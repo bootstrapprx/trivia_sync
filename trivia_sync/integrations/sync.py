@@ -3,8 +3,8 @@ import json
 import copy
 import frappe
 from trivia_sync.integrations.normalization import normalize_question, normalize_resource
-from trivia_sync.integrations.ownership import update_source_owned_fields
-from trivia_sync.integrations.qapi_client import QAPIBudgetError, QAPI_METHOD_COSTS
+from trivia_sync.integrations.ownership import source_fields_changed, update_source_owned_fields
+from trivia_sync.integrations.qapi_client import QAPIBudgetError, QAPIError, QAPI_METHOD_COSTS
 from trivia_sync.integrations.source_adapters import QAPIAdapter
 from trivia_sync.integrations.reconciliation import (
 	reconcile_question_classification,
@@ -99,7 +99,9 @@ def _estimated_request_cost(settings_doc, max_pages, include_catalogs, local_fla
 def _rows(payload):
 	if isinstance(payload, list):
 		return payload
-	for key in (
+	if not isinstance(payload, dict):
+		raise QAPIError("Unexpected QAPI page response; expected a list or object envelope.")
+	list_keys = (
 		"data",
 		"items",
 		"results",
@@ -114,16 +116,43 @@ def _rows(payload):
 		"disciplinas",
 		"conteudos",
 		"flashcards",
-	):
-		if isinstance(payload.get(key), list):
-			return payload[key]
-	return []
+		"rows",
+	)
+	queue = [payload]
+	while queue:
+		current = queue.pop(0)
+		if isinstance(current, list):
+			return current
+		if not isinstance(current, dict):
+			continue
+		for key in list_keys:
+			value = current.get(key)
+			if isinstance(value, list):
+				return value
+		for key in ("data", "result", "results", "payload", "response"):
+			value = current.get(key)
+			if isinstance(value, dict):
+				queue.append(value)
+	raise QAPIError("Unexpected QAPI page response; no question/resource list was found.")
 
 
 def _pages(payload):
 	if not isinstance(payload, dict):
 		return 1
-	return int(payload.get("pages") or payload.get("totalPages") or payload.get("last_page") or 1)
+	queue = [payload]
+	while queue:
+		current = queue.pop(0)
+		if not isinstance(current, dict):
+			continue
+		for key in ("pages", "totalPages", "total_pages", "last_page", "page_count"):
+			if current.get(key) not in (None, "", 0, "0"):
+				return max(1, int(current[key]))
+		if current.get("total") not in (None, "") and current.get("size") not in (None, "", 0, "0"):
+			return max(1, (int(current["total"]) + int(current["size"]) - 1) // int(current["size"]))
+		for key in ("meta", "metadata", "pagination", "data", "result"):
+			if isinstance(current.get(key), dict):
+				queue.append(current[key])
+	return 1
 
 
 def _tree_rows(payload, parent_id="", level=0):
@@ -238,8 +267,10 @@ def _save_question(adapter, row, settings_doc, metrics=None):
 		doc = frappe.get_doc("Trivia Question", name)
 		if (
 			doc.sync_hash == data["sync_hash"]
+			and doc.content_hash == data["content_hash"]
 			and doc.texto_apoio == texto_name
 			and doc.source_key == data["source_key"]
+			and not source_fields_changed(doc, data, "Trivia Question")
 		):
 			return "skipped"
 		update_source_owned_fields(doc, data, "Trivia Question")
@@ -331,8 +362,13 @@ def reformat_qapi_questions(question_name=None, limit=10000):
 			payload = json.loads(row.raw_payload or "{}")
 			data = normalize_question(payload)
 			doc = frappe.get_doc("Trivia Question", row.name)
-			changed = update_source_owned_fields(doc, data, "Trivia Question")
-			if changed or doc.enunciado != data.get("enunciado") or doc.options != data.get("options"):
+			if doc.texto_apoio:
+				text_hash = frappe.db.get_value("Trivia Supporting Text", doc.texto_apoio, "sync_hash") or ""
+				data["content_hash"] = hashlib.sha256(f"{data['content_hash']}:{text_hash}".encode()).hexdigest()
+				data["texto_apoio"] = doc.texto_apoio
+			changed = source_fields_changed(doc, data, "Trivia Question")
+			update_source_owned_fields(doc, data, "Trivia Question")
+			if changed:
 				doc.last_synced_at = frappe.utils.now_datetime()
 				doc.save(ignore_permissions=True)
 				updated += 1

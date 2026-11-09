@@ -1,4 +1,5 @@
 import ast
+import json
 from pathlib import Path
 import unittest
 
@@ -9,6 +10,18 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestDocTypeControllerImports(unittest.TestCase):
+    def test_question_schema_and_lms_fixture_cover_integrity_fields(self):
+        question = json.loads((APP_ROOT / "trivia_sync" / "trivia_sync" / "doctype" / "trivia_question" / "trivia_question.json").read_text())
+        fieldnames = {field["fieldname"] for field in question["fields"]}
+        self.assertTrue({"correct_options", "detected_option_count", "allow_variable_options", "exception_reason", "editorial_difficulty", "editorial_status"} <= fieldnames)
+        fixture_path = APP_ROOT / "trivia_sync" / "fixtures" / "custom_field.json"
+        fixture_names = {row["name"] for row in json.loads(fixture_path.read_text())}
+        self.assertTrue({"LMS Question-trivia_source_license", "LMS Question-trivia_source_attribution", "LMS Question-trivia_redistribution_reference"} <= fixture_names)
+        import trivia_sync.hooks as hooks
+        configured = set(hooks.fixtures[1]["filters"][0][2])
+        self.assertTrue(fixture_names <= configured)
+        self.assertIn("LMS Question", hooks.doc_events)
+
     def test_all_internal_doctype_imports_resolve_to_a_python_module(self):
         missing = []
         for controller in (APP_ROOT / "trivia_sync" / "doctype").glob("*/*.py"):

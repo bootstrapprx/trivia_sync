@@ -1,8 +1,10 @@
 import hashlib
 import json
+import re
 from typing import Any
 
-OPTION_KEYS = [("A", "opcaoA"), ("B", "opcaoB"), ("C", "opcaoC"), ("D", "opcaoD"), ("E", "opcaoE")]
+OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+OPTION_KEYS = [(letter, f"opcao{letter}") for letter in OPTION_LETTERS]
 
 
 def first(row: dict[str, Any], *keys: str, default: Any = "") -> Any:
@@ -36,11 +38,27 @@ def answer_letter(value: Any) -> str:
     if isinstance(value, dict):
         value = first(value, "letra", "letter", "alternativa", "option", "resposta", "answer", default=value)
     normalized = text(value).upper().strip().rstrip(".")
-    if normalized in {"A", "B", "C", "D", "E"}:
+    if normalized in OPTION_LETTERS:
         return normalized
-    if normalized.isdigit() and 1 <= int(normalized) <= 5:
-        return "ABCDE"[int(normalized) - 1]
+    if normalized.isdigit() and 1 <= int(normalized) <= len(OPTION_LETTERS):
+        return OPTION_LETTERS[int(normalized) - 1]
     return ""
+
+
+def answer_letters(value: Any) -> list[str]:
+    if isinstance(value, list):
+        values = value
+    elif isinstance(value, dict):
+        values = first(value, "letras", "letters", "alternativas", "options", "respostas", "answers", default=None)
+        if values is None:
+            values = [value]
+        elif not isinstance(values, list):
+            values = [values]
+    elif isinstance(value, str) and re.search(r"[,;/|]", value):
+        values = re.split(r"[,;/|]+", value)
+    else:
+        values = [value]
+    return list(dict.fromkeys(letter for item in values if (letter := answer_letter(item))))
 
 
 def raw_hash(row: dict[str, Any]) -> tuple[str, str]:
@@ -49,7 +67,7 @@ def raw_hash(row: dict[str, Any]) -> tuple[str, str]:
 
 
 def evaluable_hash(question: dict[str, Any]) -> str:
-    content = {key: question.get(key) for key in ("enunciado", "options", "correct_option", "explanation", "texto_codigo")}
+    content = {key: question.get(key) for key in ("enunciado", "options", "correct_option", "correct_options", "explanation", "texto_codigo", "marks")}
     return hashlib.sha256(json.dumps(content, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
 
 
@@ -63,7 +81,7 @@ def _extract_options(row: dict[str, Any]) -> dict[str, str]:
     """Accept legacy opcaoA fields and QAPI arrays/maps such as alternativas/opcoes."""
     values: dict[str, Any] = {}
     for letter, field in OPTION_KEYS:
-        value = first(row, field, letter.lower(), letter, default="")
+        value = first(row, field, f"option{letter}", f"option_{letter.lower()}", letter.lower(), letter, default="")
         if value not in (None, ""):
             values[letter] = value
 
@@ -74,19 +92,21 @@ def _extract_options(row: dict[str, Any]) -> dict[str, str]:
             if letter:
                 values[letter] = value
     elif isinstance(grouped, list):
-        for index, value in enumerate(grouped[:5]):
-            letter = answer_letter(value) if isinstance(value, dict) else "ABCDE"[index]
+        for index, value in enumerate(grouped):
+            letter = answer_letter(value) if isinstance(value, dict) else OPTION_LETTERS[index] if index < len(OPTION_LETTERS) else f"#{index + 1}"
             if not letter:
-                letter = "ABCDE"[index]
+                letter = OPTION_LETTERS[index] if index < len(OPTION_LETTERS) else f"#{index + 1}"
             values[letter] = value
 
-    return {letter: _option_value(values[letter]) for letter in "ABCDE" if values.get(letter) not in (None, "")}
+    return {letter: _option_value(value) for letter, value in sorted(values.items()) if value not in (None, "")}
 
 
 def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
     raw, digest = raw_hash(row)
     options = _extract_options(row)
     qcode = identifier(row)
+    correct_options = answer_letters(first(row, "gabarito", "respostasCorretas", "correctAnswers", "resposta", "correct_answer", "answer_key"))
+    authors = first(row, "autores", "authors", "autor", "author")
     result = {
         "qcode": qcode,
         "source": "QAPI",
@@ -101,7 +121,10 @@ def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
         "materia": text(first(row, "materia", "disciplina")),
         "assunto": text(first(row, "assunto", "topic")),
         "options": json.dumps(options, ensure_ascii=False),
-        "correct_option": answer_letter(first(row, "gabarito", "resposta", "correct_answer", "answer_key")),
+        "correct_option": correct_options[0] if correct_options else "",
+        "correct_options": json.dumps(correct_options, ensure_ascii=False),
+        "detected_option_count": len(options),
+        "marks": int(first(row, "marks", "pontuacao", "pontos", default=1) or 1),
         "explanation": rich_text(first(row, "comentario", "explicacao", "explanation", "justificativa", default="")),
         "texto_codigo": text(first(row, "textoCodigo", "texto_codigo", "codigoTexto", "texto_id", "textoId")),
         "source_url": f"https://qapi.otunac.com/api/questoes?qCode={qcode}" if qcode else "",
@@ -109,6 +132,7 @@ def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
         "sync_hash": digest,
         "source_license": text(first(row, "licenca", "license")),
         "source_attribution": text(first(row, "atribuicao", "attribution")),
+        "source_authors": json.dumps(authors, ensure_ascii=False) if isinstance(authors, (dict, list)) else text(authors),
     }
     result["content_hash"] = evaluable_hash(result)
     return result

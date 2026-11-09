@@ -10,6 +10,7 @@ class TestExamAssembly(unittest.TestCase):
 	def setUpClass(cls):
 		sys.modules.setdefault("frappe", types.SimpleNamespace())
 		cls.module = importlib.import_module("trivia_sync.integrations.exams")
+		cls.module.frappe.get_all = lambda *args, **kwargs: []
 
 	def test_insufficient_pool_fails_before_creating_lms_rows(self):
 		frappe = self.module.frappe
@@ -23,6 +24,14 @@ class TestExamAssembly(unittest.TestCase):
 			frappe, "get_roles", return_value=["System Manager"]
 		), self.assertRaises(Exception):
 			self.module.build_simulado("PROVA-1")
+
+	def test_exam_pool_queries_only_published_editorial_questions(self):
+		frappe = self.module.frappe
+		prova = types.SimpleNamespace(concurso_cargo="CC-1")
+		with patch.object(frappe, "get_all", return_value=[] ) as get_all:
+			self.module._eligible_pool(prova)
+		filters = get_all.call_args.kwargs["filters"]
+		self.assertEqual(filters["editorial_status"], "Published")
 
 	def test_build_creates_one_quiz_and_reuses_unchanged_blueprint(self):
 		frappe = self.module.frappe

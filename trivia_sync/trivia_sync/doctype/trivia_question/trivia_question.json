@@ -20,12 +20,18 @@
     "assunto",
     "options",
     "correct_option",
+    "correct_options",
+    "detected_option_count",
+    "allow_variable_options",
+    "exception_reason",
+    "marks",
     "explanation",
     "source_url",
     "raw_payload",
     "sync_hash",
     "last_synced_at",
     "ai_section",
+    "editorial_difficulty",
     "ai_difficulty_stars",
     "ai_difficulty_label",
     "ai_difficulty_reason",
@@ -39,6 +45,7 @@
     "source_key",
     "content_hash",
     "review_section",
+    "editorial_status",
     "review_status",
     "reviewed_by",
     "reviewed_at",
@@ -46,6 +53,7 @@
     "editorial_notes",
     "source_license",
     "source_attribution",
+    "source_authors",
     "redistribution_status",
     "redistribution_reference",
     "redistribution_decided_by",
@@ -149,15 +157,46 @@
     },
     {
       "fieldname": "options",
-      "fieldtype": "Code",
-      "label": "Answer options (JSON)",
+      "fieldtype": "JSON",
+      "label": "Answer options",
       "options": "JSON"
     },
     {
       "fieldname": "correct_option",
       "fieldtype": "Select",
       "label": "Answer key",
-      "options": "A\nB\nC\nD\nE"
+      "options": "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ"
+    },
+    {
+      "fieldname": "correct_options",
+      "fieldtype": "Code",
+      "label": "Correct answers",
+      "options": "JSON"
+    },
+    {
+      "fieldname": "detected_option_count",
+      "fieldtype": "Int",
+      "label": "Detected alternatives",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "allow_variable_options",
+      "fieldtype": "Check",
+      "label": "Allow variable alternatives"
+    },
+    {
+      "fieldname": "exception_reason",
+      "fieldtype": "Small Text",
+      "label": "Alternative count exception reason",
+      "depends_on": "eval:doc.allow_variable_options"
+    },
+    {
+      "fieldname": "marks",
+      "fieldtype": "Int",
+      "label": "Marks",
+      "default": 1,
+      "non_negative": 1
     },
     {
       "fieldname": "explanation",
@@ -192,6 +231,13 @@
       "fieldname": "ai_section",
       "fieldtype": "Section Break",
       "label": "AI enrichment"
+    },
+    {
+      "fieldname": "editorial_difficulty",
+      "fieldtype": "Rating",
+      "label": "Editorial difficulty (stars)",
+      "in_list_view": 1,
+      "in_standard_filter": 1
     },
     {
       "fieldname": "ai_difficulty_stars",
@@ -278,6 +324,15 @@
       "label": "Review and redistribution"
     },
     {
+      "fieldname": "editorial_status",
+      "fieldtype": "Select",
+      "label": "Editorial status",
+      "options": "Imported\nPending Review\nIn Review\nPending Approval\nApproved\nPublished\nRejected\nArchived",
+      "default": "Imported",
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
       "fieldname": "review_status",
       "fieldtype": "Select",
       "label": "Review status",
@@ -318,6 +373,11 @@
       "fieldname": "source_attribution",
       "fieldtype": "Small Text",
       "label": "Attribution required"
+    },
+    {
+      "fieldname": "source_authors",
+      "fieldtype": "Small Text",
+      "label": "Source authors"
     },
     {
       "fieldname": "redistribution_status",

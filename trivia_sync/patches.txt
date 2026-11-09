@@ -11,3 +11,4 @@ trivia_sync.patches.v0_4.rename_accented_catalog_doctypes
 # (Custom Field, Property Setter, etc) are synced
 trivia_sync.patches.v0_2.backfill_contest_relations
 trivia_sync.patches.v0_3.backfill_legacy_lms_questions
+trivia_sync.patches.v0_5.question_integrity_fields
