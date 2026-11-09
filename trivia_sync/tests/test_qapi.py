@@ -67,6 +67,20 @@ class TestQAPI(unittest.TestCase):
         self.assertEqual(result["texto_codigo"], "TXT-9")
         self.assertIn('"A": "Uma"', result["options"])
 
+    def test_normalize_question_preserves_rich_content_and_array_options(self):
+        result = normalize_question({
+            "qCode": "Q-RICH",
+            "enunciado": {"html": "Calcule \\(x^2 + 1\\)"},
+            "alternativas": [
+                {"letra": "A", "texto": "\\(x=1\\)"},
+                {"letra": "B", "html": "<strong>\\(x=2\\)</strong>"},
+            ],
+            "gabarito": {"letra": "B"},
+        })
+        self.assertIn("\\(x^2 + 1\\)", result["enunciado"])
+        self.assertIn("x=2", result["options"])
+        self.assertEqual(result["correct_option"], "B")
+
     def test_client_clamps_page_size_to_qapi_limit(self):
         session = FakeSession()
         with patch.object(self.client_module.requests, "Session", return_value=session):

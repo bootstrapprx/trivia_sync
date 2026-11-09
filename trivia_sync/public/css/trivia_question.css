@@ -1,0 +1,61 @@
+.trivia-question-cockpit {
+	border: 1px solid var(--border-color);
+	margin: 16px 0 24px;
+	padding: 20px 24px;
+	background: var(--card-bg);
+}
+
+.trivia-cockpit-header,
+.trivia-cockpit-meta,
+.trivia-cockpit-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.trivia-cockpit-header {
+	justify-content: space-between;
+	border-bottom: 1px solid var(--border-color);
+	padding-bottom: 14px;
+}
+
+.trivia-cockpit-header h3 { margin: 4px 0 0; }
+.trivia-cockpit-status { display: flex; gap: 6px; flex-wrap: wrap; }
+.trivia-cockpit-meta { flex-wrap: wrap; margin: 14px 0; }
+.trivia-cockpit-meta > span:not(.trivia-stars) {
+	background: var(--subtle-fg);
+	border-radius: 999px;
+	padding: 4px 9px;
+	font-size: var(--text-xs);
+}
+.trivia-stars { color: #e6a700; letter-spacing: 1px; }
+.trivia-cockpit-block { margin: 18px 0; }
+.trivia-cockpit-block h4 { font-size: var(--text-base); margin-bottom: 10px; }
+.trivia-rich-content { line-height: 1.65; }
+.trivia-options-list { display: grid; gap: 8px; }
+.trivia-option-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	padding: 10px 12px;
+}
+.trivia-option-row.is-correct { border-color: var(--green-500); background: var(--alert-bg-success); }
+.trivia-option-letter {
+	background: var(--subtle-accent);
+	border-radius: 50%;
+	color: var(--primary);
+	flex: 0 0 26px;
+	font-weight: 700;
+	height: 26px;
+	line-height: 26px;
+	text-align: center;
+}
+.trivia-option-content { flex: 1; min-width: 0; }
+.trivia-cockpit-actions { border-top: 1px solid var(--border-color); padding-top: 16px; flex-wrap: wrap; }
+
+@media (max-width: 767px) {
+	.trivia-question-cockpit { padding: 16px; }
+	.trivia-cockpit-header { align-items: flex-start; flex-direction: column; }
+}

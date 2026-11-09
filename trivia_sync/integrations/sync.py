@@ -319,6 +319,32 @@ def _append_error(current, doctype, source_id, error):
 	return "\n".join(filter(None, [current, message]))[-12000:]
 
 
+def reformat_qapi_questions(question_name=None, limit=10000):
+	"""Reparse stored QAPI payloads after a normalizer/renderer upgrade; no QAPI calls."""
+	filters = {"source_type": "QAPI"}
+	if question_name:
+		filters["name"] = question_name
+	rows = frappe.get_all("Trivia Question", filters=filters, fields=["name", "raw_payload"], limit_page_length=limit)
+	updated = skipped = failed = 0
+	for row in rows:
+		try:
+			payload = json.loads(row.raw_payload or "{}")
+			data = normalize_question(payload)
+			doc = frappe.get_doc("Trivia Question", row.name)
+			changed = update_source_owned_fields(doc, data, "Trivia Question")
+			if changed or doc.enunciado != data.get("enunciado") or doc.options != data.get("options"):
+				doc.last_synced_at = frappe.utils.now_datetime()
+				doc.save(ignore_permissions=True)
+				updated += 1
+			else:
+				skipped += 1
+		except Exception as exc:
+			failed += 1
+			frappe.log_error(f"{type(exc).__name__}: {str(exc)[:500]}", "Trivia Sync · reformat question")
+	frappe.db.commit()
+	return {"processed": len(rows), "updated": updated, "skipped": skipped, "failed": failed}
+
+
 def _validate_filters(filters):
 	allowed = {"concurso", "cargo", "banca", "materia", "ano"}
 	filters = filters or {}

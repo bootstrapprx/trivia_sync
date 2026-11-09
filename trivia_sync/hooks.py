@@ -37,8 +37,13 @@ fixtures = [
 
 scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enabled"]}
 doctypes_js = {"Trivia Sync Settings": "public/js/trivia_sync_settings.js"}
+doctypes_js.update({"Trivia Question": "public/js/trivia_question.js"})
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
+app_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
+web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
+	"/assets/trivia_sync/css/trivia_question.css",
 ]

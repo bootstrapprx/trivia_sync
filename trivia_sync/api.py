@@ -5,7 +5,7 @@ import frappe
 from frappe.utils import cint
 from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.qapi import sync_qapi_questions, test_qapi_connection
-from trivia_sync.integrations.sync import ingest_source
+from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
 from trivia_sync.integrations.ai_enricher import enrich_pending_questions
 from trivia_sync.integrations.reconciliation import question_coverage
 from trivia_sync.integrations.editorial import review_question as apply_question_review, decide_redistribution
@@ -171,6 +171,26 @@ def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None, full_up
 		max_pages=cint(max_pages),
 		force_full_upgrade=bool(cint(full_upgrade)),
 	)
+
+
+@frappe.whitelist()
+def repair_qapi_question(question_name):
+	_admin()
+	return reformat_qapi_questions(question_name=question_name, limit=1)
+
+
+@frappe.whitelist()
+def enqueue_qapi_reformat(limit=10000):
+	_admin()
+	job_name = f"trivia_sync_reformat_{uuid.uuid4().hex[:10]}"
+	job = frappe.enqueue(
+		"trivia_sync.integrations.sync.reformat_qapi_questions",
+		limit=max(1, min(cint(limit), 100000)),
+		queue="long",
+		job_name=job_name,
+		enqueue_after_commit=False,
+	)
+	return {"queued": True, "job": job_name, "job_id": getattr(job, "id", None), "queue": "long"}
 
 
 @frappe.whitelist()

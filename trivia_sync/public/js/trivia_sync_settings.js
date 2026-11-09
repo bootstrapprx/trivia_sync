@@ -13,7 +13,12 @@ frappe.ui.form.on("Trivia Sync Settings", {
       frappe.call({ method: "trivia_sync.api.enqueue_lms_sync" }).then(() => frappe.show_alert({ message: "Frappe LMS sync queued.", indicator: "green" }));
     }, "Sync");
     frm.add_custom_button("Enrich questions with AI", () => {
-      frappe.call({ method: "trivia_sync.api.enqueue_ai_enrichment" }).then(() => frappe.show_alert({ message: "AI enrichment queued.", indicator: "green" }));
-    }, "IA");
-  },
+		frappe.call({ method: "trivia_sync.api.enqueue_ai_enrichment" }).then(() => frappe.show_alert({ message: "AI enrichment queued.", indicator: "green" }));
+		}, "IA");
+		frm.add_custom_button("Repair imported rich content", () => {
+			frappe.call({ method: "trivia_sync.api.enqueue_qapi_reformat" }).then(({ message }) => {
+				frappe.show_alert({ message: `Reformat queued on ${message?.queue || "long"}${message?.job_id ? ` · ${message.job_id}` : ""}.`, indicator: "green" });
+			});
+		}, "Sync");
+	},
 });
