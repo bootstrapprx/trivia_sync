@@ -72,6 +72,12 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	controls.full_upgrade.$input?.on("change", () => setFullUpgrade(controls.full_upgrade.get_value()));
 	const showStatus = (message, indicator = "blue") => { main.find("[data-status]").text(message); frappe.show_alert({ message, indicator }); };
 	const optionValues = () => Object.fromEntries([...readEndpointNames, "push_flashcards", "sync_support_texts"].map((name) => [name, controls[name].get_value() ? 1 : 0]));
+	const saveCurrentSettings = () => frappe.call({ method: "trivia_sync.api.save_onboarding", args: {
+		qapi_base_url: controls.qapi_base_url.get_value(), qapi_api_key: controls.qapi_api_key.get_value(), qapi_enabled: controls.qapi_enabled.get_value() ? 1 : 0,
+		qapi_sync_frequency: controls.qapi_sync_frequency.get_value(), qapi_page_size: controls.qapi_page_size.get_value(), qapi_max_pages: controls.qapi_max_pages.get_value(),
+		qapi_max_requests_per_run: controls.qapi_max_requests_per_run.get_value(), qapi_min_credit_reserve: controls.qapi_min_credit_reserve.get_value(),
+		sync_catalogs: controls.sync_catalogs.get_value() ? 1 : 0, sync_options: JSON.stringify(optionValues()),
+	} });
 	const loadStatus = () => frappe.call("trivia_sync.api.onboarding_status").then(({ message }) => {
 		if (!message) return;
 		controls.qapi_base_url.set_value(message.base_url || "https://qapi.otunac.com/api");
@@ -83,20 +89,15 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 		Object.entries(message.sync_options || {}).forEach(([name, value]) => controls[name]?.set_value(value ? 1 : 0));
 		main.find("[data-status]").text(`${message.configured ? __("Key configured") : __("Key missing")} · ${__("Effective limit")}: ${message.paid_sync_available ? message.request_budget - message.credit_reserve : 0} ${__("credits")} · ${__("Last sync")}: ${message.last_sync || __("never")}`);
 	});
-	main.find('[data-action="save"]').on("click", () => frappe.call({ method: "trivia_sync.api.save_onboarding", args: {
-		qapi_base_url: controls.qapi_base_url.get_value(), qapi_api_key: controls.qapi_api_key.get_value(), qapi_enabled: controls.qapi_enabled.get_value() ? 1 : 0,
-		qapi_sync_frequency: controls.qapi_sync_frequency.get_value(), qapi_page_size: controls.qapi_page_size.get_value(), qapi_max_pages: controls.qapi_max_pages.get_value(),
-		qapi_max_requests_per_run: controls.qapi_max_requests_per_run.get_value(), qapi_min_credit_reserve: controls.qapi_min_credit_reserve.get_value(),
-		sync_catalogs: controls.sync_catalogs.get_value() ? 1 : 0, sync_options: JSON.stringify(optionValues()),
-	} }).then(() => { controls.qapi_api_key.set_value(""); showStatus(__("Settings saved."), "green"); loadStatus(); }));
+	main.find('[data-action="save"]').on("click", () => saveCurrentSettings().then(() => { controls.qapi_api_key.set_value(""); showStatus(__("Settings saved."), "green"); loadStatus(); }));
 	main.find('[data-action="test"]').on("click", () => frappe.call("trivia_sync.api.qapi_status").then(({ message }) => showStatus(message?.ok ? `${__("Connection successful")} · ${message.total ?? __("QAPI is reachable")}` : message?.error || __("QAPI connection test failed"), message?.ok ? "green" : "red")));
-	main.find('[data-action="dry-run"]').on("click", () => frappe.call({ method: "trivia_sync.api.run_qapi_sync_now", args: { dry_run: 1, full_upgrade: 1, max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(`${__("Full upgrade upper bound")}: ${message?.required_upper_bound ?? message?.projected_request_cost ?? 0} ${__("credits")} · ${__("No data was written")}`, "blue")));
+	main.find('[data-action="dry-run"]').on("click", () => saveCurrentSettings().then(() => frappe.call({ method: "trivia_sync.api.run_qapi_sync_now", args: { dry_run: 1, include_catalogs: controls.sync_catalogs.get_value() ? 1 : 0, max_pages: controls.qapi_max_pages.get_value() } })).then(({ message }) => showStatus(`${__("Selected sync upper bound")}: ${message?.required_upper_bound ?? message?.projected_request_cost ?? 0} ${__("credits")} · ${__("No data was written")}`, "blue")));
 	const queuedMessage = (message, fallback) => {
 		const job = message?.job || fallback;
 		return `${__("Queued on")}: ${message?.queue || "long"} · ${__("job")}: ${job}${message?.job_id ? ` · ID: ${message.job_id}` : ""}`;
 	};
 	main.find('[data-action="full-upgrade"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_full_upgrade", args: { max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_full"), "green")));
-	main.find('[data-action="sync"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_sync", args: { full: 1, max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_full"), "green")));
+	main.find('[data-action="sync"]').on("click", () => saveCurrentSettings().then(() => frappe.call({ method: "trivia_sync.api.enqueue_qapi_sync", args: { full: controls.sync_catalogs.get_value() ? 1 : 0, max_pages: controls.qapi_max_pages.get_value() } })).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_selected"), "green")));
 	main.find('[data-action="lms"]').on("click", () => frappe.call("trivia_sync.api.enqueue_lms_sync").then(() => showStatus(__("Frappe LMS sync queued."), "green")));
 	loadStatus();
 };

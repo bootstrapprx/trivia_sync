@@ -23,7 +23,7 @@ class QAPIAdapter:
 		return bool(self.client.api_key) and self.client.max_requests > 0
 
 	def request_cost(self, operation):
-		return QAPI_METHOD_COSTS.get(operation, 1)
+		return QAPI_METHOD_COSTS.get(operation, 1) * (2 if getattr(self.client.settings, "mcp_enabled", 0) else 1)
 
 	def fetch_questions(self, filters=None, page=1, size=10):
 		return self.client.questoes(page=page, size=size, **(filters or {}))

@@ -22,6 +22,13 @@ class TestDocTypeControllerImports(unittest.TestCase):
         self.assertTrue(fixture_names <= configured)
         self.assertIn("LMS Question", hooks.doc_events)
 
+    def test_qapi_contest_and_exam_titles_accept_full_source_text(self):
+        for doctype in ("trivia_contest", "trivia_exam"):
+            path = APP_ROOT / "trivia_sync" / "trivia_sync" / "doctype" / doctype / f"{doctype}.json"
+            fields = json.loads(path.read_text())["fields"]
+            title = next(field for field in fields if field["fieldname"] == "titulo")
+            self.assertEqual(title["fieldtype"], "Small Text")
+
     def test_all_internal_doctype_imports_resolve_to_a_python_module(self):
         missing = []
         for controller in (APP_ROOT / "trivia_sync" / "doctype").glob("*/*.py"):

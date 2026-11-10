@@ -3,7 +3,7 @@ import frappe
 
 BASE_DEFAULT = "https://qapi.otunac.com/api"
 MCP_DEFAULT = "https://qapi.otunac.com/mcp"
-QAPI_METHOD_COSTS = {"provas": 200, "prova": 200, "criar_flashcard": 1}
+QAPI_METHOD_COSTS = {"provas": 100, "prova": 100, "criar_flashcard": 1}
 
 
 class QAPIError(RuntimeError):
@@ -61,7 +61,7 @@ class QAPIClient:
 		return response.json()
 
 	def mcp_call(self, tool, arguments=None, cost=1):
-		self._reserve_request(cost)
+		self._reserve_request(cost * 2)
 		response = requests.post(
 			self.mcp_url,
 			headers={

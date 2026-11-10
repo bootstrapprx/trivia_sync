@@ -75,24 +75,25 @@ def _payload_record(payload):
 
 def _estimated_request_cost(settings_doc, max_pages, include_catalogs, local_flashcard_count=0):
 	page_size = min(10, max(1, int(settings_doc.qapi_page_size or 10)))
+	cost_multiplier = 2 if getattr(settings_doc, "mcp_enabled", 0) else 1
 	question_records = max_pages * page_size
-	cost = max_pages if getattr(settings_doc, "sync_questions", 1) else 0  # get_questoes
-	cost += question_records if getattr(settings_doc, "sync_questions", 1) and settings_doc.sync_support_texts else 0
+	cost = max_pages * cost_multiplier if getattr(settings_doc, "sync_questions", 1) else 0  # get_questoes
+	cost += question_records * cost_multiplier if getattr(settings_doc, "sync_questions", 1) and settings_doc.sync_support_texts else 0
 	if not include_catalogs or not settings_doc.sync_catalogs:
 		return cost + (local_flashcard_count if getattr(settings_doc, "push_flashcards", 0) else 0)
 	for method, (_, kind) in RESOURCE_MAP.items():
 		if not _resource_enabled(settings_doc, kind):
 			continue
-		cost += max_pages * QAPI_METHOD_COSTS.get(method, 1)
+		cost += max_pages * QAPI_METHOD_COSTS.get(method, 1) * cost_multiplier
 		if method in DETAIL_ENDPOINTS:
 			detail_method, detail_cost = DETAIL_ENDPOINTS[method]
-			cost += max_pages * page_size * detail_cost
+			cost += max_pages * page_size * detail_cost * cost_multiplier
 	if settings_doc.sync_catalogs and _resource_enabled(settings_doc, "conteudos"):
-		cost += 1  # get_conteudos_arvore
+		cost += cost_multiplier  # get_conteudos_arvore
 	if settings_doc.sync_catalogs and _resource_enabled(settings_doc, "concursos"):
-		cost += 1  # get_status_concurso
+		cost += cost_multiplier  # get_status_concurso
 	if getattr(settings_doc, "push_flashcards", 0):
-		cost += local_flashcard_count * QAPI_METHOD_COSTS["criar_flashcard"]
+		cost += local_flashcard_count * QAPI_METHOD_COSTS["criar_flashcard"] * cost_multiplier
 	return cost
 
 
@@ -295,7 +296,12 @@ def _sync_paginated(
 			run.page = page
 			run.resume_operation = method_name
 			run.resume_page = page
-		payload = adapter.fetch_resource(method_name, page=page, size=min(10, max(1, int(settings_doc.qapi_page_size or 10))))
+		payload = adapter.fetch_resource(
+			method_name,
+			page=page,
+			size=min(10, max(1, int(settings_doc.qapi_page_size or 10))),
+			filters=filters,
+		)
 		for row in _rows(payload):
 			if metrics is not None:
 				_record_metric(metrics, method_name, received=1)
@@ -382,7 +388,7 @@ def reformat_qapi_questions(question_name=None, limit=10000):
 
 
 def _validate_filters(filters):
-	allowed = {"concurso", "cargo", "banca", "materia", "ano"}
+	allowed = {"concurso", "cargo", "banca", "orgao", "materia", "ano"}
 	filters = filters or {}
 	if not isinstance(filters, dict) or set(filters) - allowed:
 		frappe.throw("Supported filters: contest, position, exam board, subject, and year.")
@@ -664,8 +670,8 @@ def ingest_source(
 		run.records_updated = totals["updated"]
 		run.records_skipped = totals["skipped"]
 		run.records_errors = totals["errors"]
-	run.save(ignore_permissions=True)
-	frappe.db.commit()
+		run.save(ignore_permissions=True)
+		frappe.db.commit()
 
 def sync_qapi_full():
 	return ingest_source("QAPI")

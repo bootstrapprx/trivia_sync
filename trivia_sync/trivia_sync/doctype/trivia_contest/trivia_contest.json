@@ -42,7 +42,7 @@
     },
     {
       "fieldname": "titulo",
-      "fieldtype": "Data",
+      "fieldtype": "Small Text",
       "label": "Title",
       "reqd": 1
     },

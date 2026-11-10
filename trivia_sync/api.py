@@ -163,14 +163,14 @@ def qapi_status():
 
 
 @frappe.whitelist()
-def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None, full_upgrade=0):
+def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None, include_catalogs=1, full_upgrade=0):
 	_admin()
 	parsed_filters = json.loads(filters) if isinstance(filters, str) and filters else filters or {}
 	return ingest_source(
 		"QAPI",
 		filters=parsed_filters,
 		dry_run=bool(cint(dry_run)),
-		include_catalogs=True,
+		include_catalogs=bool(cint(include_catalogs)),
 		budget=None if budget in (None, "") else cint(budget),
 		max_pages=cint(max_pages),
 		force_full_upgrade=bool(cint(full_upgrade)),

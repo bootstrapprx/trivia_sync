@@ -144,17 +144,25 @@ class TestQAPI(unittest.TestCase):
                 client.questoes(page=2)
         self.assertEqual(client.requests_made, 1)
 
-    def test_exam_request_reserves_200_credits_before_network_call(self):
+    def test_exam_request_reserves_100_rest_credits_before_network_call(self):
         session = FakeSession()
         with patch.object(self.client_module.requests, "Session", return_value=session):
-            client = self.client_module.QAPIClient(FakeSettings(), max_requests=199)
+            client = self.client_module.QAPIClient(FakeSettings(), max_requests=99)
             with self.assertRaises(self.client_module.QAPIBudgetError):
                 client.provas(page=1)
         self.assertEqual((client.requests_made, client.credits_used, session.get_calls), (0, 0, []))
         with patch.object(self.client_module.requests, "Session", return_value=session):
-            funded_client = self.client_module.QAPIClient(FakeSettings(), max_requests=200)
+            funded_client = self.client_module.QAPIClient(FakeSettings(), max_requests=100)
             funded_client.provas(page=1)
-        self.assertEqual((funded_client.requests_made, funded_client.credits_used), (1, 200))
+        self.assertEqual((funded_client.requests_made, funded_client.credits_used), (1, 100))
+
+    def test_mcp_exam_request_charges_twice_rest_cost(self):
+        settings = FakeSettings()
+        settings.mcp_enabled = 1
+        client = self.client_module.QAPIClient(settings, max_requests=199)
+        with self.assertRaises(self.client_module.QAPIBudgetError):
+            client.provas(page=1)
+        self.assertEqual((client.requests_made, client.credits_used), (0, 0))
 
     def test_dry_run_uses_exam_credit_cost(self):
         frappe = self.sync_module.frappe
@@ -196,6 +204,36 @@ class TestQAPI(unittest.TestCase):
     def test_worker_rejects_unrecognized_question_page_instead_of_succeeding_empty(self):
         with self.assertRaises(self.sync_module.QAPIBudgetError.__bases__[0]):
             self.sync_module._rows({"status": "ok", "payload": "unexpected"})
+
+    def test_qapi_filters_accept_documented_organization_filter(self):
+        self.assertEqual(
+            self.sync_module._validate_filters({"orgao": "Manaus Previdência", "ano": 2026}),
+            {"orgao": "Manaus Previdência", "ano": 2026},
+        )
+
+    def test_paginated_resource_sync_forwards_filters_to_qapi(self):
+        received = []
+
+        class Adapter:
+            def fetch_resource(self, method, **kwargs):
+                received.append((method, kwargs))
+                return {"concursos": [], "pages": 1}
+
+        frappe = self.sync_module.frappe
+        old_db = getattr(frappe, "db", None)
+        frappe.db = types.SimpleNamespace(commit=lambda: None)
+        try:
+            self.sync_module._sync_paginated(
+                Adapter(), "concursos", "Trivia Contest", "concursos",
+                types.SimpleNamespace(qapi_page_size=10), 3,
+                {"orgao": "Manaus Previdência", "ano": 2026},
+            )
+        finally:
+            if old_db is None:
+                del frappe.db
+            else:
+                frappe.db = old_db
+        self.assertEqual(received, [("concursos", {"page": 1, "size": 10, "filters": {"orgao": "Manaus Previdência", "ano": 2026}})])
 
     def test_dry_run_reports_upper_bound_without_writes_or_network(self):
         frappe = self.sync_module.frappe
