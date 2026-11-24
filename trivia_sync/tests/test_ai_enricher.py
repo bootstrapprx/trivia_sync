@@ -36,6 +36,11 @@ class TestAIEnricher(unittest.TestCase):
     def setUpClass(cls):
         frappe_stub = types.SimpleNamespace(get_single=lambda name: FakeSettings(), ValidationError=ValueError)
         sys.modules.setdefault("frappe", frappe_stub)
+        if "requests" not in sys.modules:
+            try:
+                import requests  # noqa: F401
+            except ImportError:
+                sys.modules["requests"] = types.SimpleNamespace(post=None, RequestException=Exception)
         cls.module = importlib.import_module("trivia_sync.integrations.ai_enricher")
 
     def question(self):
@@ -120,6 +125,48 @@ class TestAIEnricher(unittest.TestCase):
                     delattr(frappe, name)
                 else:
                     setattr(frappe, name, value)
+
+    def test_flow_adapter_reuses_frappe_flow_model_and_extracts_fenced_json(self):
+        flow_model_mod = types.ModuleType("frappe.flow.lib.model")
+        flow_model_mod.model_config = lambda name, check_permission=True: {
+            "model": "anthropic/claude-sonnet-4-6",
+            "api_key": "flow-secret",
+            "api_base": "https://proxy.example.test",
+            "model_params": {"temperature": 0.2},
+        }
+        flow_model_mod.litellm_route = lambda model_id, api_base: (model_id, api_base)
+        calls = []
+
+        def fake_completion(**kwargs):
+            calls.append(kwargs)
+            if kwargs.get("response_format"):
+                raise RuntimeError("json_schema unsupported")
+            return {
+                "choices": [{
+                    "message": {
+                        "content": '```json\n{"A": "Explicação correta de A.", "B": "Motivo do erro de B sem entregar gabarito."}\n```'
+                    }
+                }]
+            }
+
+        litellm_mod = types.ModuleType("litellm")
+        litellm_mod.completion = fake_completion
+        settings = types.SimpleNamespace(ai_backend="Frappe Flow", ai_flow_model="Claude Sonnet", ai_timeout=30)
+        with patch.dict(sys.modules, {
+            "frappe.flow": types.ModuleType("frappe.flow"),
+            "frappe.flow.lib": types.ModuleType("frappe.flow.lib"),
+            "frappe.flow.lib.model": flow_model_mod,
+            "litellm": litellm_mod,
+        }):
+            adapter = self.module.get_ai_adapter(settings)
+            self.assertIsInstance(adapter, self.module.FlowAdapter)
+            draft = adapter.draft_option_explanations(self.question())
+        self.assertEqual(draft["model"], "anthropic/claude-sonnet-4-6")
+        self.assertEqual(draft["explanations"]["A"], "Explicação correta de A.")
+        self.assertEqual(draft["explanations"]["B"], "Motivo do erro de B sem entregar gabarito.")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["api_key"], "flow-secret")
+        self.assertEqual(calls[0]["api_base"], "https://proxy.example.test")
 
 
 if __name__ == "__main__":

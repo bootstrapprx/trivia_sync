@@ -47,7 +47,7 @@ def link_errors():
         data = json.loads(path.read_text())
         if data.get("doctype") == "DocType":
             names.add(data["name"])
-    external = {"User", "LMS Question", "LMS Course", "Course Lesson", "LMS Quiz"}
+    external = {"User", "LMS Question", "LMS Course", "Course Lesson", "LMS Quiz", "Flow Model"}
     errors = []
     for path in files:
         data = json.loads(path.read_text())

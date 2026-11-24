@@ -7,7 +7,7 @@ import frappe
 from frappe.utils.html_utils import sanitize_html
 from frappe.utils.pdf import get_pdf
 
-from trivia_sync.integrations.ai_enricher import OpenAICompatibleAdapter
+from trivia_sync.integrations.ai_enricher import OpenAICompatibleAdapter, get_ai_adapter
 
 
 LEVELS = {"mais", "180", "360"}
@@ -166,7 +166,8 @@ def _generate(doctype, recipe_name, level, kind, require_lesson):
 	digest, source_keys, rows, methodology = _current_source_hash(recipe)
 	if not rows:
 		frappe.throw("There are no approved and licensed questions to support this material.")
-	result = OpenAICompatibleAdapter(settings).generate_material(_prompt(recipe, level, rows, methodology, kind), level, kind)
+	adapter = get_ai_adapter(settings) if getattr(settings, "ai_backend", None) else OpenAICompatibleAdapter(settings)
+	result = adapter.generate_material(_prompt(recipe, level, rows, methodology, kind), level, kind)
 	version = _next_version(recipe, level)
 	recipe.source_hash = digest
 	recipe.source_keys = json.dumps(source_keys, ensure_ascii=False)
