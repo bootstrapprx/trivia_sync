@@ -8,6 +8,29 @@ import requests
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-6-luna"
+DIFFICULTY_LABELS = {
+	1: "Muito fácil",
+	2: "Fácil",
+	3: "Média",
+	4: "Difícil",
+	5: "Muito difícil",
+}
+
+
+def stars_to_rating(stars: int) -> float:
+	"""Convert 1..5 stars to Frappe's Rating field scale (0.2..1.0)."""
+	clamped = max(1, min(5, int(stars)))
+	return round(clamped / 5.0, 2)
+
+
+def rating_to_stars(value: Any) -> int:
+	"""Convert a Frappe Rating float (0.2..1.0) or legacy 1..5 integer into 1..5 stars."""
+	num = float(value or 0)
+	if num <= 0:
+		return 0
+	if num <= 1.0:
+		return max(1, min(5, int(round(num * 5))))
+	return max(1, min(5, int(round(num))))
 
 
 class AIEnrichmentError(RuntimeError):
@@ -232,6 +255,8 @@ class _BaseAIAdapter:
 		stars = int(result.get("difficulty_stars", 0))
 		if stars not in range(1, 6):
 			raise AIEnrichmentError("The AI adapter returned a difficulty outside the 1 to 5 star range.")
+		result["difficulty_stars"] = stars
+		result["difficulty_label"] = DIFFICULTY_LABELS[stars]
 		result["enrichment_hash"] = enrichment_hash
 		result["model"] = self.model
 		return result
@@ -273,6 +298,8 @@ class _BaseAIAdapter:
 		stars = int(result.get("difficulty_stars", 0))
 		if stars not in range(1, 6):
 			raise AIEnrichmentError("The AI adapter returned a difficulty outside the 1 to 5 star range.")
+		result["difficulty_stars"] = stars
+		result["difficulty_label"] = DIFFICULTY_LABELS[stars]
 		raw_explanations = result.get("option_explanations") or {}
 		if not isinstance(raw_explanations, dict):
 			raise AIEnrichmentError("The AI provider returned invalid option_explanations.")
@@ -474,7 +501,7 @@ def draft_question_option_explanations(question_name: str):
 
 
 def _apply_difficulty_fields(doc, data):
-	doc.ai_difficulty_stars = data["difficulty_stars"]
+	doc.ai_difficulty_stars = stars_to_rating(data["difficulty_stars"])
 	doc.ai_difficulty_label = data["difficulty_label"]
 	doc.ai_difficulty_reason = data["reason"]
 	doc.ai_learning_objective = data["learning_objective"]
@@ -566,15 +593,7 @@ def enrich_question_doc(doc, settings_doc=None):
 	adapter = get_ai_adapter(settings_doc)
 	payload = _question_payload(doc)
 	result = adapter.enrich(payload)
-	doc.ai_difficulty_stars = result["difficulty_stars"]
-	doc.ai_difficulty_label = result["difficulty_label"]
-	doc.ai_difficulty_reason = result["reason"]
-	doc.ai_learning_objective = result["learning_objective"]
-	doc.ai_topics = json.dumps(result["topics"], ensure_ascii=False)
-	doc.ai_model = result["model"]
-	doc.ai_enrichment_hash = result["enrichment_hash"]
-	doc.ai_enrichment_status = "Fresh"
-	doc.ai_enriched_at = frappe.utils.now_datetime()
+	_apply_difficulty_fields(doc, result)
 	doc.save(ignore_permissions=True)
 	return result
 
@@ -613,19 +632,7 @@ def enrich_pending_questions():
 						result["skipped"] += 1
 					else:
 						data = adapter.enrich(_question_payload(doc))
-						values = {
-							"ai_difficulty_stars": data["difficulty_stars"],
-							"ai_difficulty_label": data["difficulty_label"],
-							"ai_difficulty_reason": data["reason"],
-							"ai_learning_objective": data["learning_objective"],
-							"ai_topics": json.dumps(data["topics"], ensure_ascii=False),
-							"ai_model": data["model"],
-							"ai_enrichment_hash": data["enrichment_hash"],
-							"ai_enriched_at": frappe.utils.now_datetime(),
-							"ai_enrichment_status": "Fresh",
-						}
-						for field, value in values.items():
-							setattr(doc, field, value)
+						_apply_difficulty_fields(doc, data)
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 				except Exception:

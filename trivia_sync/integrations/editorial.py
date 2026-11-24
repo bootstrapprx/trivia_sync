@@ -65,8 +65,10 @@ def question_options(source):
 			frappe.throw("Standard choice questions must have exactly five options.")
 		if not (getattr(source, "exception_reason", None) or "").strip():
 			frappe.throw("Provide a reason for the variable option count.")
-	if getattr(source, "editorial_difficulty", None) not in (None, "") and not 1 <= float(source.editorial_difficulty) <= 5:
-		frappe.throw("Editorial difficulty must be between one and five stars.")
+	if getattr(source, "editorial_difficulty", None) not in (None, "", 0, 0.0):
+		val = float(source.editorial_difficulty)
+		if not (0 < val <= 1.0 or 1.0 <= val <= 5.0):
+			frappe.throw("Editorial difficulty must be between one and five stars.")
 	return options, correct
 
 

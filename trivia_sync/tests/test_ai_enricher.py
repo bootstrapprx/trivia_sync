@@ -198,6 +198,14 @@ class TestAIEnricher(unittest.TestCase):
         self.assertIn("B", result["option_explanations"])
         self.assertEqual(len(result["enrichment_hash"]), 64)
 
+    def test_frappe_rating_scale_conversion_maps_one_to_five_stars_accurately(self):
+        self.assertEqual(self.module.stars_to_rating(1), 0.2)
+        self.assertEqual(self.module.stars_to_rating(3), 0.6)
+        self.assertEqual(self.module.stars_to_rating(5), 1.0)
+        self.assertEqual(self.module.rating_to_stars(0.2), 1)
+        self.assertEqual(self.module.rating_to_stars(0.6), 3)
+        self.assertEqual(self.module.rating_to_stars(1.0), 5)
+
 
 if __name__ == "__main__":
     unittest.main()

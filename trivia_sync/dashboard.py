@@ -17,6 +17,15 @@ def _safe_count(doctype, filters=None):
 		return 0
 
 
+def _normalize_stars(value):
+	num = float(value or 0)
+	if num <= 0:
+		return 0
+	if num <= 1.0:
+		return max(1, min(5, int(round(num * 5))))
+	return max(1, min(5, int(round(num))))
+
+
 def _difficulty_metrics():
 	rows = frappe.db.sql(
 		"""
@@ -29,15 +38,26 @@ def _difficulty_metrics():
 		as_dict=True,
 	)
 	distribution = {str(stars): 0 for stars in range(1, 6)}
+	weighted_sum = 0
+	total_rated = 0
 	for row in rows:
-		distribution[str(int(row.stars))] = int(row.total)
-	average = (
-		frappe.db.sql(
-			"SELECT AVG(ai_difficulty_stars) AS average FROM `tabTrivia Question` WHERE ai_difficulty_stars IS NOT NULL",
-			as_dict=True,
-		)[0].average
-		or 0
-	)
+		stars = _normalize_stars(row.stars)
+		count = int(row.total or 0)
+		if stars in range(1, 6):
+			distribution[str(stars)] += count
+			weighted_sum += stars * count
+			total_rated += count
+	if total_rated:
+		average = weighted_sum / total_rated
+	else:
+		raw_avg = (
+			frappe.db.sql(
+				"SELECT AVG(ai_difficulty_stars) AS average FROM `tabTrivia Question` WHERE ai_difficulty_stars IS NOT NULL",
+				as_dict=True,
+			)[0].average
+			or 0
+		)
+		average = float(raw_avg) * 5 if 0 < float(raw_avg) <= 1.0 else float(raw_avg)
 	return {"distribution": distribution, "average": round(float(average), 2)}
 
 

@@ -112,7 +112,12 @@
 				</div>`;
 		}).join("") || `<p class="text-muted">${__("No alternatives were normalized.")}</p>`;
 
-		const starValue = Number(d.editorial_difficulty || d.ai_difficulty_stars || 0);
+		const toStars = (value) => {
+			const n = Number(value || 0);
+			if (n <= 0) return 0;
+			return n <= 1 ? Math.round(n * 5) : Math.min(5, Math.round(n));
+		};
+		const starValue = toStars(d.editorial_difficulty || d.ai_difficulty_stars || 0);
 		const stars = "★".repeat(Math.max(0, Math.min(5, starValue))) + "☆".repeat(Math.max(0, 5 - starValue));
 		let aiTopics = [];
 		try {
