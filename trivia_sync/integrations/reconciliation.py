@@ -189,3 +189,153 @@ def resolve_resource_links(doctype, data):
 		resolved = resolve_catalog(target, external_id, name)
 		data[field] = resolved["name"]
 	return data
+
+
+def resolve_or_create_catalog(doctype, name, extra_fields=None):
+	cleaned = str(name or "").strip()
+	if not cleaned:
+		return None
+	resolution = resolve_catalog(doctype, name=cleaned)
+	if resolution["status"] == "resolved":
+		return resolution["name"]
+	needle = normalize_name(cleaned)
+	if not needle:
+		return None
+	if resolution["status"] == "ambiguous":
+		meta = frappe.get_meta(doctype)
+		fields = ["name"] + [field for field in ("nome", "titulo") if meta.has_field(field)]
+		rows = _catalog_get_all(doctype, {}, fields)
+		for row in rows:
+			if needle in {normalize_name(row.get("nome")), normalize_name(row.get("titulo"))}:
+				return row.get("name")
+	slug = needle.replace(" ", "-")[:80]
+	existing_by_key = _catalog_get_value(doctype, {"source_key": f"manual:{slug}"}, "name")
+	if existing_by_key:
+		return existing_by_key
+	doc = frappe.new_doc(doctype)
+	doc.source_type = "Manual"
+	doc.source_id = slug
+	doc.source_key = f"manual:{slug}"
+	doc.nome = cleaned
+	for field, value in (extra_fields or {}).items():
+		if value not in (None, ""):
+			setattr(doc, field, value)
+	doc.insert(ignore_permissions=True)
+	return doc.name
+
+
+def candidate_syllabus_topics(concurso_cargo=None, limit=60):
+	filters = {"is_obsolete": 0}
+	if concurso_cargo:
+		filters["concurso_cargo"] = concurso_cargo
+	rows = frappe.get_all(
+		"Trivia Syllabus Topic",
+		filters=filters,
+		fields=["name", "titulo", "source_path", "concurso_cargo"],
+		order_by="ordem asc",
+		limit_page_length=limit,
+	)
+	return rows or []
+
+
+def match_syllabus_topics_by_names(topics, concurso_cargo=None):
+	needles = {normalize_name(topic) for topic in (topics or []) if normalize_name(topic)}
+	if not needles:
+		return []
+	candidates = candidate_syllabus_topics(concurso_cargo=concurso_cargo, limit=200)
+	matched = []
+	for row in candidates:
+		title_norm = normalize_name(row.get("titulo"))
+		if title_norm and (title_norm in needles or any(needle in title_norm or title_norm in needle for needle in needles if len(needle) >= 5)):
+			matched.append(row.get("name"))
+	return list(dict.fromkeys(name for name in matched if name))
+
+
+def _add_frappe_tag(doctype, name, tag):
+	cleaned = re.sub(r"[,\r\n]+", " ", str(tag or "")).strip()[:60]
+	if not cleaned or not name:
+		return None
+	try:
+		from frappe.desk.doctype.tag.tag import add_tag
+		add_tag(cleaned, doctype, name)
+		return cleaned
+	except Exception:
+		return None
+
+
+def apply_ai_topics_to_question(
+	question,
+	topics=None,
+	suggested_materia=None,
+	suggested_assunto=None,
+	syllabus_topic_names=None,
+):
+	if topics is None:
+		raw_topics = getattr(question, "ai_topics", None)
+		if isinstance(raw_topics, str):
+			try:
+				topics = json.loads(raw_topics or "[]")
+			except (TypeError, ValueError):
+				topics = []
+		elif isinstance(raw_topics, list):
+			topics = raw_topics
+		else:
+			topics = []
+	cleaned_topics = list(dict.fromkeys(str(t).strip() for t in (topics or []) if str(t or "").strip()))
+
+	subject_name = (getattr(question, "materia", None) or "").strip() or (suggested_materia or "").strip()
+	if subject_name and not (getattr(question, "materia", None) or "").strip():
+		question.materia = subject_name
+	if subject_name and not getattr(question, "trivia_materia", None):
+		question.trivia_materia = resolve_or_create_catalog("Trivia Subject", subject_name)
+
+	topic_name = (
+		(getattr(question, "assunto", None) or "").strip()
+		or (suggested_assunto or "").strip()
+		or (cleaned_topics[0] if cleaned_topics else "")
+	)
+	if topic_name and not (getattr(question, "assunto", None) or "").strip():
+		question.assunto = topic_name
+	if topic_name and not getattr(question, "trivia_assunto", None):
+		question.trivia_assunto = resolve_or_create_catalog(
+			"Trivia Topic",
+			topic_name,
+			extra_fields={"materia": getattr(question, "materia", None)},
+		)
+
+	cargo = getattr(question, "concurso_cargo", None)
+	valid_candidates = {
+		row.get("name")
+		for row in candidate_syllabus_topics(concurso_cargo=cargo, limit=200)
+		if row.get("name")
+	}
+	explicit_syllabus = [name for name in (syllabus_topic_names or []) if name in valid_candidates]
+	inferred_syllabus = match_syllabus_topics_by_names(cleaned_topics + ([topic_name] if topic_name else []), concurso_cargo=cargo)
+	target_syllabus = list(dict.fromkeys(explicit_syllabus + inferred_syllabus))
+
+	existing_links = {
+		getattr(row, "conteudo_programatico", None)
+		for row in (getattr(question, "conteudos_programaticos", None) or [])
+		if getattr(row, "conteudo_programatico", None)
+	}
+	added_syllabus = []
+	for syllabus_name in target_syllabus:
+		if syllabus_name not in existing_links and hasattr(question, "append"):
+			question.append("conteudos_programaticos", {"conteudo_programatico": syllabus_name})
+			existing_links.add(syllabus_name)
+			added_syllabus.append(syllabus_name)
+
+	tags_added = []
+	q_name = getattr(question, "name", None)
+	if q_name:
+		for tag in cleaned_topics:
+			added = _add_frappe_tag("Trivia Question", q_name, tag)
+			if added:
+				tags_added.append(added)
+
+	return {
+		"trivia_materia": getattr(question, "trivia_materia", None),
+		"trivia_assunto": getattr(question, "trivia_assunto", None),
+		"syllabus_topics_added": added_syllabus,
+		"tags_added": tags_added,
+	}

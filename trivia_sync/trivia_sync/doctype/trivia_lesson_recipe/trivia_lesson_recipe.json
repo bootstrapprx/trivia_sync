@@ -7,6 +7,9 @@
     "course",
     "course_lesson",
     "concurso_cargo",
+    "trivia_subject",
+    "trivia_topic",
+    "syllabus_topic",
     "methodology",
     "prompt",
     "source_hash",
@@ -40,6 +43,24 @@
       "fieldtype": "Link",
       "label": "Contest position",
       "options": "Trivia Contest Position"
+    },
+    {
+      "fieldname": "trivia_subject",
+      "fieldtype": "Link",
+      "label": "Subject filter",
+      "options": "Trivia Subject"
+    },
+    {
+      "fieldname": "trivia_topic",
+      "fieldtype": "Link",
+      "label": "Topic filter",
+      "options": "Trivia Topic"
+    },
+    {
+      "fieldname": "syllabus_topic",
+      "fieldtype": "Link",
+      "label": "Syllabus topic filter",
+      "options": "Trivia Syllabus Topic"
     },
     {
       "fieldname": "methodology",

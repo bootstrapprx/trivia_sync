@@ -275,6 +275,43 @@ class TestLearningContent(unittest.TestCase):
 		with self.assertRaises(Exception):
 			self.module.validate_material_recipe(recipe_edit)
 
+	def test_current_source_hash_applies_subject_topic_and_syllabus_filters(self):
+		frappe = self.module.frappe
+		recipe = types.SimpleNamespace(
+			title="Aula Morfologia",
+			concurso_cargo="CC-1",
+			trivia_subject="SUB-PT",
+			trivia_topic="TOP-MORF",
+			syllabus_topic="SYL-1",
+			methodology=None,
+			prompt="",
+		)
+		captured = []
+
+		def fake_get_all(doctype, filters=None, **kwargs):
+			captured.append((doctype, filters))
+			if doctype == "Trivia Question Syllabus Topic":
+				return ["Q-1", "Q-2"]
+			return [{"source_key": "qapi:Q-1", "content_hash": "h1", "enunciado": "E1", "materia": "PT", "assunto": "Morfologia"}]
+
+		with patch.object(frappe, "get_all", side_effect=fake_get_all):
+			digest, keys, rows, _ = self.module._current_source_hash(recipe)
+		self.assertTrue(digest)
+		self.assertEqual(keys, ["qapi:Q-1"])
+		self.assertEqual(len(rows), 1)
+		self.assertEqual(captured[0], ("Trivia Question Syllabus Topic", {"conteudo_programatico": "SYL-1"}))
+		self.assertEqual(
+			captured[1][1],
+			{
+				"review_status": "Approved",
+				"redistribution_status": "Approved",
+				"concurso_cargo": "CC-1",
+				"trivia_materia": "SUB-PT",
+				"trivia_assunto": "TOP-MORF",
+				"name": ["in", ["Q-1", "Q-2"]],
+			},
+		)
+
 
 if __name__ == "__main__":
 	unittest.main()

@@ -7,6 +7,7 @@ from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.qapi import sync_qapi_questions, test_qapi_connection
 from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
 from trivia_sync.integrations.ai_enricher import (
+	apply_ai_topics as apply_question_topics_from_ai,
 	draft_question_option_explanations as generate_option_explanations_draft,
 	enrich_pending_questions,
 	enrich_question_full as enrich_single_question_all,
@@ -431,6 +432,11 @@ def enrich_question_difficulty(question_name):
 @frappe.whitelist()
 def enrich_question_all(question_name):
 	return enrich_single_question_all(question_name)
+
+
+@frappe.whitelist()
+def apply_question_ai_topics(question_name):
+	return apply_question_topics_from_ai(question_name)
 
 
 @frappe.whitelist()

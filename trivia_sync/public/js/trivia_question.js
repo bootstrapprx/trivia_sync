@@ -230,6 +230,9 @@
 			tools.append(`<button class="btn btn-primary btn-sm" data-cockpit="enrich-all">${__("Enrich all (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="classify-difficulty">${__("Classify difficulty (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="draft-explanations">${__("Draft explanations (AI)")}</button>`);
+			if (aiTopics.length) {
+				tools.append(`<button class="btn btn-default btn-sm" data-cockpit="apply-topics">${__("Apply AI topics")}</button>`);
+			}
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="reformat">${__("Repair rich formatting")}</button>`);
 			if (status === "Imported") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="queue">${__("Queue for review")}</button>`);
 			if (status === "Pending Review") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="start">${__("Start review")}</button>`);
@@ -247,6 +250,9 @@
 		});
 		tools.find('[data-cockpit="classify-difficulty"]').on("click", () => {
 			call("trivia_sync.api.enrich_question_difficulty", { question_name: d.name }, __("AI difficulty, objective, and topics updated."));
+		});
+		tools.find('[data-cockpit="apply-topics"]').on("click", () => {
+			call("trivia_sync.api.apply_question_ai_topics", { question_name: d.name }, __("AI topics linked to catalogs, syllabus, and Tags."));
 		});
 		tools.find('[data-cockpit="draft-explanations"]').on("click", () => {
 			frappe.confirm(

@@ -46,14 +46,36 @@ def _check_course(recipe, require_lesson=False):
 
 def _current_source_hash(recipe):
 	filters = {"review_status": "Approved", "redistribution_status": "Approved"}
-	if recipe.concurso_cargo:
+	if getattr(recipe, "concurso_cargo", None):
 		filters["concurso_cargo"] = recipe.concurso_cargo
-	rows = frappe.get_all(
-		"Trivia Question",
-		filters=filters,
-		fields=["source_key", "content_hash", "enunciado", "materia", "assunto"],
-		order_by="source_key asc",
-	)
+	if getattr(recipe, "trivia_subject", None):
+		filters["trivia_materia"] = recipe.trivia_subject
+	if getattr(recipe, "trivia_topic", None):
+		filters["trivia_assunto"] = recipe.trivia_topic
+	syllabus_topic = getattr(recipe, "syllabus_topic", None)
+	if syllabus_topic:
+		linked_questions = frappe.get_all(
+			"Trivia Question Syllabus Topic",
+			filters={"conteudo_programatico": syllabus_topic},
+			pluck="parent",
+		) or []
+		if not linked_questions:
+			rows = []
+		else:
+			filters["name"] = ["in", linked_questions]
+			rows = frappe.get_all(
+				"Trivia Question",
+				filters=filters,
+				fields=["source_key", "content_hash", "enunciado", "materia", "assunto"],
+				order_by="source_key asc",
+			)
+	else:
+		rows = frappe.get_all(
+			"Trivia Question",
+			filters=filters,
+			fields=["source_key", "content_hash", "enunciado", "materia", "assunto"],
+			order_by="source_key asc",
+		)
 	methodology = ""
 	if getattr(recipe, "methodology", None):
 		doc = frappe.get_doc("Trivia Methodology", recipe.methodology)

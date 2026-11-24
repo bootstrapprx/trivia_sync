@@ -184,6 +184,7 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 			"general_explanation": {"type": "string", "minLength": 15, "maxLength": 1200},
 			"suggested_materia": {"type": "string", "maxLength": 140},
 			"suggested_assunto": {"type": "string", "maxLength": 140},
+			"syllabus_topic_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
 			"option_explanations": {
 				"type": "object",
 				"additionalProperties": False,
@@ -203,9 +204,11 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 			"general_explanation",
 			"suggested_materia",
 			"suggested_assunto",
+			"syllabus_topic_ids",
 			"option_explanations",
 		],
 	}
+	syllabus_candidates = question.get("syllabus_candidates") or []
 	messages = [
 		{
 			"role": "system",
@@ -213,8 +216,9 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 				"Você é um professor especialista em avaliação de concursos públicos brasileiros. "
 				"Analise completamente a questão em português brasileiro, sem alterar enunciado, alternativas ou gabarito. "
 				"1) Classifique a dificuldade (1 a 5 estrelas), justificativa técnica, objetivo de aprendizagem, tópicos, matéria e assunto. "
-				"2) Escreva um comentário geral didático (general_explanation). "
-				"3) Em option_explanations, explique cada alternativa individualmente. "
+				"2) Se houver itens em ementa_candidatos, selecione em syllabus_topic_ids apenas os IDs (campo 'name') que correspondem diretamente à questão (ou lista vazia se nenhum se aplicar). "
+				"3) Escreva um comentário geral didático (general_explanation). "
+				"4) Em option_explanations, explique cada alternativa individualmente. "
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela alternativa está errada "
 				"SEM revelar, citar ou dar dica de qual é a alternativa correta (o aluno verá essa mensagem ao errar). "
 				"Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
@@ -234,6 +238,7 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 					"assunto": question.get("assunto"),
 					"banca": question.get("banca"),
 					"ano": question.get("ano"),
+					"ementa_candidatos": syllabus_candidates,
 				},
 				ensure_ascii=False,
 			),
@@ -512,6 +517,31 @@ def _apply_difficulty_fields(doc, data):
 	doc.ai_enriched_at = frappe.utils.now_datetime()
 
 
+def _safe_apply_ai_topics(doc, topics=None, suggested_materia=None, suggested_assunto=None, syllabus_topic_names=None):
+	try:
+		from trivia_sync.integrations.reconciliation import apply_ai_topics_to_question
+
+		return apply_ai_topics_to_question(
+			doc,
+			topics=topics,
+			suggested_materia=suggested_materia,
+			suggested_assunto=suggested_assunto,
+			syllabus_topic_names=syllabus_topic_names,
+		)
+	except Exception:
+		return {"trivia_materia": None, "trivia_assunto": None, "syllabus_topics_added": [], "tags_added": []}
+
+
+def apply_ai_topics(question_name: str):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	doc = frappe.get_doc("Trivia Question", question_name)
+	from trivia_sync.integrations.reconciliation import apply_ai_topics_to_question
+
+	applied = apply_ai_topics_to_question(doc)
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, **applied}
+
+
 def enrich_single_question_difficulty(question_name: str):
 	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
 	settings = frappe.get_single("Trivia Sync Settings")
@@ -540,6 +570,15 @@ def enrich_question_full(question_name: str):
 	correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
 	if not correct_options and getattr(doc, "correct_option", None):
 		correct_options = [doc.correct_option]
+	try:
+		from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
+
+		syllabus_candidates = [
+			{"name": row.get("name"), "titulo": row.get("titulo")}
+			for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "concurso_cargo", None), limit=60)
+		]
+	except Exception:
+		syllabus_candidates = []
 	adapter = get_ai_adapter(settings)
 	data = adapter.enrich_full(
 		{
@@ -553,16 +592,20 @@ def enrich_question_full(question_name: str):
 			"assunto": getattr(doc, "assunto", None),
 			"banca": getattr(doc, "banca", None),
 			"ano": getattr(doc, "ano", None),
+			"syllabus_candidates": syllabus_candidates,
 		}
 	)
 	_apply_difficulty_fields(doc, data)
 	doc.option_explanations = json.dumps(data["option_explanations"], ensure_ascii=False, indent=2)
 	if not (getattr(doc, "explanation", None) or "").strip() and data.get("general_explanation"):
 		doc.explanation = data["general_explanation"]
-	if not (getattr(doc, "materia", None) or "").strip() and data.get("suggested_materia"):
-		doc.materia = data["suggested_materia"]
-	if not (getattr(doc, "assunto", None) or "").strip() and data.get("suggested_assunto"):
-		doc.assunto = data["suggested_assunto"]
+	applied = _safe_apply_ai_topics(
+		doc,
+		topics=data.get("topics") or [],
+		suggested_materia=data.get("suggested_materia"),
+		suggested_assunto=data.get("suggested_assunto"),
+		syllabus_topic_names=data.get("syllabus_topic_ids") or [],
+	)
 	doc.save(ignore_permissions=True)
 	return {
 		"name": doc.name,
@@ -572,6 +615,7 @@ def enrich_question_full(question_name: str):
 		"topics": data["topics"],
 		"option_explanations": data["option_explanations"],
 		"model": data["model"],
+		**applied,
 	}
 
 
@@ -594,6 +638,7 @@ def enrich_question_doc(doc, settings_doc=None):
 	payload = _question_payload(doc)
 	result = adapter.enrich(payload)
 	_apply_difficulty_fields(doc, result)
+	_safe_apply_ai_topics(doc, topics=result.get("topics") or [])
 	doc.save(ignore_permissions=True)
 	return result
 
@@ -633,6 +678,7 @@ def enrich_pending_questions():
 					else:
 						data = adapter.enrich(_question_payload(doc))
 						_apply_difficulty_fields(doc, data)
+						_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 				except Exception:
