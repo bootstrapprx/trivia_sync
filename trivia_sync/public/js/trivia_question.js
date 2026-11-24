@@ -98,13 +98,13 @@
 							<span class="indicator-pill ${hasText ? "green" : "orange"}" data-option-pill="${escapeAttr(letter)}">${hasText ? __("Explained") : __("Explanation missing")}</span>
 						</div>
 					</div>
-					<div class="trivia-option-explanation-wrap">
-						<label class="trivia-option-explanation-label" for="trivia-exp-${escapeAttr(letter)}">
-							<span>${label}</span>
-						</label>
+					<div class="trivia-option-explanation-wrap" style="display:block;width:100%;">
+						<div class="trivia-option-explanation-label">${label}</div>
 						<textarea
 							id="trivia-exp-${escapeAttr(letter)}"
-							class="trivia-option-explanation-input"
+							rows="2"
+							class="form-control trivia-option-explanation-input"
+							style="display:block;width:100%;"
 							data-explanation-letter="${escapeAttr(letter)}"
 							placeholder="${escapeAttr(placeholder)}"
 						>${escapeAttr(text)}</textarea>

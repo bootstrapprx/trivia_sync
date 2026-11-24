@@ -6,39 +6,39 @@
 	background: var(--card-bg);
 }
 
-.trivia-cockpit-header,
-.trivia-cockpit-meta,
-.trivia-cockpit-actions {
+.trivia-question-cockpit .trivia-cockpit-header,
+.trivia-question-cockpit .trivia-cockpit-meta,
+.trivia-question-cockpit .trivia-cockpit-actions {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 }
 
-.trivia-cockpit-header {
+.trivia-question-cockpit .trivia-cockpit-header {
 	justify-content: space-between;
 	border-bottom: 1px solid var(--border-color);
 	padding-bottom: 14px;
 }
 
-.trivia-cockpit-header h3 {
+.trivia-question-cockpit .trivia-cockpit-header h3 {
 	margin: 4px 0 0;
 	font-size: 1.1rem;
 	font-weight: 600;
 }
 
-.trivia-cockpit-status {
+.trivia-question-cockpit .trivia-cockpit-status {
 	display: flex;
 	gap: 6px;
 	flex-wrap: wrap;
 	justify-content: flex-end;
 }
 
-.trivia-cockpit-meta {
+.trivia-question-cockpit .trivia-cockpit-meta {
 	flex-wrap: wrap;
 	margin: 14px 0;
 }
 
-.trivia-cockpit-meta > span:not(.trivia-stars) {
+.trivia-question-cockpit .trivia-cockpit-meta > span:not(.trivia-stars) {
 	background: var(--control-bg);
 	border: 1px solid var(--border-color);
 	color: var(--text-color);
@@ -47,96 +47,104 @@
 	font-size: var(--text-xs);
 }
 
-.trivia-stars {
+.trivia-question-cockpit .trivia-stars {
 	color: #f5b301;
 	letter-spacing: 1px;
 	font-size: 0.95rem;
 }
 
-.trivia-cockpit-block {
+.trivia-question-cockpit .trivia-cockpit-block {
 	margin: 18px 0;
 }
 
-.trivia-cockpit-block-head {
+.trivia-question-cockpit .trivia-cockpit-block-head {
 	display: flex;
-	align-items: center;
+	align-items: baseline;
 	justify-content: space-between;
-	gap: 10px;
+	flex-wrap: wrap;
+	gap: 8px;
 	margin-bottom: 10px;
 }
 
-.trivia-cockpit-block h4 {
+.trivia-question-cockpit .trivia-cockpit-block h4 {
 	font-size: var(--text-base);
 	font-weight: 600;
 	margin: 0;
 }
 
-.trivia-question-surface {
+.trivia-question-cockpit .trivia-question-surface {
 	background: var(--control-bg);
 	border: 1px solid var(--border-color);
 	border-radius: 8px;
 	padding: 14px 16px;
 }
 
-.trivia-rich-content {
+.trivia-question-cockpit .trivia-rich-content {
 	line-height: 1.65;
 	color: var(--text-color);
 }
 
-.trivia-options-list {
-	display: grid;
+.trivia-question-cockpit .trivia-options-list {
+	display: flex;
+	flex-direction: column;
 	gap: 12px;
 }
 
-.trivia-option-card {
+.trivia-question-cockpit .trivia-option-card {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
 	border: 1px solid var(--border-color);
 	border-radius: 8px;
-	padding: 12px 14px;
+	padding: 14px 16px;
 	background: var(--control-bg);
 	transition: border-color 0.15s ease;
 }
 
-.trivia-option-card.is-correct {
-	border-color: var(--green-500);
-	background: color-mix(in srgb, var(--green-500) 10%, var(--card-bg));
+.trivia-question-cockpit .trivia-option-card.is-correct {
+	border-color: var(--green-500, #2f9e44);
+	background: color-mix(in srgb, var(--green-500, #2f9e44) 10%, var(--card-bg));
 }
 
-.trivia-option-card.is-missing-explanation {
+.trivia-question-cockpit .trivia-option-card.is-missing-explanation {
 	border-left: 3px solid var(--orange-500, #f59e0b);
 }
 
-.trivia-option-top {
+.trivia-question-cockpit .trivia-option-top {
 	display: flex;
 	align-items: flex-start;
 	gap: 12px;
 }
 
-.trivia-option-letter {
-	background: var(--card-bg);
+.trivia-question-cockpit .trivia-option-letter {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--bg-gray, #2d333b);
 	border: 1.5px solid var(--border-color);
 	border-radius: 50%;
 	color: var(--text-color);
 	flex: 0 0 28px;
 	font-weight: 700;
 	font-size: 0.85rem;
+	width: 28px;
 	height: 28px;
-	line-height: 25px;
-	text-align: center;
 }
 
-.trivia-option-card.is-correct .trivia-option-letter {
-	background: var(--green-500);
-	border-color: var(--green-500);
+.trivia-question-cockpit .trivia-option-card.is-correct .trivia-option-letter {
+	background: var(--green-500, #2f9e44);
+	border-color: var(--green-500, #2f9e44);
 	color: #ffffff;
 }
 
-.trivia-option-content {
+.trivia-question-cockpit .trivia-option-content {
 	flex: 1;
 	min-width: 0;
 	padding-top: 2px;
+	color: var(--text-color);
 }
 
-.trivia-option-badges {
+.trivia-question-cockpit .trivia-option-badges {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -144,48 +152,50 @@
 	flex-shrink: 0;
 }
 
-.trivia-option-explanation-wrap {
-	margin-top: 10px;
+.trivia-question-cockpit .trivia-option-explanation-wrap {
+	display: block;
+	width: 100%;
 	padding-top: 10px;
 	border-top: 1px dashed var(--border-color);
 }
 
-.trivia-option-explanation-label {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
+.trivia-question-cockpit .trivia-option-explanation-label {
+	display: block;
 	font-size: var(--text-xs);
+	font-weight: 500;
 	color: var(--text-muted);
 	margin-bottom: 6px;
 }
 
-.trivia-option-explanation-input {
+.trivia-question-cockpit .trivia-option-explanation-input {
+	display: block;
 	width: 100%;
-	min-height: 62px;
+	min-height: 68px;
 	resize: vertical;
+	box-sizing: border-box;
 	border: 1px solid var(--border-color);
 	border-radius: 6px;
 	background: var(--card-bg);
 	color: var(--text-color);
-	padding: 8px 10px;
+	padding: 8px 12px;
 	font-size: var(--text-sm);
 	line-height: 1.5;
 }
 
-.trivia-option-explanation-input:focus {
+.trivia-question-cockpit .trivia-option-explanation-input:focus {
 	outline: none;
 	border-color: var(--primary);
 	box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
-.trivia-cockpit-actions {
+.trivia-question-cockpit .trivia-cockpit-actions {
 	border-top: 1px solid var(--border-color);
 	padding-top: 16px;
 	flex-wrap: wrap;
 	justify-content: space-between;
 }
 
-.trivia-cockpit-actions-group {
+.trivia-question-cockpit .trivia-cockpit-actions-group {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -196,8 +206,8 @@
 	.trivia-question-cockpit {
 		padding: 16px;
 	}
-	.trivia-cockpit-header,
-	.trivia-cockpit-actions {
+	.trivia-question-cockpit .trivia-cockpit-header,
+	.trivia-question-cockpit .trivia-cockpit-actions {
 		align-items: flex-start;
 		flex-direction: column;
 	}

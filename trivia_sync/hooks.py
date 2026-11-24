@@ -78,9 +78,9 @@ doctype_js = {
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=2"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
-	"/assets/trivia_sync/css/trivia_question.css",
+	"/assets/trivia_sync/css/trivia_question.css?v=2",
 ]
