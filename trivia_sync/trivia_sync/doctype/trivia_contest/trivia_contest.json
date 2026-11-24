@@ -74,7 +74,7 @@
     {
       "fieldname": "estado",
       "fieldtype": "Data",
-      "label": "Status"
+      "label": "State"
     },
     {
       "fieldname": "raw_payload",

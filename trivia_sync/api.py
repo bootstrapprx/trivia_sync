@@ -14,19 +14,38 @@ from trivia_sync.integrations.editorial import (
 	transition_question as apply_editorial_transition,
 )
 from trivia_sync.integrations.lms_questions import sync_lms_question
-from trivia_sync.integrations.exams import build_simulado as assemble_simulado, publish_prova as publish_exam
+from trivia_sync.integrations.exams import (
+	archive_prova as archive_exam,
+	build_simulado as assemble_simulado,
+	publish_prova as publish_exam,
+)
 from trivia_sync.integrations.learning_content import (
-	approve_lesson_material,
 	approve_apostila_material,
+	approve_lesson_material,
+	archive_apostila_recipe as archive_study_guide_recipe,
+	archive_lesson_recipe as archive_lesson_material_recipe,
+	check_material_freshness,
+	create_manual_apostila_material as create_manual_study_guide_draft,
+	create_manual_lesson_material as create_manual_lesson_draft,
 	export_apostila as export_approved_pdf,
 	generate_apostila_material,
 	generate_lesson_material as generate_lesson_draft,
 	publish_lesson_material as publish_approved_lesson_material,
+	reject_apostila_material,
+	reject_lesson_material,
+	submit_apostila_material,
+	submit_lesson_material,
+	unpublish_lesson_material,
 )
 
 
 def _admin():
 	frappe.only_for("System Manager")
+
+
+def has_app_permission():
+	user_roles = set(frappe.get_roles(frappe.session.user))
+	return bool(user_roles.intersection({"System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"}))
 
 
 @frappe.whitelist()
@@ -264,6 +283,12 @@ def publish_prova(prova_name, lesson_name=None):
 
 
 @frappe.whitelist()
+def archive_prova(prova_name):
+	frappe.only_for(("Trivia Integrator", "System Manager"))
+	return archive_exam(prova_name)
+
+
+@frappe.whitelist()
 def set_contest_publication(concurso_name, status):
 	_admin()
 	if status not in ("Draft", "Published", "Archived"):
@@ -287,6 +312,26 @@ def generate_apostila_recipe_material(recipe_name, level):
 
 
 @frappe.whitelist()
+def create_manual_lesson_material(recipe_name, level, content, summary=""):
+	return create_manual_lesson_draft(recipe_name, level, content, summary)
+
+
+@frappe.whitelist()
+def create_manual_apostila_material(recipe_name, level, content, summary=""):
+	return create_manual_study_guide_draft(recipe_name, level, content, summary)
+
+
+@frappe.whitelist()
+def submit_lesson_recipe_material(recipe_name, level, version):
+	return submit_lesson_material(recipe_name, level, version)
+
+
+@frappe.whitelist()
+def submit_apostila_recipe_material(recipe_name, level, version):
+	return submit_apostila_material(recipe_name, level, version)
+
+
+@frappe.whitelist()
 def approve_lesson_recipe_material(recipe_name, level, version, reason=""):
 	return approve_lesson_material(recipe_name, level, version, reason)
 
@@ -297,15 +342,50 @@ def approve_apostila_recipe_material(recipe_name, level, version, reason=""):
 
 
 @frappe.whitelist()
+def reject_lesson_recipe_material(recipe_name, level, version, reason=""):
+	return reject_lesson_material(recipe_name, level, version, reason)
+
+
+@frappe.whitelist()
+def reject_apostila_recipe_material(recipe_name, level, version, reason=""):
+	return reject_apostila_material(recipe_name, level, version, reason)
+
+
+@frappe.whitelist()
 def publish_lesson_material(recipe_name, level):
 	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return publish_approved_lesson_material(recipe_name, level)
 
 
 @frappe.whitelist()
+def unpublish_lesson_recipe_material(recipe_name, level=None):
+	return unpublish_lesson_material(recipe_name, level=level)
+
+
+@frappe.whitelist()
 def export_apostila(recipe_name, levels):
 	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return export_approved_pdf(recipe_name, levels)
+
+
+@frappe.whitelist()
+def archive_lesson_recipe(recipe_name):
+	return archive_lesson_material_recipe(recipe_name)
+
+
+@frappe.whitelist()
+def archive_apostila_recipe(recipe_name):
+	return archive_study_guide_recipe(recipe_name)
+
+
+@frappe.whitelist()
+def check_lesson_recipe_freshness(recipe_name):
+	return check_material_freshness("Trivia Lesson Recipe", recipe_name)
+
+
+@frappe.whitelist()
+def check_apostila_recipe_freshness(recipe_name):
+	return check_material_freshness("Trivia Study Guide Recipe", recipe_name)
 
 
 @frappe.whitelist()

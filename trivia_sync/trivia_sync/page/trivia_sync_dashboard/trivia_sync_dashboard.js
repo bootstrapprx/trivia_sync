@@ -11,6 +11,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       <section class="frappe-card trivia-dashboard-card"><h3>${__("Editorial queue")}</h3><div data-editorial></div></section>
       <section class="frappe-card trivia-dashboard-card"><h3>${__("QAPI sync")}</h3><div data-source></div></section>
     </div>
+    <section class="frappe-card trivia-dashboard-card"><h3>${__("Materials lifecycle")}</h3><div class="trivia-dashboard-grid" data-materials></div></section>
     <section class="frappe-card trivia-dashboard-card"><h3>${__("Coverage by position")}</h3><div class="trivia-dashboard-table-wrap"><table class="table table-sm"><thead><tr><th>${__("Contest")}</th><th>${__("Position")}</th><th>${__("Bank")}</th><th>${__("Eligible")}</th><th>${__("Pending review")}</th></tr></thead><tbody data-coverage></tbody></table></div></section>
     <div class="trivia-dashboard-columns">
       <section class="frappe-card trivia-dashboard-card"><h3>${__("AI difficulty")}</h3><div data-difficulty></div></section>
@@ -23,7 +24,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
   const card = (label, value, detail, tone = "blue") => `<div class="frappe-card trivia-dashboard-metric"><div class="trivia-dashboard-metric-label">${escape(label)}</div><div class="trivia-dashboard-metric-value text-${tone}">${escape(value)}</div><div class="trivia-dashboard-metric-detail">${escape(detail)}</div></div>`;
 
   const render = (data) => {
-    const q = data.questions || {}, w = data.workers || {}, c = data.catalogs || {}, e = data.editorial || {}, s = data.source_sync || {};
+    const q = data.questions || {}, w = data.workers || {}, c = data.catalogs || {}, e = data.editorial || {}, s = data.source_sync || {}, m = data.materials || {};
     main.find("[data-cards]").html([
       card(__("Active workers"), w.running, __("Runs in progress"), w.running ? "orange" : "green"),
       card(__("Questions"), q.total, `${q.enriched} ${__("enriched")} · ${q.coverage_percent}%`, "blue"),
@@ -46,6 +47,13 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       card(__("Schedule"), s.enabled ? __("Enabled") : __("Disabled"), `${__("Last sync")}: ${s.last_sync || __("never")}`, s.enabled ? "green" : "orange"),
       card(__("Credits / reserve"), `${s.request_budget || 0} / ${s.credit_reserve || 0}`, s.paid_sync_available ? __("Paid requests available") : __("Set a budget above the reserve"), s.paid_sync_available ? "blue" : "orange"),
       card(__("QAPI run"), s.last_run?.status || __("No runs"), `${s.last_run?.current_operation || "—"} · ${s.last_run?.requests_made || 0} ${__("requests")} / ${s.last_run?.credits_used || 0} ${__("credits")}`, "blue"),
+    ].join(""));
+    main.find("[data-materials]").html([
+      card(__("Recipes"), (m.lesson_recipes || 0) + (m.study_guides || 0), `${m.lesson_recipes || 0} ${__("lessons")} · ${m.study_guides || 0} ${__("study guides")}`, "blue"),
+      card(__("Draft"), m.draft || 0, __("Editable versions"), "blue"),
+      card(__("Pending approval"), m.pending_approval || 0, __("Awaiting reviewer"), m.pending_approval ? "orange" : "green"),
+      card(__("Stale"), m.stale || 0, __("Sources changed"), m.stale ? "red" : "green"),
+      card(__("Published"), m.published || 0, `${m.approved || 0} ${__("approved ready")}`, "green"),
     ].join(""));
     const endpointRows = Object.entries(s.endpoint_metrics || {}).map(([endpoint, values]) => `<tr><td>${escape(endpoint)}</td><td>${escape(values.received || 0)}</td><td>${escape(values.created || 0)}</td><td>${escape(values.updated || 0)}</td><td>${escape(values.failed || 0)}</td><td>${escape(values.utilization_percent || 0)}%</td></tr>`).join("");
     main.find("[data-endpoints]").html(endpointRows || `<tr><td colspan="6" class="text-muted">${__("No endpoint metrics recorded yet.")}</td></tr>`);

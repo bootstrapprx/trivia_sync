@@ -200,3 +200,18 @@ def publish_prova(prova_name, lesson_name=None):
 	prova.status = "Published"
 	prova.save(ignore_permissions=True)
 	return {"quiz": prova.lms_quiz, "status": "Published", "reused": False}
+
+
+def archive_prova(prova_name):
+	prova = frappe.get_doc("Trivia Exam", prova_name)
+	if prova.status == "Archived":
+		return {"name": prova.name, "status": "Archived", "reused": True}
+	for row in (prova.exam_versions or []):
+		if row.status == "Published" and row.lesson:
+			lesson = frappe.get_doc("Course Lesson", row.lesson)
+			lesson.check_permission("write")
+			_rewrite_lesson(lesson, "", [row.quiz])
+			row.status = "Archived"
+	prova.status = "Archived"
+	prova.save(ignore_permissions=True)
+	return {"name": prova.name, "status": "Archived", "reused": False}

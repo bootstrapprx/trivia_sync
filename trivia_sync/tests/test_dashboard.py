@@ -39,9 +39,17 @@ class TestDashboard(unittest.TestCase):
 			"credit_reserve", "current_operation", "resume_operation", "resume_page",
 		)})
 		cargo = types.SimpleNamespace(name="CC-1", concurso="CON-1", cargo="Cargo A", lms_course="COURSE-1")
+		material_rows = [
+			{"status": "Draft", "total": 2},
+			{"status": "Pending Approval", "total": 1},
+			{"status": "Stale", "total": 3},
+			{"status": "Published", "total": 4},
+		]
 		with patch.object(frappe, "only_for") as only_for, patch.object(
-			frappe.db, "count", side_effect=[10, 6, 3, 2, 1, 4, 5, 6, 7, 8]
-		), patch.object(frappe.db, "sql", side_effect=[[], [types.SimpleNamespace(average=3.5)], [[8]]]), patch.object(
+			frappe.db, "count", side_effect=[10, 6, 3, 2, 1, 4, 5, 6, 7, 8, 5, 2]
+		), patch.object(
+			frappe.db, "sql", side_effect=[[], [types.SimpleNamespace(average=3.5)], material_rows]
+		), patch.object(
 			frappe, "get_all", side_effect=[[run], [old_pending], [latest], [cargo]]
 		), patch.object(
 			frappe, "get_single", return_value=types.SimpleNamespace(
@@ -62,6 +70,12 @@ class TestDashboard(unittest.TestCase):
 		self.assertEqual(result["source_sync"]["last_run"].resume_page, 3)
 		self.assertEqual(result["source_sync"]["request_budget"], 10)
 		self.assertEqual(result["syllabus_coverage"][0]["eligible"], 3)
+		self.assertEqual(result["materials"]["draft"], 2)
+		self.assertEqual(result["materials"]["pending_approval"], 1)
+		self.assertEqual(result["materials"]["stale"], 3)
+		self.assertEqual(result["materials"]["published"], 4)
+		self.assertEqual(result["materials"]["lesson_recipes"], 5)
+		self.assertEqual(result["materials"]["study_guides"], 2)
 		self.assertNotIn("raw_payload", repr(result))
 		self.assertNotIn("api_key", repr(result))
 
@@ -79,6 +93,28 @@ class TestDashboard(unittest.TestCase):
 			permissions = {row["role"]: row.get("read", 0) for row in doctypes[link["link_to"]].get("permissions", [])}
 			for role in roles:
 				self.assertTrue(permissions.get(role), f"{role} cannot read {link['link_to']}")
+
+	def test_workspace_entry_point_and_hooks_are_properly_wired(self):
+		app_root = Path(__file__).resolve().parents[1]
+		workspace = json.loads((app_root / "trivia_sync/workspace/concursos/concursos.json").read_text())
+		self.assertEqual(workspace["public"], 1)
+		self.assertEqual(workspace["is_hidden"], 0)
+		content_cards = [
+			item["data"]["card_name"]
+			for item in json.loads(workspace["content"])
+			if item.get("type") == "card"
+		]
+		card_breaks = [row["label"] for row in workspace["links"] if row.get("type") == "Card Break"]
+		self.assertEqual(content_cards, card_breaks)
+
+		hooks_mod = importlib.import_module("trivia_sync.hooks")
+		self.assertTrue(getattr(hooks_mod, "add_to_apps_screen", None))
+		self.assertEqual(hooks_mod.add_to_apps_screen[0]["route"], "/app/concursos")
+		self.assertTrue(hasattr(hooks_mod, "doctype_js"))
+		self.assertFalse(hasattr(hooks_mod, "doctypes_js"))
+		for target in ("Trivia Question", "Trivia Lesson Recipe", "Trivia Study Guide Recipe", "Trivia Exam", "Trivia Contest"):
+			self.assertIn(target, hooks_mod.doctype_js)
+			self.assertTrue((app_root / hooks_mod.doctype_js[target]).exists())
 
 
 if __name__ == "__main__":

@@ -337,6 +337,10 @@
       "read": 1,
       "write": 1,
       "create": 0
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1
     }
   ]
 }

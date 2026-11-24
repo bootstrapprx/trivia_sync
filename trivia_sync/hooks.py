@@ -6,6 +6,16 @@ app_email = "dev@trivia360.app"
 app_license = "MIT"
 required_apps = ["lms"]
 
+add_to_apps_screen = [
+	{
+		"name": "trivia_sync",
+		"logo": "/assets/frappe/images/frappe-framework-logo.svg",
+		"title": "Trivia Sync",
+		"route": "/app/concursos",
+		"has_permission": "trivia_sync.api.has_app_permission",
+	}
+]
+
 fixtures = [
 	{"dt": "Role", "filters": [["role_name", "in", ["Trivia Editor", "Trivia Reviewer", "Trivia Integrator"]]]},
 	{
@@ -52,9 +62,19 @@ fixtures = [
 ]
 
 scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enabled"]}
-doc_events = {"LMS Question": {"validate": "trivia_sync.integrations.lms_questions.validate_lms_question"}}
-doctypes_js = {"Trivia Sync Settings": "public/js/trivia_sync_settings.js"}
-doctypes_js.update({"Trivia Question": "public/js/trivia_question.js"})
+doc_events = {
+	"LMS Question": {"validate": "trivia_sync.integrations.lms_questions.validate_lms_question"},
+	"Trivia Question": {"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_question"},
+	"Trivia Methodology": {"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_methodology"},
+}
+doctype_js = {
+	"Trivia Sync Settings": "public/js/trivia_sync_settings.js",
+	"Trivia Question": "public/js/trivia_question.js",
+	"Trivia Lesson Recipe": "public/js/trivia_lesson_recipe.js",
+	"Trivia Study Guide Recipe": "public/js/trivia_study_guide_recipe.js",
+	"Trivia Exam": "public/js/trivia_exam.js",
+	"Trivia Contest": "public/js/trivia_contest.js",
+}
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]

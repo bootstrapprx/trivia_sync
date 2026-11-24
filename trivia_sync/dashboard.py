@@ -41,6 +41,48 @@ def _difficulty_metrics():
 	return {"distribution": distribution, "average": round(float(average), 2)}
 
 
+def _material_metrics():
+	counts = {
+		"draft": 0,
+		"pending_approval": 0,
+		"approved": 0,
+		"rejected": 0,
+		"published": 0,
+		"stale": 0,
+		"superseded": 0,
+		"archived": 0,
+	}
+	status_map = {
+		"Draft": "draft",
+		"Pending Approval": "pending_approval",
+		"Approved": "approved",
+		"Rejected": "rejected",
+		"Published": "published",
+		"Stale": "stale",
+		"Superseded": "superseded",
+		"Archived": "archived",
+	}
+	try:
+		rows = frappe.db.sql(
+			"""
+			SELECT status, COUNT(*) AS total
+			FROM `tabTrivia Material Version`
+			GROUP BY status
+			""",
+			as_dict=True,
+		)
+	except Exception:
+		rows = []
+	for row in rows or []:
+		key = status_map.get(getattr(row, "status", None) if not isinstance(row, dict) else row.get("status"))
+		if key:
+			total = getattr(row, "total", 0) if not isinstance(row, dict) else row.get("total", 0)
+			counts[key] = int(total or 0)
+	counts["lesson_recipes"] = _safe_count("Trivia Lesson Recipe")
+	counts["study_guides"] = _safe_count("Trivia Study Guide Recipe")
+	return counts
+
+
 def _endpoint_metrics(run):
 	if not run or not getattr(run, "endpoint_metrics", None):
 		return {}
@@ -134,5 +176,6 @@ def metrics():
 			"concursos": _safe_count("Trivia Contest"), "provas": _safe_count("Trivia Exam"),
 			"flashcards": _safe_count("Flashcard"),
 		},
+		"materials": _material_metrics(),
 		"generated_at": frappe.utils.now_datetime(),
 	}
