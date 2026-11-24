@@ -9,6 +9,8 @@ from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
 from trivia_sync.integrations.ai_enricher import (
 	draft_question_option_explanations as generate_option_explanations_draft,
 	enrich_pending_questions,
+	enrich_question_full as enrich_single_question_all,
+	enrich_single_question_difficulty,
 	test_ai_connection,
 )
 from trivia_sync.integrations.reconciliation import question_coverage
@@ -419,6 +421,16 @@ def run_ai_enrichment_now():
 @frappe.whitelist()
 def draft_question_option_explanations(question_name):
 	return generate_option_explanations_draft(question_name)
+
+
+@frappe.whitelist()
+def enrich_question_difficulty(question_name):
+	return enrich_single_question_difficulty(question_name)
+
+
+@frappe.whitelist()
+def enrich_question_all(question_name):
+	return enrich_single_question_all(question_name)
 
 
 @frappe.whitelist()

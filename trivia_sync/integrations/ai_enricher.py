@@ -142,6 +142,83 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 	return messages, schema, ordered_letters
 
 
+def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any], list[str]]:
+	options = question.get("options") or {}
+	if isinstance(options, str):
+		options = json.loads(options or "{}")
+	ordered_letters = sorted(str(letter).upper() for letter, value in options.items() if value not in (None, ""))
+	if not ordered_letters:
+		raise AIEnrichmentError("Question has no alternatives to enrich.")
+	schema = {
+		"type": "object",
+		"additionalProperties": False,
+		"properties": {
+			"difficulty_stars": {"type": "integer", "minimum": 1, "maximum": 5},
+			"difficulty_label": {"type": "string", "enum": ["Muito fácil", "Fácil", "Média", "Difícil", "Muito difícil"]},
+			"reason": {"type": "string", "minLength": 20, "maxLength": 800},
+			"learning_objective": {"type": "string", "minLength": 5, "maxLength": 300},
+			"topics": {"type": "array", "items": {"type": "string"}, "maxItems": 8},
+			"general_explanation": {"type": "string", "minLength": 15, "maxLength": 1200},
+			"suggested_materia": {"type": "string", "maxLength": 140},
+			"suggested_assunto": {"type": "string", "maxLength": 140},
+			"option_explanations": {
+				"type": "object",
+				"additionalProperties": False,
+				"properties": {
+					letter: {"type": "string", "minLength": 10, "maxLength": 1200}
+					for letter in ordered_letters
+				},
+				"required": ordered_letters,
+			},
+		},
+		"required": [
+			"difficulty_stars",
+			"difficulty_label",
+			"reason",
+			"learning_objective",
+			"topics",
+			"general_explanation",
+			"suggested_materia",
+			"suggested_assunto",
+			"option_explanations",
+		],
+	}
+	messages = [
+		{
+			"role": "system",
+			"content": (
+				"Você é um professor especialista em avaliação de concursos públicos brasileiros. "
+				"Analise completamente a questão em português brasileiro, sem alterar enunciado, alternativas ou gabarito. "
+				"1) Classifique a dificuldade (1 a 5 estrelas), justificativa técnica, objetivo de aprendizagem, tópicos, matéria e assunto. "
+				"2) Escreva um comentário geral didático (general_explanation). "
+				"3) Em option_explanations, explique cada alternativa individualmente. "
+				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela alternativa está errada "
+				"SEM revelar, citar ou dar dica de qual é a alternativa correta (o aluno verá essa mensagem ao errar). "
+				"Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
+				"Responda exclusivamente no JSON Schema solicitado."
+			),
+		},
+		{
+			"role": "user",
+			"content": json.dumps(
+				{
+					"qcode": question.get("qcode"),
+					"enunciado": question.get("enunciado"),
+					"alternativas": options,
+					"gabarito_correto": question.get("correct_options") or [question.get("correct_option")],
+					"comentario_geral": question.get("explanation") or "",
+					"materia": question.get("materia"),
+					"assunto": question.get("assunto"),
+					"banca": question.get("banca"),
+					"ano": question.get("ano"),
+				},
+				ensure_ascii=False,
+			),
+		},
+	]
+	return messages, schema, ordered_letters
+
+
 class _BaseAIAdapter:
 	model: str = ""
 
@@ -173,6 +250,39 @@ class _BaseAIAdapter:
 		if any(not text for text in explanations.values()):
 			raise AIEnrichmentError("The AI provider returned empty explanations for one or more alternatives.")
 		return {"explanations": explanations, "model": self.model}
+
+	def enrich_full(self, question: dict[str, Any]) -> dict[str, Any]:
+		source = json.dumps(
+			{
+				"qcode": question.get("qcode"),
+				"enunciado": question.get("enunciado"),
+				"options": question.get("options"),
+				"correct_option": question.get("correct_option"),
+				"materia": question.get("materia"),
+				"assunto": question.get("assunto"),
+				"banca": question.get("banca"),
+				"ano": question.get("ano"),
+			},
+			ensure_ascii=False,
+			sort_keys=True,
+			default=str,
+		)
+		enrichment_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
+		messages, schema, ordered_letters = _build_full_enrich_messages(question)
+		result = self._chat_json(messages, "question_full_enrichment", schema, 3500)
+		stars = int(result.get("difficulty_stars", 0))
+		if stars not in range(1, 6):
+			raise AIEnrichmentError("The AI adapter returned a difficulty outside the 1 to 5 star range.")
+		raw_explanations = result.get("option_explanations") or {}
+		if not isinstance(raw_explanations, dict):
+			raise AIEnrichmentError("The AI provider returned invalid option_explanations.")
+		explanations = {letter: str(raw_explanations.get(letter) or "").strip() for letter in ordered_letters}
+		if any(not text for text in explanations.values()):
+			raise AIEnrichmentError("The AI provider returned empty explanations for one or more alternatives.")
+		result["option_explanations"] = explanations
+		result["enrichment_hash"] = enrichment_hash
+		result["model"] = self.model
+		return result
 
 
 class OpenAICompatibleAdapter(_BaseAIAdapter):
@@ -361,6 +471,81 @@ def draft_question_option_explanations(question_name: str):
 	doc.option_explanations = json.dumps(draft["explanations"], ensure_ascii=False, indent=2)
 	doc.save(ignore_permissions=True)
 	return {"name": doc.name, "option_explanations": draft["explanations"], "model": draft["model"]}
+
+
+def _apply_difficulty_fields(doc, data):
+	doc.ai_difficulty_stars = data["difficulty_stars"]
+	doc.ai_difficulty_label = data["difficulty_label"]
+	doc.ai_difficulty_reason = data["reason"]
+	doc.ai_learning_objective = data["learning_objective"]
+	doc.ai_topics = json.dumps(data.get("topics") or [], ensure_ascii=False)
+	doc.ai_model = data["model"]
+	doc.ai_enrichment_hash = data["enrichment_hash"]
+	doc.ai_enrichment_status = "Fresh"
+	doc.ai_enriched_at = frappe.utils.now_datetime()
+
+
+def enrich_single_question_difficulty(question_name: str):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in settings before classifying difficulty.")
+	doc = frappe.get_doc("Trivia Question", question_name)
+	result = enrich_question_doc(doc, settings)
+	return {
+		"name": doc.name,
+		"difficulty_stars": result["difficulty_stars"],
+		"difficulty_label": result["difficulty_label"],
+		"learning_objective": result["learning_objective"],
+		"topics": result["topics"],
+		"model": result["model"],
+	}
+
+
+def enrich_question_full(question_name: str):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in settings before enriching questions.")
+	doc = frappe.get_doc("Trivia Question", question_name)
+	options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
+	correct_raw = getattr(doc, "correct_options", None)
+	correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
+	if not correct_options and getattr(doc, "correct_option", None):
+		correct_options = [doc.correct_option]
+	adapter = get_ai_adapter(settings)
+	data = adapter.enrich_full(
+		{
+			"qcode": doc.qcode,
+			"enunciado": doc.enunciado,
+			"options": options,
+			"correct_option": getattr(doc, "correct_option", None),
+			"correct_options": correct_options,
+			"explanation": getattr(doc, "explanation", None),
+			"materia": getattr(doc, "materia", None),
+			"assunto": getattr(doc, "assunto", None),
+			"banca": getattr(doc, "banca", None),
+			"ano": getattr(doc, "ano", None),
+		}
+	)
+	_apply_difficulty_fields(doc, data)
+	doc.option_explanations = json.dumps(data["option_explanations"], ensure_ascii=False, indent=2)
+	if not (getattr(doc, "explanation", None) or "").strip() and data.get("general_explanation"):
+		doc.explanation = data["general_explanation"]
+	if not (getattr(doc, "materia", None) or "").strip() and data.get("suggested_materia"):
+		doc.materia = data["suggested_materia"]
+	if not (getattr(doc, "assunto", None) or "").strip() and data.get("suggested_assunto"):
+		doc.assunto = data["suggested_assunto"]
+	doc.save(ignore_permissions=True)
+	return {
+		"name": doc.name,
+		"difficulty_stars": data["difficulty_stars"],
+		"difficulty_label": data["difficulty_label"],
+		"learning_objective": data["learning_objective"],
+		"topics": data["topics"],
+		"option_explanations": data["option_explanations"],
+		"model": data["model"],
+	}
 
 
 def _question_payload(doc):

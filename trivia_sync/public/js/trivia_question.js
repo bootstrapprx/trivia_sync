@@ -114,6 +114,27 @@
 
 		const starValue = Number(d.editorial_difficulty || d.ai_difficulty_stars || 0);
 		const stars = "★".repeat(Math.max(0, Math.min(5, starValue))) + "☆".repeat(Math.max(0, 5 - starValue));
+		let aiTopics = [];
+		try {
+			const parsedTopics = typeof d.ai_topics === "string" ? JSON.parse(d.ai_topics || "[]") : d.ai_topics || [];
+			if (Array.isArray(parsedTopics)) aiTopics = parsedTopics.filter(Boolean);
+		} catch (error) {
+			aiTopics = [];
+		}
+		const hasAiEnrichment = Boolean(d.ai_enriched_at || d.ai_difficulty_stars || d.ai_learning_objective || d.ai_difficulty_reason);
+		const aiSummaryHtml = hasAiEnrichment
+			? `<div class="trivia-cockpit-block">
+				<div class="trivia-cockpit-block-head">
+					<h4>${__("AI pedagogical analysis")}</h4>
+					<span class="text-muted small">${safe(d.ai_model || "")}${d.ai_difficulty_label ? ` · ${safe(d.ai_difficulty_label)}` : ""}</span>
+				</div>
+				<div class="trivia-question-surface trivia-ai-summary">
+					${d.ai_learning_objective ? `<div class="trivia-ai-row"><strong>${__("Learning objective")}:</strong> ${safe(d.ai_learning_objective)}</div>` : ""}
+					${d.ai_difficulty_reason ? `<div class="trivia-ai-row"><strong>${__("Difficulty rationale")}:</strong> ${safe(d.ai_difficulty_reason)}</div>` : ""}
+					${aiTopics.length ? `<div class="trivia-ai-topics">${aiTopics.map((topic) => `<span class="trivia-ai-topic-tag">${safe(topic)}</span>`).join("")}</div>` : ""}
+				</div>
+			</div>`
+			: "";
 		const status = d.editorial_status || d.review_status || "Imported";
 		const statusColor = ["Approved", "Published"].includes(status) ? "green" : ["Rejected", "Archived"].includes(status) ? "red" : "orange";
 		const coveragePillColor = letters.length && !missingLetters.length ? "green" : "orange";
@@ -156,6 +177,7 @@
 				</div>
 				<div class="trivia-options-list">${optionRows}</div>
 			</div>
+			${aiSummaryHtml}
 			${d.explanation ? `<div class="trivia-cockpit-block"><div class="trivia-cockpit-block-head"><h4>${__("General comment")}</h4></div><div class="trivia-question-surface trivia-rich-content">${rich(d.explanation)}</div></div>` : ""}
 			<div class="trivia-cockpit-actions">
 				<div class="trivia-cockpit-actions-group" data-tools></div>
@@ -200,6 +222,8 @@
 		const transition = (target, message) => call("trivia_sync.api.transition_editorial_status", { question_name: d.name, status: target }, message);
 
 		if (!frm.is_new()) {
+			tools.append(`<button class="btn btn-primary btn-sm" data-cockpit="enrich-all">${__("Enrich all (AI)")}</button>`);
+			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="classify-difficulty">${__("Classify difficulty (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="draft-explanations">${__("Draft explanations (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="reformat">${__("Repair rich formatting")}</button>`);
 			if (status === "Imported") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="queue">${__("Queue for review")}</button>`);
@@ -210,6 +234,15 @@
 			if (["Approved", "Published"].includes(status) && d.redistribution_status === "Approved") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="project">${__("Project to LMS")}</button>`);
 		}
 
+		tools.find('[data-cockpit="enrich-all"]').on("click", () => {
+			frappe.confirm(
+				__("Run full AI enrichment for this question (difficulty, learning objective, topics, and explanations for every alternative without revealing the answer key on wrong options)?"),
+				() => call("trivia_sync.api.enrich_question_all", { question_name: d.name }, __("Full AI enrichment completed. Review before approving."))
+			);
+		});
+		tools.find('[data-cockpit="classify-difficulty"]').on("click", () => {
+			call("trivia_sync.api.enrich_question_difficulty", { question_name: d.name }, __("AI difficulty, objective, and topics updated."));
+		});
 		tools.find('[data-cockpit="draft-explanations"]').on("click", () => {
 			frappe.confirm(
 				__("Generate AI draft explanations for all alternatives (without revealing the answer key on wrong options)? Existing draft explanations will be replaced for review."),

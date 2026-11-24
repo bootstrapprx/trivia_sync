@@ -168,6 +168,36 @@ class TestAIEnricher(unittest.TestCase):
         self.assertEqual(calls[0]["api_key"], "flow-secret")
         self.assertEqual(calls[0]["api_base"], "https://proxy.example.test")
 
+    def test_enrich_full_returns_difficulty_metadata_and_all_option_explanations(self):
+        payload = {
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "difficulty_stars": 3,
+                        "difficulty_label": "Média",
+                        "reason": "Exige identificação correta de gênero gramatical em substantivos comuns.",
+                        "learning_objective": "Identificar o gênero gramatical de substantivos.",
+                        "topics": ["Substantivos", "Gênero"],
+                        "general_explanation": "Times é substantivo masculino; as demais palavras são femininas.",
+                        "suggested_materia": "Língua Portuguesa",
+                        "suggested_assunto": "Morfologia",
+                        "option_explanations": {
+                            "A": "Correta pois atende exatamente ao comando da questão.",
+                            "B": "Incorreta porque esta palavra pertence a outra classificação gramatical.",
+                        },
+                    })
+                }
+            }]
+        }
+        with patch.object(self.module.requests, "post", return_value=FakeResponse(payload)):
+            result = self.module.OpenAICompatibleAdapter(FakeSettings()).enrich_full(self.question())
+        self.assertEqual(result["difficulty_stars"], 3)
+        self.assertEqual(result["difficulty_label"], "Média")
+        self.assertEqual(result["topics"], ["Substantivos", "Gênero"])
+        self.assertIn("A", result["option_explanations"])
+        self.assertIn("B", result["option_explanations"])
+        self.assertEqual(len(result["enrichment_hash"]), 64)
+
 
 if __name__ == "__main__":
     unittest.main()
