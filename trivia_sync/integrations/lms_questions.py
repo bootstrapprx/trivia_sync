@@ -1,4 +1,5 @@
 import hashlib
+import html
 import json
 
 import frappe
@@ -9,6 +10,20 @@ from trivia_sync.integrations.editorial import (
 )
 
 
+def _published_knowledge_links(source):
+	rows = getattr(source, "knowledge_pages", None) or []
+	names = [getattr(row, "knowledge_page", None) for row in rows if getattr(row, "knowledge_page", None)]
+	if not names or not hasattr(frappe, "get_all"):
+		return []
+	pages = frappe.get_all(
+		"Trivia Knowledge Page",
+		filters={"name": ["in", names], "status": "Published"},
+		fields=["name", "title", "slug"],
+	) or []
+	by_name = {page.get("name"): page for page in pages}
+	return [by_name[name] for name in names if name in by_name and by_name[name].get("slug")]
+
+
 def _projection_fields(source):
 	options = validate_projection_eligibility(source)
 	_, correct_options = question_options(source)
@@ -17,6 +32,13 @@ def _projection_fields(source):
 	question_text = source.enunciado
 	if text and text.conteudo:
 		question_text = f"<p><strong>Texto de apoio</strong></p>{text.conteudo}<hr>{question_text}"
+	knowledge_links = _published_knowledge_links(source)
+	if knowledge_links:
+		anchors = " · ".join(
+			f'<a href="/conhecimento?slug={html.escape(page["slug"])}" target="_blank" rel="noopener">{html.escape(page["title"])}</a>'
+			for page in knowledge_links
+		)
+		question_text = f'{question_text}<div class="trivia-knowledge-refs"><small><strong>Conceitos relacionados:</strong> {anchors}</small></div>'
 	ordered_options = sorted(options.items())
 	correct_indexes = {index for index, (letter, _) in enumerate(ordered_options, start=1) if letter in correct_options}
 	fields = {

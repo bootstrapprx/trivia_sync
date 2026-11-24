@@ -247,6 +247,70 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 	return messages, schema, ordered_letters
 
 
+def _build_knowledge_concepts_messages(question: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any]]:
+	sub_schema = {
+		"type": "object",
+		"additionalProperties": False,
+		"properties": {
+			"title": {"type": "string", "minLength": 2, "maxLength": 140},
+			"summary": {"type": "string", "minLength": 10, "maxLength": 400},
+			"explanation": {"type": "string", "minLength": 20, "maxLength": 2000},
+			"examples": {"type": "string", "maxLength": 1000},
+			"exam_traps": {"type": "string", "maxLength": 800},
+		},
+		"required": ["title", "summary", "explanation", "examples", "exam_traps"],
+	}
+	concept_schema = {
+		"type": "object",
+		"additionalProperties": False,
+		"properties": {
+			"title": {"type": "string", "minLength": 2, "maxLength": 140},
+			"summary": {"type": "string", "minLength": 10, "maxLength": 400},
+			"explanation": {"type": "string", "minLength": 30, "maxLength": 3000},
+			"examples": {"type": "string", "maxLength": 1200},
+			"exam_traps": {"type": "string", "maxLength": 1000},
+			"sub_concepts": {"type": "array", "items": sub_schema, "maxItems": 4},
+		},
+		"required": ["title", "summary", "explanation", "examples", "exam_traps", "sub_concepts"],
+	}
+	schema = {
+		"type": "object",
+		"additionalProperties": False,
+		"properties": {
+			"concepts": {"type": "array", "items": concept_schema, "minItems": 1, "maxItems": 3},
+		},
+		"required": ["concepts"],
+	}
+	messages = [
+		{
+			"role": "system",
+			"content": (
+				"Você é um professor especialista em concursos públicos brasileiros criando páginas de conhecimento (wiki didática). "
+				"Identifique os conceitos pré-requisitos indispensáveis para resolver a questão (ex.: 'Derivação parassintética') "
+				"e seus sub-conceitos diretos (ex.: 'Prefixo', 'Sufixo', 'Derivação prefixal e sufixal'). "
+				"Para cada conceito e sub-conceito, escreva em português brasileiro: resumo claro, explicação conceitual didática, "
+				"exemplos práticos (SEM copiar nem entregar o gabarito da questão) e pegadinhas frequentes de banca. "
+				"Responda exclusivamente no JSON Schema solicitado."
+			),
+		},
+		{
+			"role": "user",
+			"content": json.dumps(
+				{
+					"enunciado": question.get("enunciado"),
+					"alternativas": question.get("options"),
+					"materia": question.get("materia"),
+					"assunto": question.get("assunto"),
+					"topicos": question.get("topics") or [],
+					"banca": question.get("banca"),
+				},
+				ensure_ascii=False,
+			),
+		},
+	]
+	return messages, schema
+
+
 class _BaseAIAdapter:
 	model: str = ""
 
@@ -315,6 +379,14 @@ class _BaseAIAdapter:
 		result["enrichment_hash"] = enrichment_hash
 		result["model"] = self.model
 		return result
+
+	def extract_knowledge_concepts(self, question: dict[str, Any]) -> dict[str, Any]:
+		messages, schema = _build_knowledge_concepts_messages(question)
+		result = self._chat_json(messages, "question_knowledge_concepts", schema, 3500)
+		concepts = result.get("concepts") or []
+		if not isinstance(concepts, list) or not concepts:
+			raise AIEnrichmentError("The AI provider returned no knowledge concepts.")
+		return {"concepts": concepts, "model": self.model}
 
 
 class OpenAICompatibleAdapter(_BaseAIAdapter):
@@ -606,6 +678,23 @@ def enrich_question_full(question_name: str):
 		suggested_assunto=data.get("suggested_assunto"),
 		syllabus_topic_names=data.get("syllabus_topic_ids") or [],
 	)
+	knowledge_summary = {"knowledge_pages_linked": [], "knowledge_pages_created": [], "knowledge_pages_reused": []}
+	try:
+		from trivia_sync.integrations.knowledge import link_knowledge_concepts
+
+		extracted = adapter.extract_knowledge_concepts(
+			{
+				"enunciado": doc.enunciado,
+				"options": options,
+				"materia": getattr(doc, "materia", None),
+				"assunto": getattr(doc, "assunto", None),
+				"topics": data.get("topics") or [],
+				"banca": getattr(doc, "banca", None),
+			}
+		)
+		knowledge_summary = link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
+	except Exception:
+		pass
 	doc.save(ignore_permissions=True)
 	return {
 		"name": doc.name,
@@ -616,7 +705,37 @@ def enrich_question_full(question_name: str):
 		"option_explanations": data["option_explanations"],
 		"model": data["model"],
 		**applied,
+		**knowledge_summary,
 	}
+
+
+def extract_question_knowledge(question_name: str):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in settings before extracting knowledge concepts.")
+	doc = frappe.get_doc("Trivia Question", question_name)
+	options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
+	try:
+		topics = json.loads(getattr(doc, "ai_topics", None) or "[]")
+	except (TypeError, ValueError):
+		topics = []
+	adapter = get_ai_adapter(settings)
+	extracted = adapter.extract_knowledge_concepts(
+		{
+			"enunciado": doc.enunciado,
+			"options": options,
+			"materia": getattr(doc, "materia", None),
+			"assunto": getattr(doc, "assunto", None),
+			"topics": topics,
+			"banca": getattr(doc, "banca", None),
+		}
+	)
+	from trivia_sync.integrations.knowledge import link_knowledge_concepts
+
+	summary = link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "model": extracted["model"], **summary}
 
 
 def _question_payload(doc):

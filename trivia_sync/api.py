@@ -12,7 +12,14 @@ from trivia_sync.integrations.ai_enricher import (
 	enrich_pending_questions,
 	enrich_question_full as enrich_single_question_all,
 	enrich_single_question_difficulty,
+	extract_question_knowledge as extract_knowledge_for_question,
 	test_ai_connection,
+)
+from trivia_sync.integrations.knowledge import (
+	get_knowledge_page_backlinks,
+	get_question_knowledge_pages,
+	set_knowledge_page_status,
+	setup_flow_knowledge_and_skill as configure_flow_knowledge_and_skill,
 )
 from trivia_sync.integrations.reconciliation import question_coverage
 from trivia_sync.integrations.editorial import (
@@ -437,6 +444,33 @@ def enrich_question_all(question_name):
 @frappe.whitelist()
 def apply_question_ai_topics(question_name):
 	return apply_question_topics_from_ai(question_name)
+
+
+@frappe.whitelist()
+def extract_question_knowledge(question_name):
+	return extract_knowledge_for_question(question_name)
+
+
+@frappe.whitelist()
+def question_knowledge_pages(question_name):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	return get_question_knowledge_pages(question_name)
+
+
+@frappe.whitelist()
+def knowledge_page_backlinks(page_name):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	return get_knowledge_page_backlinks(page_name)
+
+
+@frappe.whitelist()
+def update_knowledge_page_status(page_name, status):
+	return set_knowledge_page_status(page_name, status)
+
+
+@frappe.whitelist()
+def setup_flow_knowledge_and_skill():
+	return configure_flow_knowledge_and_skill()
 
 
 @frappe.whitelist()

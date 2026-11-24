@@ -1,0 +1,21 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Knowledge Link",
+  "module": "Trivia Sync",
+  "istable": 1,
+  "editable_grid": 1,
+  "field_order": [
+    "knowledge_page"
+  ],
+  "fields": [
+    {
+      "fieldname": "knowledge_page",
+      "fieldtype": "Link",
+      "label": "Knowledge page",
+      "options": "Trivia Knowledge Page",
+      "reqd": 1,
+      "in_list_view": 1
+    }
+  ],
+  "permissions": []
+}

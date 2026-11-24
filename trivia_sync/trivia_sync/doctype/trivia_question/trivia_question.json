@@ -69,6 +69,7 @@
     "trivia_materia",
     "trivia_assunto",
     "conteudos_programaticos",
+    "knowledge_pages",
     "projection_section",
     "lms_question",
     "projection_status",
@@ -470,6 +471,12 @@
       "fieldtype": "Table MultiSelect",
       "label": "Syllabus topics",
       "options": "Trivia Question Syllabus Topic"
+    },
+    {
+      "fieldname": "knowledge_pages",
+      "fieldtype": "Table MultiSelect",
+      "label": "Knowledge pages (concepts)",
+      "options": "Trivia Knowledge Link"
     },
     {
       "fieldname": "projection_section",

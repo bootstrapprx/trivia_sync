@@ -34,5 +34,15 @@ frappe.ui.form.on("Trivia Sync Settings", {
 		frm.add_custom_button("Enrich questions with AI", () => {
 			frappe.call({ method: "trivia_sync.api.enqueue_ai_enrichment" }).then(() => frappe.show_alert({ message: "AI enrichment queued.", indicator: "green" }));
 		}, "IA");
+		frm.add_custom_button("Setup Flow Knowledge & Skill", () => {
+			frappe.call({ method: "trivia_sync.api.setup_flow_knowledge_and_skill" }).then(({ message }) => {
+				const parts = [];
+				if (message?.knowledge_base) parts.push(`Knowledge Base: ${message.knowledge_base}`);
+				if (message?.knowledge_source) parts.push(`Source: ${message.knowledge_source}`);
+				if (message?.skill) parts.push(`Skill: ${message.skill}`);
+				if (message?.warnings?.length) parts.push(`Warnings: ${message.warnings.join(" | ")}`);
+				frappe.msgprint(parts.join("<br>") || "Flow Knowledge & Skill synchronized.");
+			});
+		}, "IA");
 	},
 });

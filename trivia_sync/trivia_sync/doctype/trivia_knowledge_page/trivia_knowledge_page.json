@@ -1,0 +1,193 @@
+{
+  "doctype": "DocType",
+  "name": "Trivia Knowledge Page",
+  "autoname": "field:slug",
+  "module": "Trivia Sync",
+  "title_field": "title",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "title",
+    "slug",
+    "parent_concept",
+    "identity_col_break",
+    "trivia_subject",
+    "trivia_topic",
+    "status",
+    "origin",
+    "content_section",
+    "summary",
+    "explanation",
+    "examples",
+    "exam_traps",
+    "links_section",
+    "related_concepts",
+    "governance_section",
+    "ai_model",
+    "reviewed_by",
+    "reviewed_at",
+    "published_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "identity_section",
+      "fieldtype": "Section Break",
+      "label": "Concept"
+    },
+    {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "label": "Title",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "slug",
+      "fieldtype": "Data",
+      "label": "Slug",
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "parent_concept",
+      "fieldtype": "Link",
+      "label": "Parent concept",
+      "options": "Trivia Knowledge Page",
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "identity_col_break",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "trivia_subject",
+      "fieldtype": "Link",
+      "label": "Subject",
+      "options": "Trivia Subject",
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "trivia_topic",
+      "fieldtype": "Link",
+      "label": "Topic",
+      "options": "Trivia Topic",
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Draft\nPublished\nArchived",
+      "default": "Draft",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "origin",
+      "fieldtype": "Select",
+      "label": "Origin",
+      "options": "Manual\nAI",
+      "default": "Manual",
+      "read_only": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "content_section",
+      "fieldtype": "Section Break",
+      "label": "Didactic content"
+    },
+    {
+      "fieldname": "summary",
+      "fieldtype": "Small Text",
+      "label": "Summary"
+    },
+    {
+      "fieldname": "explanation",
+      "fieldtype": "Text Editor",
+      "label": "Concept explanation",
+      "reqd": 1
+    },
+    {
+      "fieldname": "examples",
+      "fieldtype": "Text Editor",
+      "label": "Examples"
+    },
+    {
+      "fieldname": "exam_traps",
+      "fieldtype": "Text Editor",
+      "label": "Common exam traps"
+    },
+    {
+      "fieldname": "links_section",
+      "fieldtype": "Section Break",
+      "label": "Related concepts"
+    },
+    {
+      "fieldname": "related_concepts",
+      "fieldtype": "Table MultiSelect",
+      "label": "Related knowledge pages",
+      "options": "Trivia Knowledge Link"
+    },
+    {
+      "fieldname": "governance_section",
+      "fieldtype": "Section Break",
+      "label": "Editorial & AI metadata",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "ai_model",
+      "fieldtype": "Data",
+      "label": "AI model",
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewed_by",
+      "fieldtype": "Link",
+      "label": "Reviewed by",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewed_at",
+      "fieldtype": "Datetime",
+      "label": "Reviewed at",
+      "read_only": 1
+    },
+    {
+      "fieldname": "published_at",
+      "fieldtype": "Datetime",
+      "label": "Published at",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Trivia Editor",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Reviewer",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Trivia Integrator",
+      "read": 1,
+      "write": 1,
+      "create": 0
+    }
+  ]
+}

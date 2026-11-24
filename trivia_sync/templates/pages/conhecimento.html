@@ -1,0 +1,93 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<main class="container py-5" style="max-width: 860px;">
+	{% if page_doc %}
+		<nav aria-label="breadcrumb" class="mb-3">
+			<ol class="breadcrumb bg-transparent px-0">
+				<li class="breadcrumb-item"><a href="/conhecimento">Base de Conhecimento</a></li>
+				{% for parent in page_doc.breadcrumbs %}
+					<li class="breadcrumb-item"><a href="/conhecimento?slug={{ parent.slug }}">{{ parent.title }}</a></li>
+				{% endfor %}
+				<li class="breadcrumb-item active" aria-current="page">{{ page_doc.title }}</li>
+			</ol>
+		</nav>
+
+		<article>
+			<header class="mb-4 pb-3 border-bottom">
+				<h1 class="mb-2">{{ page_doc.title }}</h1>
+				{% if page_doc.summary %}
+					<p class="lead text-muted mb-2">{{ page_doc.summary }}</p>
+				{% endif %}
+				{% if page_doc.question_count %}
+					<small class="text-muted">Vinculado a {{ page_doc.question_count }} questão(ões) no banco</small>
+				{% endif %}
+			</header>
+
+			<section class="mb-4">
+				<h2 class="h4 mb-3">Conceito</h2>
+				<div class="trivia-rich-content">{{ page_doc.explanation | safe }}</div>
+			</section>
+
+			{% if page_doc.examples %}
+			<section class="mb-4 p-3 rounded border">
+				<h2 class="h5 mb-2">Exemplos práticos</h2>
+				<div class="trivia-rich-content">{{ page_doc.examples | safe }}</div>
+			</section>
+			{% endif %}
+
+			{% if page_doc.exam_traps %}
+			<section class="mb-4 p-3 rounded border border-warning">
+				<h2 class="h5 mb-2">Pegadinhas frequentes em provas</h2>
+				<div class="trivia-rich-content">{{ page_doc.exam_traps | safe }}</div>
+			</section>
+			{% endif %}
+
+			{% if page_doc.sub_concepts %}
+			<section class="mb-4">
+				<h2 class="h4 mb-3">Sub-conceitos</h2>
+				<div class="list-group">
+					{% for sub in page_doc.sub_concepts %}
+					<a href="/conhecimento?slug={{ sub.slug }}" class="list-group-item list-group-item-action">
+						<strong>{{ sub.title }}</strong>
+						{% if sub.summary %}<p class="mb-0 small text-muted">{{ sub.summary }}</p>{% endif %}
+					</a>
+					{% endfor %}
+				</div>
+			</section>
+			{% endif %}
+
+			{% if page_doc.related_concepts %}
+			<section class="mb-4">
+				<h2 class="h4 mb-3">Conceitos relacionados</h2>
+				<div class="d-flex flex-wrap" style="gap: 8px;">
+					{% for rel in page_doc.related_concepts %}
+					<a href="/conhecimento?slug={{ rel.slug }}" class="btn btn-sm btn-outline-secondary">{{ rel.title }}</a>
+					{% endfor %}
+				</div>
+			</section>
+			{% endif %}
+		</article>
+	{% else %}
+		<header class="mb-4 pb-3 border-bottom">
+			<h1 class="mb-2">Base de Conhecimento</h1>
+			<p class="text-muted mb-0">Conceitos e sub-conceitos estruturados para estudo dirigido de concursos públicos.</p>
+		</header>
+		{% if pages %}
+			<div class="list-group">
+				{% for row in pages %}
+				<a href="/conhecimento?slug={{ row.slug }}" class="list-group-item list-group-item-action">
+					<div class="d-flex justify-content-between align-items-center">
+						<strong>{{ row.title }}</strong>
+						{% if row.parent_concept %}<small class="text-muted">Sub-conceito</small>{% endif %}
+					</div>
+					{% if row.summary %}<p class="mb-0 small text-muted mt-1">{{ row.summary }}</p>{% endif %}
+				</a>
+				{% endfor %}
+			</div>
+		{% else %}
+			<p class="text-muted">Nenhuma página de conhecimento publicada ainda.</p>
+		{% endif %}
+	{% endif %}
+</main>
+{% endblock %}

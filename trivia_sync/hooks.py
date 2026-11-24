@@ -74,13 +74,14 @@ doctype_js = {
 	"Trivia Study Guide Recipe": "public/js/trivia_study_guide_recipe.js",
 	"Trivia Exam": "public/js/trivia_exam.js",
 	"Trivia Contest": "public/js/trivia_contest.js",
+	"Trivia Knowledge Page": "public/js/trivia_knowledge_page.js",
 }
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=3"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=4"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
-	"/assets/trivia_sync/css/trivia_question.css?v=3",
+	"/assets/trivia_sync/css/trivia_question.css?v=4",
 ]

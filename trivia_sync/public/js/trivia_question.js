@@ -183,6 +183,13 @@
 				<div class="trivia-options-list">${optionRows}</div>
 			</div>
 			${aiSummaryHtml}
+			<div class="trivia-cockpit-block" data-knowledge-block style="display:none;">
+				<div class="trivia-cockpit-block-head">
+					<h4>${__("Linked knowledge pages (concepts & sub-concepts)")}</h4>
+					<span class="text-muted small">${__("Click to open the concept page in Desk")}</span>
+				</div>
+				<div class="trivia-ai-topics" data-knowledge-chips></div>
+			</div>
 			${d.explanation ? `<div class="trivia-cockpit-block"><div class="trivia-cockpit-block-head"><h4>${__("General comment")}</h4></div><div class="trivia-question-surface trivia-rich-content">${rich(d.explanation)}</div></div>` : ""}
 			<div class="trivia-cockpit-actions">
 				<div class="trivia-cockpit-actions-group" data-tools></div>
@@ -230,10 +237,29 @@
 			tools.append(`<button class="btn btn-primary btn-sm" data-cockpit="enrich-all">${__("Enrich all (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="classify-difficulty">${__("Classify difficulty (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="draft-explanations">${__("Draft explanations (AI)")}</button>`);
+			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="extract-knowledge">${__("Extract knowledge (AI)")}</button>`);
 			if (aiTopics.length) {
 				tools.append(`<button class="btn btn-default btn-sm" data-cockpit="apply-topics">${__("Apply AI topics")}</button>`);
 			}
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="reformat">${__("Repair rich formatting")}</button>`);
+
+			frappe.call({
+				method: "trivia_sync.api.question_knowledge_pages",
+				args: { question_name: d.name },
+			}).then(({ message }) => {
+				const pages = message || [];
+				if (!pages.length) return;
+				const block = root.find("[data-knowledge-block]").show();
+				block.find("[data-knowledge-chips]").html(
+					pages.map((p) => {
+						const pillColor = p.status === "Published" ? "green" : p.status === "Archived" ? "red" : "orange";
+						return `<a class="trivia-knowledge-chip" href="/app/trivia-knowledge-page/${encodeURIComponent(p.name)}" title="${escapeAttr(p.summary || p.title)}">
+							<span>${safe(p.title)}</span>
+							<span class="indicator-pill ${pillColor}">${safe(p.status)}</span>
+						</a>`;
+					}).join("")
+				);
+			});
 			if (status === "Imported") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="queue">${__("Queue for review")}</button>`);
 			if (status === "Pending Review") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="start">${__("Start review")}</button>`);
 			if (status === "In Review") actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="pending-approval">${__("Submit for approval")}</button>`);
@@ -253,6 +279,9 @@
 		});
 		tools.find('[data-cockpit="apply-topics"]').on("click", () => {
 			call("trivia_sync.api.apply_question_ai_topics", { question_name: d.name }, __("AI topics linked to catalogs, syllabus, and Tags."));
+		});
+		tools.find('[data-cockpit="extract-knowledge"]').on("click", () => {
+			call("trivia_sync.api.extract_question_knowledge", { question_name: d.name }, __("Concept & sub-concept knowledge pages extracted and linked."));
 		});
 		tools.find('[data-cockpit="draft-explanations"]').on("click", () => {
 			frappe.confirm(
