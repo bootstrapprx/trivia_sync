@@ -1,32 +1,35 @@
 {
   "doctype": "DocType",
   "name": "Trivia Contest",
-  "autoname": "field:qapi_id",
+  "autoname": "hash",
   "module": "Trivia Sync",
   "title_field": "titulo",
   "track_changes": 1,
   "field_order": [
     "identity_section",
-    "qapi_id",
     "titulo",
     "orgao",
     "banca",
-    "status",
     "ano",
+    "identity_col_break",
+    "source_type",
+    "qapi_id",
+    "status",
     "regiao",
     "estado",
-    "raw_payload",
-    "sync_hash",
-    "last_synced_at",
-    "source_type",
-    "source_id",
-    "source_key",
     "is_obsolete",
     "public_section",
     "public_slug",
-    "public_summary",
     "publication_status",
-    "published_at"
+    "published_at",
+    "public_col_break",
+    "public_summary",
+    "sync_section",
+    "source_id",
+    "source_key",
+    "sync_hash",
+    "last_synced_at",
+    "raw_payload"
   ],
   "fields": [
     {
@@ -35,10 +38,27 @@
       "label": "Identity"
     },
     {
+      "fieldname": "identity_col_break",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "public_col_break",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "sync_section",
+      "fieldtype": "Section Break",
+      "label": "Source & Sync Metadata",
+      "collapsible": 1
+    },
+    {
       "fieldname": "qapi_id",
       "fieldtype": "Data",
       "label": "QAPI ID",
-      "reqd": 1
+      "reqd": 0,
+      "unique": 1,
+      "depends_on": "eval:doc.source_type==\"QAPI\"",
+      "mandatory_depends_on": "eval:doc.source_type==\"QAPI\""
     },
     {
       "fieldname": "titulo",
@@ -95,9 +115,10 @@
     },
     {
       "fieldname": "source_type",
-      "fieldtype": "Data",
+      "fieldtype": "Select",
       "label": "Source type",
-      "default": "QAPI"
+      "default": "Manual",
+      "options": "Manual\nQAPI\nExternal"
     },
     {
       "fieldname": "source_id",

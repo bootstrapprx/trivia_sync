@@ -26,6 +26,7 @@
     "exception_reason",
     "marks",
     "explanation",
+    "option_explanations",
     "source_url",
     "raw_payload",
     "sync_hash",
@@ -94,9 +95,8 @@
       "fieldname": "source",
       "fieldtype": "Select",
       "label": "Source",
-      "options": "QAPI\nManual",
-      "default": "QAPI",
-      "read_only": 1
+      "options": "Manual\nQAPI\nExternal",
+      "default": "Manual"
     },
     {
       "fieldname": "enunciado",
@@ -202,6 +202,13 @@
       "fieldname": "explanation",
       "fieldtype": "Text Editor",
       "label": "Comment / explanation"
+    },
+    {
+      "fieldname": "option_explanations",
+      "fieldtype": "Code",
+      "label": "Per-alternative explanations",
+      "options": "JSON",
+      "description": "JSON map of option letter (A..J) to individual explanation. Wrong options explain why they are incorrect without revealing the answer key."
     },
     {
       "fieldname": "source_url",

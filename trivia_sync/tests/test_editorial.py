@@ -34,13 +34,20 @@ class TestEditorialGate(unittest.TestCase):
 		pdf_utils = types.ModuleType("frappe.utils.pdf")
 		pdf_utils.get_pdf = lambda *args, **kwargs: b""
 		sys.modules.setdefault("frappe.utils.pdf", pdf_utils)
+		if "requests" not in sys.modules:
+			try:
+				import requests  # noqa: F401
+			except ImportError:
+				sys.modules["requests"] = types.SimpleNamespace(RequestException=Exception)
 		cls.projection = importlib.import_module("trivia_sync.integrations.lms_questions")
 
 	def source(self, **overrides):
 		values = dict(
 			name="TQ-1", source_key="qapi:Q-1", qcode="Q-1", enunciado="Question?", options=json.dumps(dict(zip("ABCDE", ["Yes", "No", "Maybe", "Later", "Never"]))),
 			correct_option="A", correct_options='["A"]', detected_option_count=5, allow_variable_options=0, exception_reason="",
-			editorial_difficulty=3, marks=2, editorial_status="Approved", explanation="Because", review_status="Approved", redistribution_status="Approved", source_license="CC-BY",
+			editorial_difficulty=3, marks=2, editorial_status="Approved", explanation="Because",
+			option_explanations=json.dumps({"A": "Why A is right", "B": "Why B is wrong", "C": "Why C is wrong", "D": "Why D is wrong", "E": "Why E is wrong"}),
+			review_status="Approved", redistribution_status="Approved", source_license="CC-BY",
 			source_attribution="Attribution required", source_authors="Author A", redistribution_reference="terms", texto_apoio=None, sync_hash="sync", ai_enrichment_hash="", ai_difficulty_stars=0,
 			banca="Board", orgao="Agency", cargo="Role", ano=2024, materia="Math", assunto="Algebra", source_url="https://source.invalid",
 			ai_difficulty_label="", ai_difficulty_reason="", ai_learning_objective="", ai_topics="[]", ai_model="", ai_enriched_at=None,
@@ -179,8 +186,11 @@ class TestEditorialGate(unittest.TestCase):
 		self.assertEqual([store["LQ-1"][f"option_{i}"] for i in range(1, 6)], ["Yes", "No", "Maybe", "Later", "Never"])
 		self.assertEqual([store["LQ-1"][f"is_correct_{i}"] for i in range(1, 6)], [0, 1, 0, 1, 0])
 		self.assertEqual(store["LQ-1"]["multiple"], 1)
-		self.assertEqual(store["LQ-1"]["explanation_2"], "Because")
-		self.assertEqual(store["LQ-1"]["explanation_4"], "Because")
+		self.assertEqual(store["LQ-1"]["explanation_1"], "Why A is wrong" if False else "Why A is right")
+		self.assertEqual(store["LQ-1"]["explanation_2"], "Why B is wrong")
+		self.assertEqual(store["LQ-1"]["explanation_3"], "Why C is wrong")
+		self.assertEqual(store["LQ-1"]["explanation_4"], "Why D is wrong")
+		self.assertEqual(store["LQ-1"]["explanation_5"], "Why E is wrong")
 		self.assertEqual(store["LQ-1"]["marks"], 2)
 		self.assertEqual(store["LQ-1"]["trivia_editorial_difficulty"], 3)
 		self.assertEqual(store["LQ-1"]["trivia_source_license"], "CC-BY")
@@ -270,6 +280,29 @@ class TestEditorialGate(unittest.TestCase):
 		self.assertEqual(result,"LQ-new")
 		self.assertEqual(store["LQ-old"]["trivia_sync_hash"],"old")
 		self.assertEqual(source.lms_question,"LQ-new")
+
+	def test_missing_wrong_option_explanations_blocks_approval_and_projection(self):
+		frappe = self.editorial.frappe
+		incomplete = self.source(
+			editorial_status="Pending Approval",
+			option_explanations=json.dumps({"A": "Correta"}),
+		)
+		with patch.object(frappe, "get_roles", return_value=["Trivia Reviewer"]), patch.object(
+			frappe, "get_doc", return_value=incomplete
+		), self.assertRaises(ValueError):
+			self.editorial.review_question("TQ-1", "approved")
+		with self.assertRaises(ValueError):
+			self.editorial.validate_projection_eligibility(self.source(option_explanations=json.dumps({"A": "Only A"})))
+
+	def test_correct_option_falls_back_to_general_explanation_when_wrong_options_are_explained(self):
+		source = self.source(
+			explanation="Explicação geral da correta",
+			option_explanations=json.dumps({"B": "Erro B", "C": "Erro C", "D": "Erro D", "E": "Erro E"}),
+		)
+		fields = self.projection._projection_fields(source)
+		self.assertEqual(fields["explanation_1"], "Explicação geral da correta")
+		self.assertEqual(fields["explanation_2"], "Erro B")
+		self.assertEqual(fields["explanation_5"], "Erro E")
 
 
 if __name__ == "__main__":

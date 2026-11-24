@@ -110,6 +110,103 @@ class OpenAICompatibleAdapter:
             raise AIEnrichmentError("The provider returned empty material.")
         return {**result, "model": self.model}
 
+    def draft_option_explanations(self, question: dict[str, Any]) -> dict[str, Any]:
+        options = question.get("options") or {}
+        if isinstance(options, str):
+            options = json.loads(options or "{}")
+        ordered_letters = sorted(str(letter).upper() for letter, value in options.items() if value not in (None, ""))
+        if not ordered_letters:
+            raise AIEnrichmentError("Question has no alternatives to explain.")
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                letter: {"type": "string", "minLength": 10, "maxLength": 1200}
+                for letter in ordered_letters
+            },
+            "required": ordered_letters,
+        }
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json", "Accept": "application/json"},
+            json={
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Você é um professor especialista em concursos públicos brasileiros. "
+                            "Para cada alternativa, escreva uma explicação didática em português brasileiro. "
+                            "REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela "
+                            "alternativa está errada SEM revelar, citar ou dar dica de qual é a alternativa correta "
+                            "(o estudante verá essa mensagem ao marcar a alternativa errada). "
+                            "Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
+                            "Retorne exclusivamente o JSON solicitado com uma chave para cada letra."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "enunciado": question.get("enunciado"),
+                                "alternativas": options,
+                                "gabarito_correto": question.get("correct_options") or [question.get("correct_option")],
+                                "comentario_geral": question.get("explanation") or "",
+                                "materia": question.get("materia"),
+                                "assunto": question.get("assunto"),
+                                "banca": question.get("banca"),
+                            },
+                            ensure_ascii=False,
+                        ),
+                    },
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {"name": "option_explanations_draft", "strict": True, "schema": schema},
+                },
+                "max_completion_tokens": 2500,
+            },
+            timeout=self.timeout,
+        )
+        try:
+            response.raise_for_status()
+            result = json.loads(response.json()["choices"][0]["message"]["content"])
+        except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
+            raise AIEnrichmentError(f"Failed to draft option explanations: {exc}") from exc
+        explanations = {letter: str(result.get(letter) or "").strip() for letter in ordered_letters}
+        if any(not text for text in explanations.values()):
+            raise AIEnrichmentError("The AI provider returned empty explanations for one or more alternatives.")
+        return {"explanations": explanations, "model": self.model}
+
+
+def draft_question_option_explanations(question_name: str):
+    frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+    settings = frappe.get_single("Trivia Sync Settings")
+    if not settings.ai_enabled:
+        frappe.throw("Enable the AI adapter in settings before generating explanation drafts.")
+    doc = frappe.get_doc("Trivia Question", question_name)
+    options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
+    correct_raw = getattr(doc, "correct_options", None)
+    correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
+    if not correct_options and getattr(doc, "correct_option", None):
+        correct_options = [doc.correct_option]
+    adapter = OpenAICompatibleAdapter(settings)
+    draft = adapter.draft_option_explanations(
+        {
+            "enunciado": doc.enunciado,
+            "options": options,
+            "correct_option": getattr(doc, "correct_option", None),
+            "correct_options": correct_options,
+            "explanation": getattr(doc, "explanation", None),
+            "materia": getattr(doc, "materia", None),
+            "assunto": getattr(doc, "assunto", None),
+            "banca": getattr(doc, "banca", None),
+        }
+    )
+    doc.option_explanations = json.dumps(draft["explanations"], ensure_ascii=False, indent=2)
+    doc.save(ignore_permissions=True)
+    return {"name": doc.name, "option_explanations": draft["explanations"], "model": draft["model"]}
+
 
 def _question_payload(doc):
     return {"qcode": doc.qcode, "enunciado": doc.enunciado, "options": doc.options, "correct_option": doc.correct_option,

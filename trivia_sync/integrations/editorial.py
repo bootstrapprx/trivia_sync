@@ -70,6 +70,38 @@ def question_options(source):
 	return options, correct
 
 
+def question_option_explanations(source, options=None, correct=None, require_all=False):
+	if options is None or correct is None:
+		options, correct = question_options(source)
+	raw = getattr(source, "option_explanations", None)
+	if raw in (None, ""):
+		parsed = {}
+	elif isinstance(raw, dict):
+		parsed = raw
+	else:
+		try:
+			parsed = json.loads(raw)
+		except (TypeError, ValueError):
+			frappe.throw("Per-alternative explanations must be a valid JSON object.")
+	if not isinstance(parsed, dict):
+		frappe.throw("Per-alternative explanations must be a JSON object keyed by option letter.")
+	explanations = {}
+	general = (getattr(source, "explanation", None) or "").strip()
+	correct_set = set(correct)
+	for letter in options:
+		text = str(parsed.get(letter) or parsed.get(letter.lower()) or "").strip()
+		if not text and letter in correct_set and general:
+			text = general
+		explanations[letter] = text
+	if require_all:
+		missing = [letter for letter in sorted(options) if not explanations.get(letter)]
+		if missing:
+			frappe.throw(
+				f"Provide an individual explanation for every alternative before approving or projecting (missing: {', '.join(missing)})."
+			)
+	return explanations
+
+
 def transition_question(question_name, status, reason=""):
 	if status not in ("Pending Review", "In Review", "Pending Approval", "Archived"):
 		frappe.throw("Editorial status transition must use a review workflow action.")
@@ -100,7 +132,8 @@ def review_question(question_name, decision, reason=""):
 		frappe.throw("The question must be pending editorial approval.")
 	validate_editorial_transition(doc.editorial_status, "Approved" if decision == "approved" else "Rejected", frappe.get_roles(frappe.session.user))
 	if decision == "approved":
-		question_options(doc)
+		options, correct = question_options(doc)
+		question_option_explanations(doc, options, correct, require_all=True)
 	doc.review_status = "Approved" if decision == "approved" else "Rejected"
 	doc.editorial_status = "Approved" if decision == "approved" else "Rejected"
 	doc.reviewed_by = frappe.session.user
@@ -136,7 +169,8 @@ def validate_projection_eligibility(source):
 		frappe.throw("A license or redistribution reference must be recorded.")
 	if not source.enunciado or not source.correct_option:
 		frappe.throw("Question text and answer key are required to project the question.")
-	options, _ = question_options(source)
+	options, correct = question_options(source)
+	question_option_explanations(source, options, correct, require_all=True)
 	if source.texto_apoio and not frappe.db.exists("Trivia Supporting Text", source.texto_apoio):
 		frappe.throw("The linked supporting text does not exist.")
 	return options

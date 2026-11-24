@@ -1,12 +1,13 @@
 {
   "doctype": "DocType",
   "name": "Trivia Organization",
-  "autoname": "field:qapi_id",
+  "autoname": "hash",
   "module": "Trivia Sync",
   "title_field": "nome",
   "track_changes": 1,
   "field_order": [
     "identity_section",
+    "source_type",
     "qapi_id",
     "nome",
     "sigla",
@@ -14,7 +15,6 @@
     "raw_payload",
     "sync_hash",
     "last_synced_at",
-    "source_type",
     "source_id",
     "source_key"
   ],
@@ -28,7 +28,10 @@
       "fieldname": "qapi_id",
       "fieldtype": "Data",
       "label": "QAPI ID",
-      "reqd": 1
+      "reqd": 0,
+      "unique": 1,
+      "depends_on": "eval:doc.source_type==\"QAPI\"",
+      "mandatory_depends_on": "eval:doc.source_type==\"QAPI\""
     },
     {
       "fieldname": "nome",
@@ -65,9 +68,10 @@
     },
     {
       "fieldname": "source_type",
-      "fieldtype": "Data",
+      "fieldtype": "Select",
       "label": "Source type",
-      "default": "QAPI"
+      "default": "Manual",
+      "options": "Manual\nQAPI\nExternal"
     },
     {
       "fieldname": "source_id",

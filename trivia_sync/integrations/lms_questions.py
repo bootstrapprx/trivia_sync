@@ -2,12 +2,17 @@ import hashlib
 import json
 
 import frappe
-from trivia_sync.integrations.editorial import question_options, validate_projection_eligibility
+from trivia_sync.integrations.editorial import (
+	question_option_explanations,
+	question_options,
+	validate_projection_eligibility,
+)
 
 
 def _projection_fields(source):
 	options = validate_projection_eligibility(source)
 	_, correct_options = question_options(source)
+	option_explanations = question_option_explanations(source, options, correct_options, require_all=True)
 	text = frappe.get_doc("Trivia Supporting Text", source.texto_apoio) if source.texto_apoio else None
 	question_text = source.enunciado
 	if text and text.conteudo:
@@ -51,7 +56,7 @@ def _projection_fields(source):
 		letter, value = ordered_options[index - 1] if index <= len(ordered_options) else (None, "")
 		fields[f"option_{index}"] = value
 		fields[f"is_correct_{index}"] = int(index in correct_indexes)
-		fields[f"explanation_{index}"] = source.explanation if index in correct_indexes else ""
+		fields[f"explanation_{index}"] = option_explanations.get(letter, "") if letter else ""
 	sync_hash = hashlib.sha256(json.dumps(fields, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 	fields["trivia_sync_hash"] = sync_hash
 	fields["trivia_projection_key"] = hashlib.sha256(f"{source.source_key}:{sync_hash}".encode("utf-8")).hexdigest()

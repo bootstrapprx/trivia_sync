@@ -1,13 +1,15 @@
 from frappe.model.document import Document
 import frappe
 import re
-from trivia_sync.integrations.identity import ensure_unique_source_key, source_identity
+from trivia_sync.integrations.identity import apply_optional_qapi_identity, autoname_optional_qapi
 
 
 class TriviaConcurso(Document):
+	def autoname(self):
+		autoname_optional_qapi(self)
+
 	def validate(self):
-		self.source_id, self.source_key = source_identity(self.source_type or "QAPI", self.source_id, self.qapi_id)
-		ensure_unique_source_key("Trivia Contest", self.source_key, self.name)
+		apply_optional_qapi_identity(self, "Trivia Contest")
 		if self.public_slug and not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", self.public_slug):
 			frappe.throw("Use only lowercase letters, numbers, and hyphens in the public identifier.")
 		if self.publication_status == "Published":

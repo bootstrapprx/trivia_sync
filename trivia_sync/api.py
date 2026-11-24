@@ -6,7 +6,10 @@ from frappe.utils import cint
 from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.qapi import sync_qapi_questions, test_qapi_connection
 from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
-from trivia_sync.integrations.ai_enricher import enrich_pending_questions
+from trivia_sync.integrations.ai_enricher import (
+	draft_question_option_explanations as generate_option_explanations_draft,
+	enrich_pending_questions,
+)
 from trivia_sync.integrations.reconciliation import question_coverage
 from trivia_sync.integrations.editorial import (
 	decide_redistribution,
@@ -410,3 +413,8 @@ def enqueue_ai_enrichment():
 def run_ai_enrichment_now():
 	_admin()
 	return enrich_pending_questions()
+
+
+@frappe.whitelist()
+def draft_question_option_explanations(question_name):
+	return generate_option_explanations_draft(question_name)
