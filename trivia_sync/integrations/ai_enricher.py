@@ -83,6 +83,7 @@ def _build_enrich_messages(question: dict[str, Any]) -> list[dict[str, str]]:
 			"content": json.dumps(
 				{
 					"qcode": question.get("qcode"),
+					"texto_apoio": question.get("texto_apoio") or "",
 					"enunciado": question.get("enunciado"),
 					"alternativas": question.get("options"),
 					"gabarito": question.get("correct_option"),
@@ -230,6 +231,7 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 			"content": json.dumps(
 				{
 					"qcode": question.get("qcode"),
+					"texto_apoio": question.get("texto_apoio") or "",
 					"enunciado": question.get("enunciado"),
 					"alternativas": options,
 					"gabarito_correto": question.get("correct_options") or [question.get("correct_option")],
@@ -655,6 +657,7 @@ def enrich_question_full(question_name: str):
 	data = adapter.enrich_full(
 		{
 			"qcode": doc.qcode,
+			"texto_apoio": _supporting_text_content(doc),
 			"enunciado": doc.enunciado,
 			"options": options,
 			"correct_option": getattr(doc, "correct_option", None),
@@ -945,8 +948,20 @@ def enrich_questions_batch(
 		frappe.db.commit()
 
 
+def _supporting_text_content(doc) -> str:
+	name = getattr(doc, "texto_apoio", None)
+	if not name:
+		return ""
+	try:
+		if hasattr(frappe, "db") and hasattr(frappe.db, "get_value"):
+			return str(frappe.db.get_value("Trivia Supporting Text", name, "conteudo") or "").strip()
+	except Exception:
+		return ""
+	return ""
+
+
 def _question_payload(doc):
-	return {
+	payload = {
 		"qcode": doc.qcode,
 		"enunciado": doc.enunciado,
 		"options": doc.options,
@@ -956,6 +971,10 @@ def _question_payload(doc):
 		"banca": doc.banca,
 		"ano": doc.ano,
 	}
+	supporting = _supporting_text_content(doc)
+	if supporting:
+		payload["texto_apoio"] = supporting
+	return payload
 
 
 def enrich_question_doc(doc, settings_doc=None):

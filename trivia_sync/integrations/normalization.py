@@ -126,7 +126,11 @@ def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
         "detected_option_count": len(options),
         "marks": int(first(row, "marks", "pontuacao", "pontos", default=1) or 1),
         "explanation": rich_text(first(row, "comentario", "explicacao", "explanation", "justificativa", default="")),
-        "texto_codigo": text(first(row, "textoCodigo", "texto_codigo", "codigoTexto", "texto_id", "textoId")),
+        "texto_codigo": text(
+            (lambda v: first(v, "codigo", "code", "id", "_id") if isinstance(v, dict) else v)(
+                first(row, "textoCodigo", "texto_codigo", "codigoTexto", "texto_id", "textoId", "textoApoio", "texto_apoio", "textoAssociado", "texto_associado")
+            )
+        ),
         "source_url": f"https://qapi.otunac.com/api/questoes?qCode={qcode}" if qcode else "",
         "raw_payload": raw,
         "sync_hash": digest,

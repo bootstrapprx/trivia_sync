@@ -505,6 +505,31 @@ def setup_flow_knowledge_and_skill():
 
 
 @frappe.whitelist()
+def supporting_text_preview(name):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	if not name or not frappe.db.exists("Trivia Supporting Text", name):
+		return None
+	doc = frappe.get_doc("Trivia Supporting Text", name)
+	return {"name": doc.name, "titulo": doc.titulo, "conteudo": doc.conteudo}
+
+
+@frappe.whitelist()
+def create_and_link_supporting_text(question_name, titulo, conteudo):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	if not (titulo or "").strip() or not (conteudo or "").strip():
+		frappe.throw("Provide a title and content for the supporting text.")
+	text_doc = frappe.new_doc("Trivia Supporting Text")
+	text_doc.source_type = "Manual"
+	text_doc.titulo = titulo.strip()
+	text_doc.conteudo = conteudo
+	text_doc.insert(ignore_permissions=True)
+	question = frappe.get_doc("Trivia Question", question_name)
+	question.texto_apoio = text_doc.name
+	question.save(ignore_permissions=True)
+	return {"supporting_text": text_doc.name, "titulo": text_doc.titulo, "question": question.name}
+
+
+@frappe.whitelist()
 def ai_status():
 	_admin()
 	return test_ai_connection()

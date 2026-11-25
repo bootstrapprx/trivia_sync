@@ -1,40 +1,52 @@
 {
   "doctype": "DocType",
   "name": "Trivia Supporting Text",
-  "autoname": "field:codigo",
+  "autoname": "hash",
   "module": "Trivia Sync",
   "title_field": "titulo",
   "track_changes": 1,
   "field_order": [
     "identity_section",
+    "source_type",
     "codigo",
     "titulo",
     "conteudo",
     "source_url",
-    "raw_payload",
+    "sync_section",
+    "source_id",
+    "source_key",
     "sync_hash",
     "last_synced_at",
-    "source_type",
-    "source_id",
-    "source_key"
+    "raw_payload"
   ],
   "fields": [
     {
       "fieldname": "identity_section",
       "fieldtype": "Section Break",
-      "label": "Identity"
+      "label": "Supporting text"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Select",
+      "label": "Source type",
+      "options": "Manual\nQAPI\nExternal",
+      "default": "Manual"
     },
     {
       "fieldname": "codigo",
       "fieldtype": "Data",
       "label": "QAPI code",
-      "reqd": 1
+      "reqd": 0,
+      "unique": 1,
+      "depends_on": "eval:doc.source_type==\"QAPI\"",
+      "mandatory_depends_on": "eval:doc.source_type==\"QAPI\""
     },
     {
       "fieldname": "titulo",
       "fieldtype": "Data",
       "label": "Title",
-      "reqd": 1
+      "reqd": 1,
+      "in_list_view": 1
     },
     {
       "fieldname": "conteudo",
@@ -46,6 +58,12 @@
       "fieldname": "source_url",
       "fieldtype": "Data",
       "label": "Source URL"
+    },
+    {
+      "fieldname": "sync_section",
+      "fieldtype": "Section Break",
+      "label": "Source & Sync Metadata",
+      "collapsible": 1
     },
     {
       "fieldname": "raw_payload",
@@ -63,12 +81,6 @@
       "fieldname": "last_synced_at",
       "fieldtype": "Datetime",
       "label": "Last synced at"
-    },
-    {
-      "fieldname": "source_type",
-      "fieldtype": "Data",
-      "label": "Source type",
-      "default": "QAPI"
     },
     {
       "fieldname": "source_id",

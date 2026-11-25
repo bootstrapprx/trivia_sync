@@ -249,6 +249,16 @@
 	text-decoration: none;
 }
 
+.trivia-question-cockpit .trivia-supporting-text-body {
+	max-height: 280px;
+	overflow-y: auto;
+}
+
+.trivia-question-cockpit .trivia-supporting-text-title {
+	margin-bottom: 8px;
+	color: var(--text-color);
+}
+
 @media (max-width: 767px) {
 	.trivia-question-cockpit {
 		padding: 16px;

@@ -169,11 +169,25 @@
 				<span>${letters.length} ${__("alternatives")}</span>
 				<span class="trivia-stars">${stars}</span>
 			</div>
+			<div class="trivia-cockpit-block" data-supporting-text-block>
+				<div class="trivia-cockpit-block-head">
+					<h4>${__("Supporting text")}</h4>
+					<div class="trivia-cockpit-actions-group">
+						${d.texto_apoio
+							? `<a class="btn btn-xs btn-default" data-action="supporting-text">${__("Open / edit")}</a>`
+							: (!frm.is_new() ? `<button class="btn btn-xs btn-default" data-action="create-supporting-text">${__("+ Create & link supporting text")}</button>` : "")}
+					</div>
+				</div>
+				<div class="trivia-question-surface trivia-supporting-text-body" data-supporting-text-body>
+					${d.texto_apoio
+						? `<span class="text-muted">${__("Loading supporting text")} (${safe(d.texto_apoio)})...</span>`
+						: `<span class="text-muted">${__("No supporting text linked. Select one in the Supporting text field above or create a new reusable passage.")}</span>`}
+				</div>
+			</div>
 			<div class="trivia-cockpit-block">
 				<div class="trivia-cockpit-block-head"><h4>${__("Question preview")}</h4></div>
 				<div class="trivia-question-surface trivia-rich-content">${rich(d.enunciado)}</div>
 			</div>
-			${d.texto_apoio ? `<div class="trivia-cockpit-block"><div class="trivia-cockpit-block-head"><h4>${__("Supporting text")}</h4></div><p><a class="text-muted" data-action="supporting-text">${safe(d.texto_apoio)}</a></p><p class="text-muted">${__("The linked text is included during LMS projection.")}</p></div>` : ""}
 			${d.allow_variable_options ? `<div class="alert alert-warning">${__("Variable alternative count authorized")}: ${safe(d.exception_reason || __("Reason required"))}</div>` : ""}
 			<div class="trivia-cockpit-block">
 				<div class="trivia-cockpit-block-head">
@@ -304,12 +318,49 @@
 		});
 		actions.find('[data-cockpit="project"]').on("click", () => call("trivia_sync.api.project_question", { question_name: d.name }, __("Question projected to LMS.")));
 		root.find('[data-action="supporting-text"]').on("click", () => frappe.set_route("Form", "Trivia Supporting Text", d.texto_apoio));
+		root.find('[data-action="create-supporting-text"]').on("click", () => {
+			const dialog = new frappe.ui.Dialog({
+				title: __("Create & Link Supporting Text"),
+				fields: [
+					{ fieldname: "titulo", fieldtype: "Data", label: __("Title"), reqd: 1, placeholder: __("e.g. Texto base · Prova VUNESP 2026") },
+					{ fieldname: "conteudo", fieldtype: "Text Editor", label: __("Passage content"), reqd: 1 },
+				],
+				primary_action_label: __("Create & Link"),
+				primary_action(values) {
+					dialog.hide();
+					call(
+						"trivia_sync.api.create_and_link_supporting_text",
+						{ question_name: d.name, titulo: values.titulo, conteudo: values.conteudo },
+						__("Supporting text created and linked to this question.")
+					);
+				},
+			});
+			dialog.show();
+		});
+		if (d.texto_apoio) {
+			frappe.call({
+				method: "trivia_sync.api.supporting_text_preview",
+				args: { name: d.texto_apoio },
+			}).then(({ message }) => {
+				const container = root.find("[data-supporting-text-body]");
+				if (!message) {
+					container.html(`<span class="text-muted">${__("Linked supporting text not found")}: ${safe(d.texto_apoio)}</span>`);
+					return;
+				}
+				container.html(`
+					<div class="trivia-supporting-text-title"><strong>${safe(message.titulo || message.name)}</strong></div>
+					<div class="trivia-rich-content">${rich(message.conteudo)}</div>
+				`);
+				ensureMathJax().then((math) => math?.typesetPromise?.([container[0]])).catch(() => {});
+			});
+		}
 		ensureMathJax().then((math) => math?.typesetPromise?.([root[0]])).catch(() => {});
 	};
 
 	frappe.ui.form.on("Trivia Question", {
 		refresh(frm) { renderCockpit(frm); },
 		enunciado(frm) { renderCockpit(frm); },
+		texto_apoio(frm) { renderCockpit(frm); },
 		options(frm) { renderCockpit(frm); },
 		correct_option(frm) { renderCockpit(frm); },
 		option_explanations(frm) {
