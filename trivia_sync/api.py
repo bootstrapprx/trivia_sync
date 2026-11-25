@@ -3,54 +3,39 @@ import uuid
 
 import frappe
 from frappe.utils import cint
-from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
-from trivia_sync.integrations.qapi import sync_qapi_questions, test_qapi_connection
-from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
+
 from trivia_sync.integrations.ai_enricher import (
 	apply_ai_topics as apply_question_topics_from_ai,
 	draft_question_option_explanations as generate_option_explanations_draft,
-	enrich_pending_questions,
+	enrich_questions_batch,
 	enrich_question_full as enrich_single_question_all,
 	enrich_single_question_difficulty,
 	extract_question_knowledge as extract_knowledge_for_question,
 	test_ai_connection,
 )
+from trivia_sync.integrations.exams import build_lms_quiz_from_bank
+from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.knowledge import (
 	get_knowledge_page_backlinks,
 	get_question_knowledge_pages,
 	set_knowledge_page_status,
 	setup_flow_knowledge_and_skill as configure_flow_knowledge_and_skill,
 )
-from trivia_sync.integrations.reconciliation import question_coverage
-from trivia_sync.integrations.editorial import (
-	decide_redistribution,
-	review_question as apply_question_review,
-	transition_question as apply_editorial_transition,
-)
-from trivia_sync.integrations.lms_questions import sync_lms_question
-from trivia_sync.integrations.exams import (
-	archive_prova as archive_exam,
-	build_simulado as assemble_simulado,
-	publish_prova as publish_exam,
-)
 from trivia_sync.integrations.learning_content import (
 	approve_apostila_material,
-	approve_lesson_material,
 	archive_apostila_recipe as archive_study_guide_recipe,
-	archive_lesson_recipe as archive_lesson_material_recipe,
 	check_material_freshness,
 	create_manual_apostila_material as create_manual_study_guide_draft,
-	create_manual_lesson_material as create_manual_lesson_draft,
 	export_apostila as export_approved_pdf,
 	generate_apostila_material,
-	generate_lesson_material as generate_lesson_draft,
-	publish_lesson_material as publish_approved_lesson_material,
+	generate_course_lesson_draft,
 	reject_apostila_material,
-	reject_lesson_material,
 	submit_apostila_material,
-	submit_lesson_material,
-	unpublish_lesson_material,
 )
+from trivia_sync.integrations.lms_questions import compose_lms_question_html, set_lms_question_status
+from trivia_sync.integrations.qapi import test_qapi_connection
+from trivia_sync.integrations.reconciliation import question_coverage
+from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
 
 
 def _admin():
@@ -73,11 +58,23 @@ def onboarding_status():
 		"base_url": doc.qapi_base_url,
 		"last_sync": doc.last_qapi_sync_at,
 		"full_sync": bool(doc.sync_catalogs),
-		"sync_options": {field: bool(getattr(doc, field, 0)) for field in (
-			"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos",
-			"sync_materias", "sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas",
-			"sync_conteudos", "sync_flashcards", "push_flashcards",
-		)},
+		"sync_options": {
+			field: bool(getattr(doc, field, 0))
+			for field in (
+				"sync_questions",
+				"sync_support_texts",
+				"sync_bancas",
+				"sync_orgaos",
+				"sync_cargos",
+				"sync_materias",
+				"sync_assuntos",
+				"sync_concursos",
+				"sync_disciplinas",
+				"sync_conteudos",
+				"sync_flashcards",
+				"push_flashcards",
+			)
+		},
 		"request_budget": doc.qapi_max_requests_per_run or 0,
 		"credit_reserve": max(1, int(doc.qapi_min_credit_reserve or 1)),
 		"page_size": int(doc.qapi_page_size or 10),
@@ -123,9 +120,18 @@ def save_onboarding(
 	if isinstance(sync_options, str):
 		sync_options = json.loads(sync_options or "{}")
 	allowed_sync_fields = {
-		"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos",
-		"sync_materias", "sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas",
-		"sync_conteudos", "sync_flashcards", "push_flashcards",
+		"sync_questions",
+		"sync_support_texts",
+		"sync_bancas",
+		"sync_orgaos",
+		"sync_cargos",
+		"sync_materias",
+		"sync_assuntos",
+		"sync_concursos",
+		"sync_disciplinas",
+		"sync_conteudos",
+		"sync_flashcards",
+		"push_flashcards",
 	}
 	for field, value in (sync_options or {}).items():
 		if field in allowed_sync_fields:
@@ -166,11 +172,19 @@ def enqueue_qapi_full_upgrade(budget=None, max_pages=0, filters=None):
 	doc = frappe.get_single("Trivia Sync Settings")
 	doc.sync_catalogs = 1
 	for field in (
-		"sync_questions", "sync_support_texts", "sync_bancas", "sync_orgaos", "sync_cargos", "sync_materias",
-		"sync_assuntos", "sync_concursos", "sync_exams", "sync_disciplinas", "sync_conteudos", "sync_flashcards",
+		"sync_questions",
+		"sync_support_texts",
+		"sync_bancas",
+		"sync_orgaos",
+		"sync_cargos",
+		"sync_materias",
+		"sync_assuntos",
+		"sync_concursos",
+		"sync_disciplinas",
+		"sync_conteudos",
+		"sync_flashcards",
 	):
 		setattr(doc, field, 1)
-	# Full upgrade is read-only by default; creating remote flashcards remains explicit.
 	doc.push_flashcards = 0
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
@@ -184,7 +198,7 @@ def enqueue_lms_sync():
 		"trivia_sync.integrations.frappe_lms.sync_existing_lms_to_trivia",
 		queue="long",
 		job_name="trivia_sync_lms_to_trivia",
-		enqueue_after_commit=True,
+		enqueue_after_commit=False,
 	)
 	return {"queued": True, "job": "trivia_sync_lms_to_trivia"}
 
@@ -212,7 +226,7 @@ def run_qapi_sync_now(dry_run=0, budget=None, max_pages=0, filters=None, include
 
 @frappe.whitelist()
 def repair_qapi_question(question_name):
-	_admin()
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
 	return reformat_qapi_questions(question_name=question_name, limit=1)
 
 
@@ -256,50 +270,56 @@ def cargo_question_coverage(concurso_cargo):
 
 
 @frappe.whitelist()
-def review_question(question_name, decision, reason=""):
-	return apply_question_review(question_name, decision, reason)
+def update_lms_question_status(question_name, status):
+	return set_lms_question_status(question_name, status)
 
 
 @frappe.whitelist()
-def transition_editorial_status(question_name, status, reason=""):
-	return apply_editorial_transition(question_name, status, reason)
+def build_lms_quiz(
+	quiz_name,
+	count=10,
+	subject=None,
+	topic=None,
+	board=None,
+	concurso_cargo=None,
+	syllabus_topic=None,
+	only_ready=1,
+	append_existing=0,
+	marks=None,
+):
+	return build_lms_quiz_from_bank(
+		quiz_name=quiz_name,
+		count=cint(count or 10),
+		subject=subject or None,
+		topic=topic or None,
+		board=board or None,
+		concurso_cargo=concurso_cargo or None,
+		syllabus_topic=syllabus_topic or None,
+		only_ready=bool(cint(only_ready)),
+		append_existing=bool(cint(append_existing)),
+		marks=marks,
+	)
 
 
 @frappe.whitelist()
-def decide_question_redistribution(question_name, decision, reason=""):
-	return decide_redistribution(question_name, decision, reason)
-
-
-@frappe.whitelist()
-def project_question(question_name):
-	frappe.only_for(("Trivia Integrator", "System Manager"))
-	source = frappe.get_doc("Trivia Question", question_name)
-	try:
-		name = sync_lms_question(source)
-		return {"name": name, "status": "Projected"}
-	except Exception as exc:
-		source.projection_status = "Failed"
-		source.projection_error = f"{type(exc).__name__}: {str(exc)[:300]}"
-		source.save(ignore_permissions=True)
-		return {"name": question_name, "status": "Failed", "error": source.projection_error}
-
-
-@frappe.whitelist()
-def build_simulado(prova_name):
-	frappe.only_for(("Trivia Integrator", "System Manager"))
-	return assemble_simulado(prova_name)
-
-
-@frappe.whitelist()
-def publish_prova(prova_name, lesson_name=None):
-	frappe.only_for(("Trivia Integrator", "System Manager"))
-	return publish_exam(prova_name, lesson_name)
-
-
-@frappe.whitelist()
-def archive_prova(prova_name):
-	frappe.only_for(("Trivia Integrator", "System Manager"))
-	return archive_exam(prova_name)
+def generate_course_lesson_material(
+	lesson_name,
+	level="180",
+	trivia_subject=None,
+	trivia_topic=None,
+	syllabus_topic=None,
+	methodology=None,
+	prompt="",
+):
+	return generate_course_lesson_draft(
+		lesson_name=lesson_name,
+		level=level,
+		trivia_subject=trivia_subject or None,
+		trivia_topic=trivia_topic or None,
+		syllabus_topic=syllabus_topic or None,
+		methodology=methodology or None,
+		prompt=prompt or "",
+	)
 
 
 @frappe.whitelist()
@@ -314,20 +334,9 @@ def set_contest_publication(concurso_name, status):
 
 
 @frappe.whitelist()
-def generate_lesson_material(recipe_name, level):
-	frappe.only_for(("Trivia Integrator", "System Manager"))
-	return generate_lesson_draft(recipe_name, level)
-
-
-@frappe.whitelist()
 def generate_apostila_recipe_material(recipe_name, level):
 	frappe.only_for(("Trivia Integrator", "System Manager"))
 	return generate_apostila_material(recipe_name, level)
-
-
-@frappe.whitelist()
-def create_manual_lesson_material(recipe_name, level, content, summary=""):
-	return create_manual_lesson_draft(recipe_name, level, content, summary)
 
 
 @frappe.whitelist()
@@ -336,18 +345,8 @@ def create_manual_apostila_material(recipe_name, level, content, summary=""):
 
 
 @frappe.whitelist()
-def submit_lesson_recipe_material(recipe_name, level, version):
-	return submit_lesson_material(recipe_name, level, version)
-
-
-@frappe.whitelist()
 def submit_apostila_recipe_material(recipe_name, level, version):
 	return submit_apostila_material(recipe_name, level, version)
-
-
-@frappe.whitelist()
-def approve_lesson_recipe_material(recipe_name, level, version, reason=""):
-	return approve_lesson_material(recipe_name, level, version, reason)
 
 
 @frappe.whitelist()
@@ -356,24 +355,8 @@ def approve_apostila_recipe_material(recipe_name, level, version, reason=""):
 
 
 @frappe.whitelist()
-def reject_lesson_recipe_material(recipe_name, level, version, reason=""):
-	return reject_lesson_material(recipe_name, level, version, reason)
-
-
-@frappe.whitelist()
 def reject_apostila_recipe_material(recipe_name, level, version, reason=""):
 	return reject_apostila_material(recipe_name, level, version, reason)
-
-
-@frappe.whitelist()
-def publish_lesson_material(recipe_name, level):
-	frappe.only_for(("Trivia Integrator", "System Manager"))
-	return publish_approved_lesson_material(recipe_name, level)
-
-
-@frappe.whitelist()
-def unpublish_lesson_recipe_material(recipe_name, level=None):
-	return unpublish_lesson_material(recipe_name, level=level)
 
 
 @frappe.whitelist()
@@ -383,18 +366,8 @@ def export_apostila(recipe_name, levels):
 
 
 @frappe.whitelist()
-def archive_lesson_recipe(recipe_name):
-	return archive_lesson_material_recipe(recipe_name)
-
-
-@frappe.whitelist()
 def archive_apostila_recipe(recipe_name):
 	return archive_study_guide_recipe(recipe_name)
-
-
-@frappe.whitelist()
-def check_lesson_recipe_freshness(recipe_name):
-	return check_material_freshness("Trivia Lesson Recipe", recipe_name)
 
 
 @frappe.whitelist()
@@ -459,8 +432,6 @@ def run_ai_batch_now(question_names=None, mode="full", limit=5, include_knowledg
 	if isinstance(filters, str):
 		filters = json.loads(filters or "{}")
 	parsed_limit = max(1, min(cint(limit or 5), 15))
-	from trivia_sync.integrations.ai_enricher import enrich_questions_batch
-
 	return enrich_questions_batch(
 		question_names=question_names or None,
 		mode=mode,
@@ -474,7 +445,7 @@ def run_ai_batch_now(question_names=None, mode="full", limit=5, include_knowledg
 @frappe.whitelist()
 def run_ai_enrichment_now():
 	_admin()
-	return enrich_pending_questions()
+	return enrich_questions_batch(mode="full")
 
 
 @frappe.whitelist()
@@ -500,6 +471,12 @@ def apply_question_ai_topics(question_name):
 @frappe.whitelist()
 def extract_question_knowledge(question_name):
 	return extract_knowledge_for_question(question_name)
+
+
+@frappe.whitelist()
+def ai_status():
+	_admin()
+	return test_ai_connection()
 
 
 @frappe.whitelist()
@@ -543,13 +520,12 @@ def create_and_link_supporting_text(question_name, titulo, conteudo):
 	text_doc.titulo = titulo.strip()
 	text_doc.conteudo = conteudo
 	text_doc.insert(ignore_permissions=True)
-	question = frappe.get_doc("Trivia Question", question_name)
-	question.texto_apoio = text_doc.name
+	question = frappe.get_doc("LMS Question", question_name)
+	question.trivia_texto_apoio = text_doc.name
+	question.question = compose_lms_question_html(
+		question.question,
+		texto_apoio=text_doc.name,
+		knowledge_rows=getattr(question, "trivia_knowledge_pages", None),
+	)
 	question.save(ignore_permissions=True)
 	return {"supporting_text": text_doc.name, "titulo": text_doc.titulo, "question": question.name}
-
-
-@frappe.whitelist()
-def ai_status():
-	_admin()
-	return test_ai_connection()

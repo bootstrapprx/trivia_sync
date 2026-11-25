@@ -6,6 +6,13 @@ from typing import Any
 import frappe
 import requests
 
+from trivia_sync.integrations.lms_questions import (
+	apply_explanations_to_lms_question,
+	compose_lms_question_html,
+	extract_lms_question_options,
+	strip_question_embeds,
+)
+
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-6-luna"
 DIFFICULTY_LABELS = {
@@ -73,7 +80,8 @@ def _build_enrich_messages(question: dict[str, Any]) -> list[dict[str, str]]:
 			"role": "system",
 			"content": (
 				"Você é um especialista em avaliação de concursos públicos brasileiros. "
-				"Classifique a dificuldade da questão, sem alterar enunciado, alternativas ou gabarito. "
+				"Use todo o seu conhecimento geral de domínio para classificar a dificuldade da questão, "
+				"sem alterar enunciado, alternativas ou gabarito. "
 				"Considere complexidade conceitual, quantidade de inferências, pegadinhas, profundidade "
 				"e dependência de legislação específica. Responda exclusivamente no JSON Schema solicitado."
 			),
@@ -109,8 +117,8 @@ def _build_material_messages(prompt: str, level: str, material_kind: str) -> tup
 		{
 			"role": "system",
 			"content": (
-				"Produza material didático em português brasileiro. Preserve fatos e fontes, "
-				"não crie gabaritos ou dados legais. Retorne apenas o JSON solicitado."
+				"Produza material didático em português brasileiro usando todo o seu conhecimento de domínio e as fontes fornecidas. "
+				"Preserve fatos, não mostre gabaritos diretos nem invente dispositivos legais. Retorne apenas o JSON solicitado."
 			),
 		},
 		{"role": "user", "content": f"Tipo: {material_kind}. Nível: {level}.\n\n{prompt}"},
@@ -128,10 +136,7 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 	schema = {
 		"type": "object",
 		"additionalProperties": False,
-		"properties": {
-			letter: {"type": "string", "minLength": 10, "maxLength": 1200}
-			for letter in ordered_letters
-		},
+		"properties": {letter: {"type": "string", "minLength": 10, "maxLength": 1200} for letter in ordered_letters},
 		"required": ordered_letters,
 	}
 	messages = [
@@ -139,7 +144,7 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 			"role": "system",
 			"content": (
 				"Você é um professor especialista em concursos públicos brasileiros. "
-				"Para cada alternativa, escreva uma explicação didática em português brasileiro. "
+				"Use todo o seu conhecimento geral de domínio (e o texto_apoio, se fornecido) para escrever explicações em português brasileiro. "
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela "
 				"alternativa está errada SEM revelar, citar ou dar dica de qual é a alternativa correta "
 				"(o estudante verá essa mensagem ao marcar a alternativa errada). "
@@ -151,6 +156,7 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 			"role": "user",
 			"content": json.dumps(
 				{
+					"texto_apoio": question.get("texto_apoio") or "",
 					"enunciado": question.get("enunciado"),
 					"alternativas": options,
 					"gabarito_correto": question.get("correct_options") or [question.get("correct_option")],
@@ -186,10 +192,7 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 		"option_explanations": {
 			"type": "object",
 			"additionalProperties": False,
-			"properties": {
-				letter: {"type": "string", "minLength": 10, "maxLength": 1200}
-				for letter in ordered_letters
-			},
+			"properties": {letter: {"type": "string", "minLength": 10, "maxLength": 1200} for letter in ordered_letters},
 			"required": ordered_letters,
 		},
 	}
@@ -207,12 +210,7 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 	if syllabus_candidates:
 		properties["syllabus_topic_ids"] = {"type": "array", "items": {"type": "string"}, "maxItems": 6}
 		required_fields.append("syllabus_topic_ids")
-	schema = {
-		"type": "object",
-		"additionalProperties": False,
-		"properties": properties,
-		"required": required_fields,
-	}
+	schema = {"type": "object", "additionalProperties": False, "properties": properties, "required": required_fields}
 	messages = [
 		{
 			"role": "system",
@@ -222,7 +220,7 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 				"1) Classifique a dificuldade (1 a 5 estrelas), justificativa técnica, objetivo de aprendizagem, tópicos, matéria e assunto. "
 				"2) Se houver itens em ementa_candidatos, selecione em syllabus_topic_ids apenas os IDs (campo 'name') que correspondem diretamente à questão (ou lista vazia se nenhum se aplicar). "
 				"3) Escreva um comentário geral didático (general_explanation). "
-				"4) Em option_explanations, explique cada alternativa individualmente. "
+				"4) Em option_explanations, explique cada alternativa individualmente (2, 3, 4, 5 ou mais alternativas, conforme fornecidas). "
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela alternativa está errada "
 				"SEM revelar, citar ou dar dica de qual é a alternativa correta (o aluno verá essa mensagem ao errar). "
 				"Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
@@ -281,9 +279,7 @@ def _build_knowledge_concepts_messages(question: dict[str, Any]) -> tuple[list[d
 	schema = {
 		"type": "object",
 		"additionalProperties": False,
-		"properties": {
-			"concepts": {"type": "array", "items": concept_schema, "minItems": 1, "maxItems": 3},
-		},
+		"properties": {"concepts": {"type": "array", "items": concept_schema, "minItems": 1, "maxItems": 3}},
 		"required": ["concepts"],
 	}
 	messages = [
@@ -291,8 +287,8 @@ def _build_knowledge_concepts_messages(question: dict[str, Any]) -> tuple[list[d
 			"role": "system",
 			"content": (
 				"Você é um professor especialista em concursos públicos brasileiros criando páginas de conhecimento (wiki didática). "
-				"Identifique os conceitos pré-requisitos indispensáveis para resolver a questão (ex.: 'Derivação parassintética') "
-				"e seus sub-conceitos diretos (ex.: 'Prefixo', 'Sufixo', 'Derivação prefixal e sufixal'). "
+				"Use todo o seu conhecimento geral de domínio para identificar os conceitos pré-requisitos indispensáveis para resolver a questão "
+				"(ex.: 'Derivação parassintética') e seus sub-conceitos diretos (ex.: 'Prefixo', 'Sufixo', 'Derivação prefixal e sufixal'). "
 				"Para cada conceito e sub-conceito, escreva em português brasileiro: resumo claro, explicação conceitual didática, "
 				"exemplos práticos (SEM copiar nem entregar o gabarito da questão) e pegadinhas frequentes de banca. "
 				"Responda exclusivamente no JSON Schema solicitado."
@@ -302,6 +298,7 @@ def _build_knowledge_concepts_messages(question: dict[str, Any]) -> tuple[list[d
 			"role": "user",
 			"content": json.dumps(
 				{
+					"texto_apoio": question.get("texto_apoio") or "",
 					"enunciado": question.get("enunciado"),
 					"alternativas": question.get("options"),
 					"materia": question.get("materia"),
@@ -497,8 +494,6 @@ class FlowAdapter(_BaseAIAdapter):
 		try:
 			response = self._completion(messages, max_tokens=max_tokens, response_format=schema_format)
 		except Exception:
-			# Some providers/models in LiteLLM (e.g. Anthropic, Ollama) reject strict json_schema;
-			# retry with explicit JSON schema instructions in the prompt.
 			fallback_messages = [
 				*messages,
 				{
@@ -526,7 +521,6 @@ def get_ai_adapter(settings_doc=None) -> _BaseAIAdapter:
 		return OpenAICompatibleAdapter(settings)
 	if backend == "Frappe Flow":
 		return FlowAdapter(settings)
-	# Legacy settings without ai_backend set: prefer custom key if explicitly configured, else Flow.
 	if getattr(settings, "ai_api_key", None):
 		return OpenAICompatibleAdapter(settings)
 	return FlowAdapter(settings)
@@ -553,52 +547,51 @@ def test_ai_connection(settings_doc=None) -> dict[str, Any]:
 		return {"ok": False, "error": str(exc)}
 
 
-def draft_question_option_explanations(question_name: str):
-	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
-	settings = frappe.get_single("Trivia Sync Settings")
-	if not settings.ai_enabled:
-		frappe.throw("Enable AI enrichment in settings before generating explanation drafts.")
-	doc = frappe.get_doc("Trivia Question", question_name)
-	options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
-	correct_raw = getattr(doc, "correct_options", None)
-	correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
-	if not correct_options and getattr(doc, "correct_option", None):
-		correct_options = [doc.correct_option]
-	adapter = get_ai_adapter(settings)
-	draft = adapter.draft_option_explanations(
-		{
-			"enunciado": doc.enunciado,
-			"options": options,
-			"correct_option": getattr(doc, "correct_option", None),
-			"correct_options": correct_options,
-			"explanation": getattr(doc, "explanation", None),
-			"materia": getattr(doc, "materia", None),
-			"assunto": getattr(doc, "assunto", None),
-			"banca": getattr(doc, "banca", None),
-		}
-	)
-	doc.option_explanations = json.dumps(draft["explanations"], ensure_ascii=False, indent=2)
-	_save_question_ai(doc)
-	return {"name": doc.name, "option_explanations": draft["explanations"], "model": draft["model"]}
+def _supporting_text_content(doc) -> str:
+	name = getattr(doc, "trivia_texto_apoio", None) or getattr(doc, "texto_apoio", None)
+	if not name:
+		return ""
+	try:
+		if hasattr(frappe, "db") and hasattr(frappe.db, "get_value"):
+			return str(frappe.db.get_value("Trivia Supporting Text", name, "conteudo") or "").strip()
+	except Exception:
+		return ""
+	return ""
 
 
-def _save_question_ai(doc):
-	flags = getattr(doc, "flags", None)
-	if flags is not None:
-		flags.from_ai_enrichment = True
-	doc.save(ignore_permissions=True)
+def _question_payload(doc) -> dict[str, Any]:
+	options, correct, _ = extract_lms_question_options(doc)
+	enunciado = strip_question_embeds(getattr(doc, "question", None) or getattr(doc, "enunciado", None) or "")
+	if not options and getattr(doc, "options", None):
+		options = json.loads(doc.options) if isinstance(doc.options, str) else doc.options
+	if not correct and getattr(doc, "correct_option", None):
+		correct = [doc.correct_option]
+	payload: dict[str, Any] = {
+		"qcode": getattr(doc, "trivia_qcode", None) or getattr(doc, "qcode", None),
+		"enunciado": enunciado,
+		"options": options,
+		"correct_option": correct[0] if correct else None,
+		"correct_options": correct,
+		"explanation": getattr(doc, "trivia_general_explanation", None) or getattr(doc, "explanation", None) or "",
+		"materia": getattr(doc, "trivia_materia", None) or getattr(doc, "materia", None),
+		"assunto": getattr(doc, "trivia_assunto", None) or getattr(doc, "assunto", None),
+		"banca": getattr(doc, "trivia_banca", None) or getattr(doc, "banca", None),
+		"ano": getattr(doc, "trivia_ano", None) or getattr(doc, "ano", None),
+	}
+	supporting = _supporting_text_content(doc)
+	if supporting:
+		payload["texto_apoio"] = supporting
+	return payload
 
 
 def _apply_difficulty_fields(doc, data):
-	doc.ai_difficulty_stars = stars_to_rating(data["difficulty_stars"])
-	doc.ai_difficulty_label = data["difficulty_label"]
-	doc.ai_difficulty_reason = data["reason"]
-	doc.ai_learning_objective = data["learning_objective"]
-	doc.ai_topics = json.dumps(data.get("topics") or [], ensure_ascii=False)
-	doc.ai_model = data["model"]
-	doc.ai_enrichment_hash = data["enrichment_hash"]
-	doc.ai_enrichment_status = "Fresh"
-	doc.ai_enriched_at = frappe.utils.now_datetime()
+	doc.trivia_ai_difficulty_stars = stars_to_rating(data["difficulty_stars"])
+	doc.trivia_ai_difficulty_label = data["difficulty_label"]
+	doc.trivia_ai_difficulty_reason = data["reason"]
+	doc.trivia_ai_learning_objective = data["learning_objective"]
+	doc.trivia_ai_topics = json.dumps(data.get("topics") or [], ensure_ascii=False)
+	doc.trivia_ai_model = data["model"]
+	doc.trivia_ai_enriched_at = frappe.utils.now_datetime()
 
 
 def _safe_apply_ai_topics(doc, topics=None, suggested_materia=None, suggested_assunto=None, syllabus_topic_names=None):
@@ -613,12 +606,21 @@ def _safe_apply_ai_topics(doc, topics=None, suggested_materia=None, suggested_as
 			syllabus_topic_names=syllabus_topic_names,
 		)
 	except Exception:
-		return {"trivia_materia": None, "trivia_assunto": None, "syllabus_topics_added": [], "tags_added": []}
+		return {"trivia_subject_link": None, "trivia_topic_link": None, "syllabus_topics_added": [], "tags_added": []}
+
+
+def _refresh_question_html(doc):
+	if hasattr(doc, "question"):
+		doc.question = compose_lms_question_html(
+			doc.question,
+			texto_apoio=getattr(doc, "trivia_texto_apoio", None),
+			knowledge_rows=getattr(doc, "trivia_knowledge_pages", None),
+		)
 
 
 def apply_ai_topics(question_name: str):
 	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
-	doc = frappe.get_doc("Trivia Question", question_name)
+	doc = frappe.get_doc("LMS Question", question_name)
 	from trivia_sync.integrations.reconciliation import apply_ai_topics_to_question
 
 	applied = apply_ai_topics_to_question(doc)
@@ -626,12 +628,36 @@ def apply_ai_topics(question_name: str):
 	return {"name": doc.name, **applied}
 
 
+def draft_question_option_explanations(question_name: str):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in settings before generating explanation drafts.")
+	doc = frappe.get_doc("LMS Question", question_name)
+	adapter = get_ai_adapter(settings)
+	draft = adapter.draft_option_explanations(_question_payload(doc))
+	apply_explanations_to_lms_question(doc, draft["explanations"])
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "option_explanations": draft["explanations"], "model": draft["model"], "trivia_status": doc.trivia_status}
+
+
+def enrich_question_doc(doc, settings_doc=None):
+	settings_doc = settings_doc or frappe.get_single("Trivia Sync Settings")
+	adapter = get_ai_adapter(settings_doc)
+	payload = _question_payload(doc)
+	result = adapter.enrich(payload)
+	_apply_difficulty_fields(doc, result)
+	_safe_apply_ai_topics(doc, topics=result.get("topics") or [])
+	doc.save(ignore_permissions=True)
+	return result
+
+
 def enrich_single_question_difficulty(question_name: str):
 	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
 	settings = frappe.get_single("Trivia Sync Settings")
 	if not settings.ai_enabled:
 		frappe.throw("Enable AI enrichment in settings before classifying difficulty.")
-	doc = frappe.get_doc("Trivia Question", question_name)
+	doc = frappe.get_doc("LMS Question", question_name)
 	result = enrich_question_doc(doc, settings)
 	return {
 		"name": doc.name,
@@ -643,47 +669,50 @@ def enrich_single_question_difficulty(question_name: str):
 	}
 
 
+def extract_question_knowledge(question_name: str):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in settings before extracting knowledge concepts.")
+	doc = frappe.get_doc("LMS Question", question_name)
+	payload = _question_payload(doc)
+	try:
+		payload["topics"] = json.loads(getattr(doc, "trivia_ai_topics", None) or "[]")
+	except (TypeError, ValueError):
+		payload["topics"] = []
+	adapter = get_ai_adapter(settings)
+	extracted = adapter.extract_knowledge_concepts(payload)
+	from trivia_sync.integrations.knowledge import link_knowledge_concepts
+
+	summary = link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
+	_refresh_question_html(doc)
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "model": extracted["model"], **summary}
+
+
 def enrich_question_full(question_name: str):
 	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
 	settings = frappe.get_single("Trivia Sync Settings")
 	if not settings.ai_enabled:
 		frappe.throw("Enable AI enrichment in settings before enriching questions.")
-	doc = frappe.get_doc("Trivia Question", question_name)
-	options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
-	correct_raw = getattr(doc, "correct_options", None)
-	correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
-	if not correct_options and getattr(doc, "correct_option", None):
-		correct_options = [doc.correct_option]
+	doc = frappe.get_doc("LMS Question", question_name)
+	payload = _question_payload(doc)
 	try:
 		from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
 
-		syllabus_candidates = [
+		payload["syllabus_candidates"] = [
 			{"name": row.get("name"), "titulo": row.get("titulo")}
-			for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "concurso_cargo", None), limit=60)
+			for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "trivia_concurso_cargo", None), limit=60)
 		]
 	except Exception:
-		syllabus_candidates = []
+		payload["syllabus_candidates"] = []
+
 	adapter = get_ai_adapter(settings)
-	data = adapter.enrich_full(
-		{
-			"qcode": doc.qcode,
-			"texto_apoio": _supporting_text_content(doc),
-			"enunciado": doc.enunciado,
-			"options": options,
-			"correct_option": getattr(doc, "correct_option", None),
-			"correct_options": correct_options,
-			"explanation": getattr(doc, "explanation", None),
-			"materia": getattr(doc, "materia", None),
-			"assunto": getattr(doc, "assunto", None),
-			"banca": getattr(doc, "banca", None),
-			"ano": getattr(doc, "ano", None),
-			"syllabus_candidates": syllabus_candidates,
-		}
-	)
+	data = adapter.enrich_full(payload)
 	_apply_difficulty_fields(doc, data)
-	doc.option_explanations = json.dumps(data["option_explanations"], ensure_ascii=False, indent=2)
-	if not (getattr(doc, "explanation", None) or "").strip() and data.get("general_explanation"):
-		doc.explanation = data["general_explanation"]
+	apply_explanations_to_lms_question(doc, data["option_explanations"])
+	if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
+		doc.trivia_general_explanation = data["general_explanation"]
 	applied = _safe_apply_ai_topics(
 		doc,
 		topics=data.get("topics") or [],
@@ -695,22 +724,15 @@ def enrich_question_full(question_name: str):
 	try:
 		from trivia_sync.integrations.knowledge import link_knowledge_concepts
 
-		extracted = adapter.extract_knowledge_concepts(
-			{
-				"enunciado": doc.enunciado,
-				"options": options,
-				"materia": getattr(doc, "materia", None),
-				"assunto": getattr(doc, "assunto", None),
-				"topics": data.get("topics") or [],
-				"banca": getattr(doc, "banca", None),
-			}
-		)
+		extracted = adapter.extract_knowledge_concepts({**payload, "topics": data.get("topics") or []})
 		knowledge_summary = link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
 	except Exception:
 		pass
-	_save_question_ai(doc)
+	_refresh_question_html(doc)
+	doc.save(ignore_permissions=True)
 	return {
 		"name": doc.name,
+		"trivia_status": getattr(doc, "trivia_status", None),
 		"difficulty_stars": data["difficulty_stars"],
 		"difficulty_label": data["difficulty_label"],
 		"learning_objective": data["learning_objective"],
@@ -722,45 +744,11 @@ def enrich_question_full(question_name: str):
 	}
 
 
-def extract_question_knowledge(question_name: str):
-	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
-	settings = frappe.get_single("Trivia Sync Settings")
-	if not settings.ai_enabled:
-		frappe.throw("Enable AI enrichment in settings before extracting knowledge concepts.")
-	doc = frappe.get_doc("Trivia Question", question_name)
-	options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
-	try:
-		topics = json.loads(getattr(doc, "ai_topics", None) or "[]")
-	except (TypeError, ValueError):
-		topics = []
-	adapter = get_ai_adapter(settings)
-	extracted = adapter.extract_knowledge_concepts(
-		{
-			"enunciado": doc.enunciado,
-			"options": options,
-			"materia": getattr(doc, "materia", None),
-			"assunto": getattr(doc, "assunto", None),
-			"topics": topics,
-			"banca": getattr(doc, "banca", None),
-		}
-	)
-	from trivia_sync.integrations.knowledge import link_knowledge_concepts
-
-	summary = link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
-	doc.save(ignore_permissions=True)
-	return {"name": doc.name, "model": extracted["model"], **summary}
-
-
-def _has_all_option_explanations(doc) -> bool:
-	try:
-		options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
-		explanations = json.loads(getattr(doc, "option_explanations", None) or "{}") if isinstance(getattr(doc, "option_explanations", None), str) else (getattr(doc, "option_explanations", None) or {})
-	except (TypeError, ValueError):
+def _has_all_lms_explanations(doc) -> bool:
+	options, _, explanations = extract_lms_question_options(doc)
+	if len(options) < 2:
 		return False
-	letters = [str(k).upper() for k, v in options.items() if v not in (None, "")]
-	if not letters:
-		return False
-	return all(str(explanations.get(letter) or explanations.get(letter.lower()) or "").strip() for letter in letters)
+	return all(bool(explanations.get(letter)) for letter in options)
 
 
 def enrich_questions_batch(
@@ -783,11 +771,13 @@ def enrich_questions_batch(
 	if question_names:
 		targets = list(dict.fromkeys(str(name) for name in question_names if name))[:batch_limit]
 	else:
-		query_filters = dict(filters or {})
+		query_filters = {"type": "Choices", **(filters or {})}
 		if not force and mode == "difficulty":
-			query_filters.setdefault("ai_enriched_at", ["is", "not set"])
+			query_filters.setdefault("trivia_ai_enriched_at", ["is", "not set"])
+		elif not force and mode in ("full", "explanations"):
+			query_filters.setdefault("trivia_status", ["!=", "Ready"])
 		targets = frappe.get_all(
-			"Trivia Question",
+			"LMS Question",
 			filters=query_filters,
 			pluck="name",
 			order_by="creation asc",
@@ -811,73 +801,47 @@ def enrich_questions_batch(
 	try:
 		for name in targets:
 			try:
-				doc = frappe.get_doc("Trivia Question", name)
-				options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
-				correct_raw = getattr(doc, "correct_options", None)
-				correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
-				if not correct_options and getattr(doc, "correct_option", None):
-					correct_options = [doc.correct_option]
-
-				payload_source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
-				digest = hashlib.sha256(payload_source.encode("utf-8")).hexdigest()
-
-				if mode == "difficulty":
-					if not force and getattr(doc, "ai_enrichment_hash", None) == digest:
+				doc = frappe.get_doc("LMS Question", name)
+				payload = _question_payload(doc)
+				if not payload.get("options"):
+					result["skipped"] += 1
+				elif mode == "difficulty":
+					if not force and getattr(doc, "trivia_ai_enriched_at", None):
 						result["skipped"] += 1
 					else:
-						data = adapter.enrich(_question_payload(doc))
+						data = adapter.enrich(payload)
 						_apply_difficulty_fields(doc, data)
 						_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 				elif mode == "explanations":
-					if not force and _has_all_option_explanations(doc):
+					if not force and _has_all_lms_explanations(doc):
 						result["skipped"] += 1
 					else:
-						draft = adapter.draft_option_explanations(
-							{
-								"enunciado": doc.enunciado,
-								"options": options,
-								"correct_option": getattr(doc, "correct_option", None),
-								"correct_options": correct_options,
-								"explanation": getattr(doc, "explanation", None),
-								"materia": getattr(doc, "materia", None),
-								"assunto": getattr(doc, "assunto", None),
-								"banca": getattr(doc, "banca", None),
-							}
-						)
-						doc.option_explanations = json.dumps(draft["explanations"], ensure_ascii=False, indent=2)
+						draft = adapter.draft_option_explanations(payload)
+						apply_explanations_to_lms_question(doc, draft["explanations"])
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 				elif mode == "knowledge":
-					existing_kp = getattr(doc, "knowledge_pages", None) or []
-					if not force and existing_kp:
+					if not force and getattr(doc, "trivia_knowledge_pages", None):
 						result["skipped"] += 1
 					else:
 						try:
-							topics = json.loads(getattr(doc, "ai_topics", None) or "[]")
+							payload["topics"] = json.loads(getattr(doc, "trivia_ai_topics", None) or "[]")
 						except (TypeError, ValueError):
-							topics = []
-						extracted = adapter.extract_knowledge_concepts(
-							{
-								"enunciado": doc.enunciado,
-								"options": options,
-								"materia": getattr(doc, "materia", None),
-								"assunto": getattr(doc, "assunto", None),
-								"topics": topics,
-								"banca": getattr(doc, "banca", None),
-							}
-						)
+							payload["topics"] = []
+						extracted = adapter.extract_knowledge_concepts(payload)
 						from trivia_sync.integrations.knowledge import link_knowledge_concepts
 
 						link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
+						_refresh_question_html(doc)
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 				else:  # full
 					already_complete = (
-						getattr(doc, "ai_enrichment_hash", None) == digest
-						and _has_all_option_explanations(doc)
-						and (not include_knowledge or bool(getattr(doc, "knowledge_pages", None)))
+						bool(getattr(doc, "trivia_ai_enriched_at", None))
+						and _has_all_lms_explanations(doc)
+						and (not include_knowledge or bool(getattr(doc, "trivia_knowledge_pages", None)))
 					)
 					if not force and already_complete:
 						result["skipped"] += 1
@@ -885,32 +849,17 @@ def enrich_questions_batch(
 						try:
 							from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
 
-							syllabus_candidates = [
+							payload["syllabus_candidates"] = [
 								{"name": row.get("name"), "titulo": row.get("titulo")}
-								for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "concurso_cargo", None), limit=60)
+								for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "trivia_concurso_cargo", None), limit=60)
 							]
 						except Exception:
-							syllabus_candidates = []
-						data = adapter.enrich_full(
-							{
-								"qcode": doc.qcode,
-								"texto_apoio": _supporting_text_content(doc),
-								"enunciado": doc.enunciado,
-								"options": options,
-								"correct_option": getattr(doc, "correct_option", None),
-								"correct_options": correct_options,
-								"explanation": getattr(doc, "explanation", None),
-								"materia": getattr(doc, "materia", None),
-								"assunto": getattr(doc, "assunto", None),
-								"banca": getattr(doc, "banca", None),
-								"ano": getattr(doc, "ano", None),
-								"syllabus_candidates": syllabus_candidates,
-							}
-						)
+							payload["syllabus_candidates"] = []
+						data = adapter.enrich_full(payload)
 						_apply_difficulty_fields(doc, data)
-						doc.option_explanations = json.dumps(data["option_explanations"], ensure_ascii=False, indent=2)
-						if not (getattr(doc, "explanation", None) or "").strip() and data.get("general_explanation"):
-							doc.explanation = data["general_explanation"]
+						apply_explanations_to_lms_question(doc, data["option_explanations"])
+						if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
+							doc.trivia_general_explanation = data["general_explanation"]
 						_safe_apply_ai_topics(
 							doc,
 							topics=data.get("topics") or [],
@@ -922,20 +871,12 @@ def enrich_questions_batch(
 							try:
 								from trivia_sync.integrations.knowledge import link_knowledge_concepts
 
-								extracted = adapter.extract_knowledge_concepts(
-									{
-										"enunciado": doc.enunciado,
-										"options": options,
-										"materia": getattr(doc, "materia", None),
-										"assunto": getattr(doc, "assunto", None),
-										"topics": data.get("topics") or [],
-										"banca": getattr(doc, "banca", None),
-									}
-								)
+								extracted = adapter.extract_knowledge_concepts({**payload, "topics": data.get("topics") or []})
 								link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
 							except Exception:
 								pass
-						_save_question_ai(doc)
+						_refresh_question_html(doc)
+						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 			except Exception:
 				result["errors"] += 1
@@ -959,100 +900,5 @@ def enrich_questions_batch(
 		frappe.db.commit()
 
 
-def _supporting_text_content(doc) -> str:
-	name = getattr(doc, "texto_apoio", None)
-	if not name:
-		return ""
-	try:
-		if hasattr(frappe, "db") and hasattr(frappe.db, "get_value"):
-			return str(frappe.db.get_value("Trivia Supporting Text", name, "conteudo") or "").strip()
-	except Exception:
-		return ""
-	return ""
-
-
-def _question_payload(doc):
-	payload = {
-		"qcode": doc.qcode,
-		"enunciado": doc.enunciado,
-		"options": doc.options,
-		"correct_option": doc.correct_option,
-		"materia": doc.materia,
-		"assunto": doc.assunto,
-		"banca": doc.banca,
-		"ano": doc.ano,
-	}
-	supporting = _supporting_text_content(doc)
-	if supporting:
-		payload["texto_apoio"] = supporting
-	return payload
-
-
-def enrich_question_doc(doc, settings_doc=None):
-	settings_doc = settings_doc or frappe.get_single("Trivia Sync Settings")
-	adapter = get_ai_adapter(settings_doc)
-	payload = _question_payload(doc)
-	result = adapter.enrich(payload)
-	_apply_difficulty_fields(doc, result)
-	_safe_apply_ai_topics(doc, topics=result.get("topics") or [])
-	doc.save(ignore_permissions=True)
-	return result
-
-
 def enrich_pending_questions():
-	settings = frappe.get_single("Trivia Sync Settings")
-	if not settings.ai_enabled:
-		raise frappe.ValidationError("Enable AI enrichment in settings before running it.")
-	adapter = get_ai_adapter(settings)
-	run = frappe.new_doc("Trivia Sync Run")
-	run.source = "IA"
-	run.operation = "AI enrichment"
-	run.status = "Running"
-	run.started_at = frappe.utils.now_datetime()
-	run.insert(ignore_permissions=True)
-	limit = max(1, min(int(settings.ai_batch_size or 10), 100))
-	result = {"processed": 0, "enriched": 0, "skipped": 0, "errors": 0}
-	try:
-		start = 0
-		while result["processed"] < limit:
-			rows = frappe.get_all(
-				"Trivia Question",
-				fields=["name", "qcode"],
-				limit_page_length=min(limit - result["processed"], 100),
-				start=start,
-			)
-			if not rows:
-				break
-			start += len(rows)
-			for row in rows:
-				try:
-					doc = frappe.get_doc("Trivia Question", row.name)
-					source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
-					digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
-					if doc.ai_enrichment_hash == digest:
-						result["skipped"] += 1
-					else:
-						data = adapter.enrich(_question_payload(doc))
-						_apply_difficulty_fields(doc, data)
-						_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
-						doc.save(ignore_permissions=True)
-						result["enriched"] += 1
-				except Exception:
-					result["errors"] += 1
-					frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI enrichment · {row.get('qcode')}")
-				result["processed"] += 1
-				frappe.db.commit()
-		run.status = "Partial" if result["errors"] else "Completed"
-		run.records_created = result["enriched"]
-		run.records_skipped = result["skipped"]
-		run.records_errors = result["errors"]
-		return result
-	except Exception:
-		run.status = "Failed"
-		run.error_log = frappe.get_traceback()
-		frappe.log_error(frappe.get_traceback(), "Trivia Sync · AI enrichment")
-		raise
-	finally:
-		run.finished_at = frappe.utils.now_datetime()
-		run.save(ignore_permissions=True)
-		frappe.db.commit()
+	return enrich_questions_batch(mode="full")

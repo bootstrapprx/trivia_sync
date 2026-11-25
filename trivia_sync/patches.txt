@@ -1,6 +1,5 @@
 [pre_model_sync]
 # Patches added in this section will be executed before doctypes are migrated
-# Read docs to understand patches: https://docs.frappe.io/framework/user/en/database-migrations
 trivia_sync.patches.v0_4.rename_accented_catalog_doctypes
 
 [post_model_sync]
@@ -8,7 +7,4 @@ trivia_sync.patches.v0_4.rename_accented_catalog_doctypes
 
 [post_fixture_sync]
 # Patches added in this section will be executed after fixtures and customizations
-# (Custom Field, Property Setter, etc) are synced
-trivia_sync.patches.v0_2.backfill_contest_relations
-trivia_sync.patches.v0_3.backfill_legacy_lms_questions
-trivia_sync.patches.v0_5.question_integrity_fields
+trivia_sync.patches.v0_6.migrate_to_lms_native

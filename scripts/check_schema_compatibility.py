@@ -14,13 +14,22 @@ DECLARED_RENAMES = {
     "Conteúdo Programático": "Trivia Syllabus Topic",
     "Concurso": "Trivia Contest",
     "Assunto": "Trivia Topic",
-    "Prova": "Trivia Exam",
     "Banca": "Trivia Exam Board",
     "Concurso Cargo": "Trivia Contest Position",
     "Disciplina": "Trivia Discipline",
     "Texto de Apoio": "Trivia Supporting Text",
     "Cargo": "Trivia Position",
     "Trivia Apostila Recipe": "Trivia Study Guide Recipe",
+}
+DECLARED_RETIRED = {
+    "Prova",
+    "Trivia Exam",
+    "Trivia Exam Block",
+    "Trivia Exam Block Syllabus Topic",
+    "Trivia Exam Question",
+    "Trivia Exam Version",
+    "Trivia Question",
+    "Trivia Lesson Recipe",
 }
 
 
@@ -74,6 +83,8 @@ def main():
     errors = link_errors()
     for doctype, previous in baseline.items():
         if doctype not in actual:
+            if doctype in DECLARED_RETIRED:
+                continue
             if doctype in DECLARED_RENAMES and DECLARED_RENAMES[doctype] in actual:
                 continue
             errors.append(f"removed DocType: {doctype}")

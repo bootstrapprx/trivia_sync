@@ -2,11 +2,11 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({ parent: wrapper, title: __("Contest Setup"), single_column: true });
 	const main = page.main.addClass("trivia-onboarding-page").empty();
 	const endpointFields = [
-		["sync_questions", "Questions"], ["sync_support_texts", "Supporting texts → questions"],
+		["sync_questions", "Questions → LMS Question"], ["sync_support_texts", "Supporting texts → questions"],
 		["sync_bancas", "Exam boards (bancas)"], ["sync_orgaos", "Organizations (órgãos)"],
 		["sync_cargos", "Positions (cargos)"], ["sync_materias", "Subjects (matérias)"],
 		["sync_assuntos", "Topics (assuntos)"], ["sync_concursos", "Contests + status"],
-		["sync_exams", "Exams + details · 200 credits/call"], ["sync_disciplinas", "Disciplines + details"],
+		["sync_disciplinas", "Disciplines + details"],
 		["sync_conteudos", "Program-content tree"], ["sync_flashcards", "Flashcards (read)"],
 	];
 	main.html(`

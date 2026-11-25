@@ -70,8 +70,9 @@ def _append_unique_knowledge_link(doc, fieldname: str, target_name: str) -> bool
 
 
 def link_knowledge_concepts(question, concepts: list[dict], ai_model: str | None = None) -> dict:
-	subject = getattr(question, "trivia_materia", None)
-	topic = getattr(question, "trivia_assunto", None)
+	subject = getattr(question, "trivia_subject_link", None) or getattr(question, "trivia_materia", None)
+	topic = getattr(question, "trivia_topic_link", None) or getattr(question, "trivia_assunto", None)
+	link_field = "trivia_knowledge_pages" if hasattr(question, "trivia_knowledge_pages") or getattr(question, "doctype", None) == "LMS Question" else "knowledge_pages"
 	created = []
 	reused = []
 	linked = []
@@ -86,15 +87,15 @@ def link_knowledge_concepts(question, concepts: list[dict], ai_model: str | None
 			explanation=concept.get("explanation") or "",
 			examples=concept.get("examples") or "",
 			exam_traps=concept.get("exam_traps") or "",
-			trivia_subject=subject,
-			trivia_topic=topic,
+			trivia_subject=subject if subject and hasattr(frappe, "db") and frappe.db.exists("Trivia Subject", subject) else (subject if not hasattr(frappe.db, "exists") else None),
+			trivia_topic=topic if topic and hasattr(frappe, "db") and frappe.db.exists("Trivia Topic", topic) else (topic if not hasattr(frappe.db, "exists") else None),
 			origin="AI",
 			ai_model=ai_model,
 		)
 		main_name = main_res["name"]
 		main_pages.append(main_name)
 		(created if main_res["created"] else reused).append(main_name)
-		if _append_unique_knowledge_link(question, "knowledge_pages", main_name):
+		if _append_unique_knowledge_link(question, link_field, main_name):
 			linked.append(main_name)
 
 		sub_names = []
@@ -174,7 +175,7 @@ def set_knowledge_page_status(page_name: str, status: str) -> dict:
 def get_question_knowledge_pages(question_name: str) -> list[dict]:
 	rows = frappe.get_all(
 		"Trivia Knowledge Link",
-		filters={"parent": question_name, "parenttype": "Trivia Question", "parentfield": "knowledge_pages"},
+		filters={"parent": question_name, "parenttype": "LMS Question", "parentfield": "trivia_knowledge_pages"},
 		pluck="knowledge_page",
 	) or []
 	if not rows:
@@ -197,15 +198,15 @@ def get_knowledge_page_backlinks(page_name: str) -> dict:
 	) or []
 	question_names = frappe.get_all(
 		"Trivia Knowledge Link",
-		filters={"knowledge_page": page_name, "parenttype": "Trivia Question", "parentfield": "knowledge_pages"},
+		filters={"knowledge_page": page_name, "parenttype": "LMS Question", "parentfield": "trivia_knowledge_pages"},
 		pluck="parent",
 		limit_page_length=50,
 	) or []
 	questions = (
 		frappe.get_all(
-			"Trivia Question",
+			"LMS Question",
 			filters={"name": ["in", question_names]},
-			fields=["name", "qcode", "materia", "assunto", "editorial_status"],
+			fields=["name", "trivia_qcode", "trivia_materia", "trivia_assunto", "trivia_status"],
 		)
 		if question_names
 		else []
@@ -282,7 +283,7 @@ def get_published_knowledge_page(slug: str) -> dict:
 
 	question_count = frappe.db.count(
 		"Trivia Knowledge Link",
-		filters={"knowledge_page": page["name"], "parenttype": "Trivia Question", "parentfield": "knowledge_pages"},
+		filters={"knowledge_page": page["name"], "parenttype": "LMS Question", "parentfield": "trivia_knowledge_pages"},
 	)
 
 	page["breadcrumbs"] = breadcrumbs
@@ -295,13 +296,13 @@ def get_published_knowledge_page(slug: str) -> dict:
 FLOW_KB_TITLE = "Trivia Knowledge"
 FLOW_SOURCE_TITLE = "Trivia Knowledge Pages"
 FLOW_SKILL_TITLE = "Trivia Knowledge & Concepts"
-FLOW_SKILL_INSTRUCTIONS = """Você é um assistente especialista em concursos públicos no Trivia Sync.
+FLOW_SKILL_INSTRUCTIONS = """Você é um assistente especialista em concursos públicos integrado ao Frappe LMS via Trivia Sync.
 
 REGRAS FUNDAMENTAIS:
-1. USE SEMPRE TODO O SEU CONHECIMENTO GERAL DE DOMÍNIO para responder, analisar questões, explicar conceitos, classificar dificuldade e criar novos conteúdos. NUNCA se restrinja apenas ao conhecimento local nem diga que "não encontrou na base local" quando você já sabe a resposta.
+1. USE SEMPRE TODO O SEU CONHECIMENTO GERAL DE DOMÍNIO para responder, analisar questões (`LMS Question`), explicar conceitos, classificar dificuldade e criar novos conteúdos. NUNCA se restrinja apenas ao conhecimento local nem diga que "não encontrou na base local" quando você já sabe a resposta.
 2. A base local (`Trivia Knowledge` / DocType `Trivia Knowledge Page`) é MATERIAL COMPLEMENTAR de estudo, consulta e referência vinculada às questões — use-a para enriquecer respostas dentro de uma questão e citar links `/conhecimento?slug=<slug>` das páginas já publicadas, sem substituir seu próprio conhecimento.
-3. Ao auxiliar na revisão de uma `Trivia Question`, nunca entregue o gabarito nas explicações das alternativas incorretas; se houver conceitos pré-requisitos em `knowledge_pages`, mencione-os como apoio de estudo.
-4. Para enriquecer questões individualmente ou em lote no Trivia Sync, prefira as ações do app (`trivia_sync.api.enrich_question_all`, `trivia_sync.api.run_ai_batch_now` ou `trivia_sync.api.enqueue_ai_batch`).
+3. Ao auxiliar em uma `LMS Question`, nunca entregue o gabarito nas explicações (`explanation_1..10`) das alternativas incorretas; se houver conceitos pré-requisitos em `trivia_knowledge_pages`, mencione-os como apoio de estudo.
+4. Para enriquecer `LMS Question` individualmente ou em lote no Trivia Sync, prefira as ações do app (`trivia_sync.api.enrich_question_all`, `trivia_sync.api.run_ai_batch_now` ou `trivia_sync.api.enqueue_ai_batch`).
 """
 
 

@@ -1,10 +1,3 @@
-QUESTION_SOURCE_FIELDS = {
-	"qcode", "source", "source_type", "source_id", "source_key", "enunciado", "texto_apoio", "banca", "orgao",
-	"cargo", "ano", "materia", "assunto", "options", "correct_option", "correct_options", "detected_option_count",
-	"marks", "source_authors", "explanation", "source_url",
-	"raw_payload", "sync_hash", "content_hash", "last_synced_at", "source_license", "source_attribution",
-}
-
 RESOURCE_SOURCE_FIELDS = {
 	"Trivia Exam Board": {"qapi_id", "nome", "sigla", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
 	"Trivia Organization": {"qapi_id", "nome", "sigla", "uf", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
@@ -12,7 +5,6 @@ RESOURCE_SOURCE_FIELDS = {
 	"Trivia Subject": {"qapi_id", "nome", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
 	"Trivia Topic": {"qapi_id", "nome", "materia", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
 	"Trivia Contest": {"qapi_id", "titulo", "orgao", "banca", "status", "ano", "regiao", "estado", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "is_obsolete"},
-	"Trivia Exam": {"qapi_id", "titulo", "concurso", "banca", "orgao", "cargo", "ano", "pdf_url", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
 	"Trivia Discipline": {"qapi_id", "titulo", "concurso", "cargo", "materia", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key"},
 	"Trivia Syllabus Topic": {"qapi_id", "titulo", "disciplina", "parent_conteudo", "is_group", "ordem", "nivel", "raw_payload", "sync_hash", "last_synced_at", "source_type", "source_id", "source_key", "source_path", "source_text", "source_version", "source_hash", "concurso_cargo", "is_obsolete"},
 	"Flashcard": {"qapi_id", "frente", "verso", "conteudo", "materia", "assunto", "raw_payload", "sync_hash", "source_type", "source_id", "source_key"},
@@ -21,29 +13,13 @@ RESOURCE_SOURCE_FIELDS = {
 
 
 def source_fields_changed(doc, data, doctype):
-	fields = QUESTION_SOURCE_FIELDS if doctype == "Trivia Question" else RESOURCE_SOURCE_FIELDS[doctype]
+	fields = RESOURCE_SOURCE_FIELDS[doctype]
 	return any(getattr(doc, field, None) != data[field] for field in fields if field in data)
 
 
 def update_source_owned_fields(doc, data, doctype):
-	fields = QUESTION_SOURCE_FIELDS if doctype == "Trivia Question" else RESOURCE_SOURCE_FIELDS[doctype]
-	previous_content_hash = getattr(doc, "content_hash", None) if doctype == "Trivia Question" else None
-	previous_license = getattr(doc, "source_license", None) if doctype == "Trivia Question" else None
-	previous_attribution = getattr(doc, "source_attribution", None) if doctype == "Trivia Question" else None
+	fields = RESOURCE_SOURCE_FIELDS[doctype]
 	for field in fields:
 		if field in data:
 			setattr(doc, field, data[field])
-	if doctype == "Trivia Question" and (
-		previous_license != data.get("source_license") or previous_attribution != data.get("source_attribution")
-	):
-		doc.redistribution_status = "Pending"
-		doc.redistribution_decided_by = None
-		doc.redistribution_decided_at = None
-	if doctype == "Trivia Question" and previous_content_hash and previous_content_hash != data.get("content_hash"):
-		doc.review_status = "Pending"
-		doc.editorial_status = "Pending Review"
-		doc.reviewed_by = None
-		doc.reviewed_at = None
-		doc.review_reason = None
-		doc.ai_enrichment_status = "Stale"
-	return previous_content_hash != data.get("content_hash")
+	return False

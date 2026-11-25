@@ -31,13 +31,13 @@
 			{
 				fieldname: "force",
 				fieldtype: "Check",
-				label: __("Re-process questions that are already enriched"),
+				label: __("Re-process questions that are already Ready/enriched"),
 				default: 0,
 			},
 			{
 				fieldname: "run_now",
 				fieldtype: "Check",
-				label: __("Run immediately (synchronous, up to 15 questions — does not require background worker)"),
+				label: __("Run immediately (synchronous, up to 15 questions — no background worker needed)"),
 				default: isSelection && selectedNames.length <= 5 ? 1 : 0,
 			},
 		];
@@ -59,16 +59,16 @@
 
 		const dialog = new frappe.ui.Dialog({
 			title: isSelection
-				? __("Batch AI Enrichment · {0} selected question(s)", [selectedNames.length])
-				: __("Batch AI Enrichment · Pending Questions"),
+				? __("Batch AI Enrichment · {0} selected LMS question(s)", [selectedNames.length])
+				: __("Batch AI Enrichment · In Preparation Questions"),
 			fields,
-			primary_action_label: __("Queue AI Batch"),
+			primary_action_label: __("Start AI Batch"),
 			primary_action(values) {
-				let activeFilters = {};
+				const activeFilters = {};
 				if (!isSelection && values.use_list_filters && listview.filter_area) {
 					const rawFilters = listview.filter_area.get() || [];
 					rawFilters.forEach((entry) => {
-						if (Array.isArray(entry) && entry.length >= 4 && entry[0] === "Trivia Question") {
+						if (Array.isArray(entry) && entry.length >= 4 && entry[0] === "LMS Question") {
 							activeFilters[entry[1]] = [entry[2], entry[3]];
 						}
 					});
@@ -102,7 +102,7 @@
 					}
 					const scopeLabel = isSelection
 						? __("{0} selected question(s)", [selectedNames.length])
-						: __("up to {0} pending question(s)", [message?.limit || values.limit]);
+						: __("up to {0} question(s)", [message?.limit || values.limit]);
 					frappe.show_alert({
 						message: __("AI batch ({0}) queued on {1} for {2}. Track progress in Trivia Sync Run or Dashboard.", [
 							message?.mode || values.mode,
@@ -117,8 +117,12 @@
 		dialog.show();
 	};
 
-	frappe.listview_settings["Trivia Question"] = {
+	const existing = frappe.listview_settings["LMS Question"] || {};
+	const previousOnload = existing.onload;
+	frappe.listview_settings["LMS Question"] = {
+		...existing,
 		onload(listview) {
+			if (typeof previousOnload === "function") previousOnload(listview);
 			if (!canRunAI()) return;
 
 			listview.page.add_action_item(__("Enrich selected with AI"), () => {

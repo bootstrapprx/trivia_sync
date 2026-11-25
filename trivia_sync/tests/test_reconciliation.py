@@ -54,10 +54,9 @@ class TestReconciliation(unittest.TestCase):
 
 	def test_syllabus_sync_marks_disappeared_nodes_obsolete_without_deleting(self):
 		frappe = self.module.frappe
-		existing = {"cargo-1/topic-old": "node-old"}
 		new_node = types.SimpleNamespace(name="node-new", insert=lambda **kwargs: None)
-		with patch.object(frappe.db, "get_value", side_effect=[None, None]), patch.object(
-			frappe, "get_all", side_effect=[[], [{"name": "node-old", "source_path": "cargo-1/topic-old"}]]
+		with patch.object(frappe.db, "get_value", return_value=None), patch.object(
+			frappe, "get_all", return_value=[{"name": "node-old", "source_path": "cargo-1/topic-old"}]
 		), patch.object(frappe.db, "set_value") as set_value, patch.object(
 			frappe, "get_doc", return_value=types.SimpleNamespace(save=lambda **kwargs: None)
 		), patch.object(frappe, "new_doc", return_value=new_node):
@@ -66,17 +65,24 @@ class TestReconciliation(unittest.TestCase):
 		self.assertEqual(result["deleted"], 0)
 		set_value.assert_called_once_with("Trivia Syllabus Topic", "node-old", "is_obsolete", 1)
 
-	def test_classification_backfill_is_idempotent_when_catalog_is_unresolved(self):
+	def test_reconcile_question_classification_is_idempotent_when_catalog_is_unresolved(self):
 		frappe = self.module.frappe
-		patch_module = importlib.import_module("trivia_sync.patches.v0_2.backfill_contest_relations")
-		question = types.SimpleNamespace(raw_payload="{}", save=lambda **kwargs: self.fail("unchanged question was saved"))
-		with patch.object(frappe, "get_all", return_value=["q1"]), patch.object(frappe, "get_doc", return_value=question), patch.object(
-			frappe.db, "get_all", return_value=[]
-		):
-			first = patch_module.execute()
-			second = patch_module.execute()
+		question = types.SimpleNamespace(
+			trivia_raw_payload='{"materiaId": "MISSING-1"}',
+			trivia_materia="Direito Administrativo",
+			trivia_assunto="",
+			trivia_subject_link=None,
+			trivia_topic_link=None,
+			trivia_concurso=None,
+			trivia_concurso_cargo=None,
+		)
+		with patch.object(frappe.db, "get_value", return_value=None), patch.object(
+			frappe, "get_meta", return_value=types.SimpleNamespace(has_field=lambda f: f == "nome")
+		), patch.object(frappe, "get_all", return_value=[]):
+			first = self.module.reconcile_question_classification(question)
+			second = self.module.reconcile_question_classification(question)
 		self.assertEqual(first, second)
-		self.assertEqual(first["updated"], 0)
+		self.assertIsNone(question.trivia_subject_link)
 
 	def test_apply_ai_topics_links_or_creates_catalogs_matches_syllabus_and_adds_tags(self):
 		frappe = self.module.frappe
@@ -92,14 +98,14 @@ class TestReconciliation(unittest.TestCase):
 
 		linked_syllabus = []
 		question = types.SimpleNamespace(
-			name="Q-ZX43SGA",
-			materia="",
-			trivia_materia=None,
-			assunto="",
-			trivia_assunto=None,
-			concurso_cargo="CC-1",
-			ai_topics='["Morfologia", "Gênero dos Substantivos"]',
-			conteudos_programaticos=linked_syllabus,
+			name="LMS-Q-ZX43SGA",
+			trivia_materia="",
+			trivia_subject_link=None,
+			trivia_assunto="",
+			trivia_topic_link=None,
+			trivia_concurso_cargo="CC-1",
+			trivia_ai_topics='["Morfologia", "Gênero dos Substantivos"]',
+			trivia_syllabus_topics=linked_syllabus,
 			append=lambda field, row: linked_syllabus.append(types.SimpleNamespace(**row)),
 		)
 		added_tags = []
@@ -109,20 +115,20 @@ class TestReconciliation(unittest.TestCase):
 		), patch.object(frappe.db, "get_value", return_value=None), patch.object(
 			frappe, "new_doc", side_effect=FakeNewDoc
 		), patch.object(
-			self.module, "_add_frappe_tag", side_effect=lambda dt, name, tag: (added_tags.append(tag), tag)[1]
+			self.module, "_add_frappe_tag", side_effect=lambda dt, name, tag: (added_tags.append((dt, tag)), tag)[1]
 		):
 			result = self.module.apply_ai_topics_to_question(
 				question,
 				suggested_materia="Língua Portuguesa",
 				suggested_assunto="Morfologia",
 			)
-		self.assertEqual(question.materia, "Língua Portuguesa")
-		self.assertEqual(question.trivia_materia, "NEW-TRIVIA-SUBJECT")
-		self.assertEqual(question.assunto, "Morfologia")
-		self.assertEqual(question.trivia_assunto, "NEW-TRIVIA-TOPIC")
+		self.assertEqual(question.trivia_materia, "Língua Portuguesa")
+		self.assertEqual(question.trivia_subject_link, "NEW-TRIVIA-SUBJECT")
+		self.assertEqual(question.trivia_assunto, "Morfologia")
+		self.assertEqual(question.trivia_topic_link, "NEW-TRIVIA-TOPIC")
 		self.assertEqual(result["syllabus_topics_added"], ["SYL-GEN"])
 		self.assertEqual([row.conteudo_programatico for row in linked_syllabus], ["SYL-GEN"])
-		self.assertEqual(added_tags, ["Morfologia", "Gênero dos Substantivos"])
+		self.assertEqual(added_tags, [("LMS Question", "Morfologia"), ("LMS Question", "Gênero dos Substantivos")])
 		self.assertEqual(len(created_docs), 2)
 
 

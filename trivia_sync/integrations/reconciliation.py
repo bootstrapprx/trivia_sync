@@ -42,31 +42,29 @@ def resolve_catalog(doctype, external_id=None, name=None):
 	return {"status": "ambiguous" if matches else "unmatched", "name": None, "method": None}
 
 
-CLASSIFICATION_FIELDS = {
-	"banca": ("Trivia Exam Board", "trivia_banca"),
-	"orgao": ("Trivia Organization", "trivia_orgao"),
-	"cargo": ("Trivia Position", "trivia_cargo"),
-	"materia": ("Trivia Subject", "trivia_materia"),
-	"assunto": ("Trivia Topic", "trivia_assunto"),
-	"concurso": ("Trivia Contest", "concurso"),
-	"prova": ("Trivia Exam", "prova"),
-	"concurso_cargo": ("Trivia Contest Position", "concurso_cargo"),
-}
+LMS_QUESTION_CLASSIFICATION = (
+	("materia", "trivia_materia", "Trivia Subject", "trivia_subject_link"),
+	("assunto", "trivia_assunto", "Trivia Topic", "trivia_topic_link"),
+	("concurso", "trivia_concurso", "Trivia Contest", "trivia_concurso"),
+	("concurso_cargo", "trivia_concurso_cargo", "Trivia Contest Position", "trivia_concurso_cargo"),
+)
 
 
 def reconcile_question_classification(question):
+	raw_str = getattr(question, "trivia_raw_payload", None) or getattr(question, "raw_payload", None) or "{}"
 	try:
-		raw = json.loads(question.raw_payload or "{}")
+		raw = json.loads(raw_str)
 	except (TypeError, ValueError):
 		raw = {}
 	results = {}
-	for field, (doctype, link_field) in CLASSIFICATION_FIELDS.items():
-		value = raw.get(field) or raw.get(f"{field}Id") or raw.get(f"{field}_id")
+	for raw_key, text_attr, doctype, link_field in LMS_QUESTION_CLASSIFICATION:
+		value = raw.get(raw_key) or raw.get(f"{raw_key}Id") or raw.get(f"{raw_key}_id")
 		external_id = value.get("id") or value.get("_id") or value.get("codigo") if isinstance(value, dict) else value
-		name = getattr(question, field, "")
+		name = getattr(question, text_attr, "") if text_attr != link_field else ""
 		resolution = resolve_catalog(doctype, external_id, name)
-		setattr(question, link_field, resolution["name"])
-		results[field] = resolution
+		if resolution["name"] and not getattr(question, link_field, None):
+			setattr(question, link_field, resolution["name"])
+		results[raw_key] = resolution
 	return results
 
 
@@ -97,10 +95,14 @@ def sync_syllabus_tree(concurso_cargo, rows, source_version):
 		seen.add(path)
 		content = str(row.get("texto") or row.get("descricao") or row.get("conteudo") or row.get("titulo") or row.get("title") or "")
 		fingerprint = json.dumps(
-			{"title": row.get("titulo") or row.get("title") or row.get("nome") or row.get("name") or content,
-			 "content": content, "order": row.get("ordem") or row.get("order") or position,
-			 "group": bool(row.get("children") or row.get("filhos") or row.get("items"))},
-			ensure_ascii=False, sort_keys=True,
+			{
+				"title": row.get("titulo") or row.get("title") or row.get("nome") or row.get("name") or content,
+				"content": content,
+				"order": row.get("ordem") or row.get("order") or position,
+				"group": bool(row.get("children") or row.get("filhos") or row.get("items")),
+			},
+			ensure_ascii=False,
+			sort_keys=True,
 		)
 		digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
 		filters = {"concurso_cargo": concurso_cargo, "source_path": path}
@@ -146,28 +148,23 @@ def sync_syllabus_tree(concurso_cargo, rows, source_version):
 
 def question_coverage(concurso_cargo):
 	questions = frappe.get_all(
-		"Trivia Question",
-		filters={"concurso_cargo": concurso_cargo},
-		fields=["trivia_materia", "trivia_assunto", "review_status", "redistribution_status", "source_type", "lms_question", "source_license", "redistribution_reference"],
+		"LMS Question",
+		filters={"trivia_concurso_cargo": concurso_cargo},
+		fields=["trivia_subject_link", "trivia_topic_link", "trivia_materia", "trivia_assunto", "trivia_status", "trivia_source_type"],
 	)
 	coverage = {key: {} for key in ("subject", "topic", "review", "license", "source")}
 	for question in questions:
+		status = question.get("trivia_status") or "In Preparation"
+		review_key = "Ready" if status == "Ready" else "Pending"
 		for bucket, value in (
-		("subject", question.get("trivia_materia")),
-		("topic", question.get("trivia_assunto")),
-			("review", question.get("review_status") or "Pending"),
-			("license", question.get("redistribution_status") or "Pending"),
-			("source", question.get("source_type") or "Unknown"),
+			("subject", question.get("trivia_subject_link") or question.get("trivia_materia")),
+			("topic", question.get("trivia_topic_link") or question.get("trivia_assunto")),
+			("review", review_key),
+			("source", question.get("trivia_source_type") or "LMS"),
 		):
 			key = value or "Unclassified"
 			coverage[bucket][key] = coverage[bucket].get(key, 0) + 1
-	eligible = sum(
-		1 for question in questions
-		if question.get("review_status") == "Approved"
-		and question.get("redistribution_status") == "Approved"
-		and question.get("lms_question")
-		and (question.get("source_license") or question.get("redistribution_reference"))
-	)
+	eligible = sum(1 for q in questions if q.get("trivia_status") == "Ready")
 	return {"total": len(questions), "eligible": eligible, **coverage}
 
 
@@ -179,7 +176,6 @@ def resolve_resource_links(doctype, data):
 	links = {
 		"Trivia Syllabus Topic": {"disciplina": "Trivia Discipline", "parent_conteudo": "Trivia Syllabus Topic", "concurso_cargo": "Trivia Contest Position"},
 		"Trivia Discipline": {"concurso": "Trivia Contest"},
-		"Trivia Exam": {"concurso": "Trivia Contest", "concurso_cargo": "Trivia Contest Position"},
 		"Flashcard": {"conteudo": "Trivia Syllabus Topic"},
 	}.get(doctype, {})
 	for field, target in links.items():
@@ -257,6 +253,7 @@ def _add_frappe_tag(doctype, name, tag):
 		return None
 	try:
 		from frappe.desk.doctype.tag.tag import add_tag
+
 		add_tag(cleaned, doctype, name)
 		return cleaned
 	except Exception:
@@ -271,7 +268,7 @@ def apply_ai_topics_to_question(
 	syllabus_topic_names=None,
 ):
 	if topics is None:
-		raw_topics = getattr(question, "ai_topics", None)
+		raw_topics = getattr(question, "trivia_ai_topics", None)
 		if isinstance(raw_topics, str):
 			try:
 				topics = json.loads(raw_topics or "[]")
@@ -283,27 +280,27 @@ def apply_ai_topics_to_question(
 			topics = []
 	cleaned_topics = list(dict.fromkeys(str(t).strip() for t in (topics or []) if str(t or "").strip()))
 
-	subject_name = (getattr(question, "materia", None) or "").strip() or (suggested_materia or "").strip()
-	if subject_name and not (getattr(question, "materia", None) or "").strip():
-		question.materia = subject_name
-	if subject_name and not getattr(question, "trivia_materia", None):
-		question.trivia_materia = resolve_or_create_catalog("Trivia Subject", subject_name)
+	subject_name = (getattr(question, "trivia_materia", None) or "").strip() or (suggested_materia or "").strip()
+	if subject_name and not (getattr(question, "trivia_materia", None) or "").strip():
+		question.trivia_materia = subject_name
+	if subject_name and not getattr(question, "trivia_subject_link", None):
+		question.trivia_subject_link = resolve_or_create_catalog("Trivia Subject", subject_name)
 
 	topic_name = (
-		(getattr(question, "assunto", None) or "").strip()
+		(getattr(question, "trivia_assunto", None) or "").strip()
 		or (suggested_assunto or "").strip()
 		or (cleaned_topics[0] if cleaned_topics else "")
 	)
-	if topic_name and not (getattr(question, "assunto", None) or "").strip():
-		question.assunto = topic_name
-	if topic_name and not getattr(question, "trivia_assunto", None):
-		question.trivia_assunto = resolve_or_create_catalog(
+	if topic_name and not (getattr(question, "trivia_assunto", None) or "").strip():
+		question.trivia_assunto = topic_name
+	if topic_name and not getattr(question, "trivia_topic_link", None):
+		question.trivia_topic_link = resolve_or_create_catalog(
 			"Trivia Topic",
 			topic_name,
-			extra_fields={"materia": getattr(question, "materia", None)},
+			extra_fields={"materia": getattr(question, "trivia_materia", None)},
 		)
 
-	cargo = getattr(question, "concurso_cargo", None)
+	cargo = getattr(question, "trivia_concurso_cargo", None)
 	valid_candidates = {
 		row.get("name")
 		for row in candidate_syllabus_topics(concurso_cargo=cargo, limit=200)
@@ -315,13 +312,13 @@ def apply_ai_topics_to_question(
 
 	existing_links = {
 		getattr(row, "conteudo_programatico", None)
-		for row in (getattr(question, "conteudos_programaticos", None) or [])
+		for row in (getattr(question, "trivia_syllabus_topics", None) or [])
 		if getattr(row, "conteudo_programatico", None)
 	}
 	added_syllabus = []
 	for syllabus_name in target_syllabus:
 		if syllabus_name not in existing_links and hasattr(question, "append"):
-			question.append("conteudos_programaticos", {"conteudo_programatico": syllabus_name})
+			question.append("trivia_syllabus_topics", {"conteudo_programatico": syllabus_name})
 			existing_links.add(syllabus_name)
 			added_syllabus.append(syllabus_name)
 
@@ -329,13 +326,13 @@ def apply_ai_topics_to_question(
 	q_name = getattr(question, "name", None)
 	if q_name:
 		for tag in cleaned_topics:
-			added = _add_frappe_tag("Trivia Question", q_name, tag)
+			added = _add_frappe_tag("LMS Question", q_name, tag)
 			if added:
 				tags_added.append(added)
 
 	return {
-		"trivia_materia": getattr(question, "trivia_materia", None),
-		"trivia_assunto": getattr(question, "trivia_assunto", None),
+		"trivia_subject_link": getattr(question, "trivia_subject_link", None),
+		"trivia_topic_link": getattr(question, "trivia_topic_link", None),
 		"syllabus_topics_added": added_syllabus,
 		"tags_added": tags_added,
 	}

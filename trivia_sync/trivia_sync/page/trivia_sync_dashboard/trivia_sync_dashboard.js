@@ -31,17 +31,16 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       card(__("Pending AI enrichment"), q.pending, __("Awaiting classification"), q.pending ? "orange" : "green"),
       card(__("Average difficulty"), `${q.average || 0} ★`, __("Scale of 1 to 5 stars"), "purple"),
       card(__("Recent failures"), w.failed_recent, __("Partial or failed workers"), w.failed_recent ? "red" : "green"),
-      card(__("Pending review"), e.pending_review, `${e.oldest_pending_days || 0} ${__("days in oldest queue item")}`, e.pending_review ? "orange" : "green"),
-      card(__("LMS projection failures"), e.projection_failed, __("Projections that can be retried"), e.projection_failed ? "red" : "green"),
+      card(__("In preparation"), e.pending_review, `${e.oldest_pending_days || 0} ${__("days in oldest item")}`, e.pending_review ? "orange" : "green"),
+      card(__("Ready in LMS"), e.ready_questions || 0, __("Ready for LMS Quizzes"), "green"),
       card(__("Catalogs"), Object.values(c).reduce((a, b) => a + (Number(b) || 0), 0), __("Catalog records"), "blue"),
     ].join(""));
     const dist = q.distribution || {};
     main.find("[data-difficulty]").html(Object.keys(dist).map((stars) => `<div class="trivia-dashboard-bar-row"><span>${stars} ★</span><div class="trivia-dashboard-bar"><i style="width:${q.enriched ? Math.min(100, (dist[stars] / q.enriched) * 100) : 0}%"></i></div><strong>${dist[stars]}</strong></div>`).join("") || `<p class="text-muted">${__("No AI classifications yet.")}</p>`);
     main.find("[data-runs]").html((w.recent_runs || []).map((run) => `<tr><td>${escape(run.source)}</td><td>${escape(run.operation)} · ${escape(run.current_operation || "")}</td><td><span class="indicator-pill ${run.status === "Completed" ? "green" : run.status === "Running" ? "orange" : "red"}">${escape(run.status)}</span></td><td>${escape(run.records_errors || 0)}</td><td>${escape(run.requests_made || 0)} · ${escape(run.credits_used || 0)} / ${escape(run.request_budget || 0)} · ${escape(run.credit_reserve || 0)}</td><td>${escape(run.resume_operation || "—")} ${escape(run.resume_page || "")}</td><td>${escape(run.finished_at || "—")}</td></tr>`).join("") || `<tr><td colspan="7" class="text-muted">${__("No runs recorded.")}</td></tr>`);
     main.find("[data-editorial]").html([
-      card(__("Awaiting review"), e.pending_review || 0, `${e.oldest_pending_days || 0} ${__("days in oldest queue item")}`, e.pending_review ? "orange" : "green"),
-      card(__("Pending projections"), e.projection_pending || 0, __("Awaiting LMS projection"), "blue"),
-      card(__("Failed projections"), e.projection_failed || 0, __("Can be retried without losing approval"), e.projection_failed ? "red" : "green"),
+      card(__("In preparation"), e.pending_review || 0, `${e.oldest_pending_days || 0} ${__("days in oldest item")}`, e.pending_review ? "orange" : "green"),
+      card(__("Ready in LMS"), e.ready_questions || 0, __("Available for quizzes & courses"), "green"),
     ].join(""));
     main.find("[data-source]").html([
       card(__("Schedule"), s.enabled ? __("Enabled") : __("Disabled"), `${__("Last sync")}: ${s.last_sync || __("never")}`, s.enabled ? "green" : "orange"),
@@ -49,7 +48,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       card(__("QAPI run"), s.last_run?.status || __("No runs"), `${s.last_run?.current_operation || "—"} · ${s.last_run?.requests_made || 0} ${__("requests")} / ${s.last_run?.credits_used || 0} ${__("credits")}`, "blue"),
     ].join(""));
     main.find("[data-materials]").html([
-      card(__("Recipes"), (m.lesson_recipes || 0) + (m.study_guides || 0), `${m.lesson_recipes || 0} ${__("lessons")} · ${m.study_guides || 0} ${__("study guides")}`, "blue"),
+      card(__("Knowledge & Guides"), (m.knowledge_pages || 0) + (m.study_guides || 0), `${m.knowledge_pages || 0} ${__("knowledge pages")} · ${m.study_guides || 0} ${__("study guides")}`, "blue"),
       card(__("Draft"), m.draft || 0, __("Editable versions"), "blue"),
       card(__("Pending approval"), m.pending_approval || 0, __("Awaiting reviewer"), m.pending_approval ? "orange" : "green"),
       card(__("Stale"), m.stale || 0, __("Sources changed"), m.stale ? "red" : "green"),

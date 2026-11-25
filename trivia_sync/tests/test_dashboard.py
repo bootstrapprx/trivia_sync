@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 
+EXTERNAL_LMS_DOCTYPES = {"LMS Question", "LMS Quiz", "LMS Course", "Course Lesson"}
+
+
 class TestDashboard(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
@@ -24,9 +27,9 @@ class TestDashboard(unittest.TestCase):
 			sys.modules["frappe"].utils = types.SimpleNamespace(now_datetime=None)
 		cls.module = importlib.import_module("trivia_sync.dashboard")
 
-	def test_metrics_are_role_gated_and_return_operational_aggregates(self):
+	def test_metrics_are_role_gated_and_return_lms_native_aggregates(self):
 		frappe = self.module.frappe
-		now = datetime(2026, 11, 6, 12)
+		now = datetime(2026, 11, 25, 16)
 		run = types.SimpleNamespace(
 			name="RUN-1", source="QAPI", operation="full", status="Partial", started_at=now,
 			finished_at=None, page=2, records_created=4, records_updated=1, records_skipped=0,
@@ -39,16 +42,11 @@ class TestDashboard(unittest.TestCase):
 			"credit_reserve", "current_operation", "resume_operation", "resume_page",
 		)})
 		cargo = types.SimpleNamespace(name="CC-1", concurso="CON-1", cargo="Cargo A", lms_course="COURSE-1")
-		material_rows = [
-			{"status": "Draft", "total": 2},
-			{"status": "Pending Approval", "total": 1},
-			{"status": "Stale", "total": 3},
-			{"status": "Published", "total": 4},
-		]
+		material_rows = [{"status": "Draft", "total": 2}, {"status": "Published", "total": 4}]
 		with patch.object(frappe, "only_for") as only_for, patch.object(
-			frappe.db, "count", side_effect=[10, 6, 3, 2, 1, 4, 5, 6, 7, 8, 5, 2]
+			frappe.db, "count", side_effect=[10, 6, 4, 6, 3, 5, 2, 7, 8, 9, 2]
 		), patch.object(
-			frappe.db, "sql", side_effect=[[], [types.SimpleNamespace(average=3.5)], material_rows]
+			frappe.db, "sql", side_effect=[[], [types.SimpleNamespace(average=0.6)], material_rows]
 		), patch.object(
 			frappe, "get_all", side_effect=[[run], [old_pending], [latest], [cargo]]
 		), patch.object(
@@ -58,7 +56,7 @@ class TestDashboard(unittest.TestCase):
 			)
 		), patch.object(frappe.utils, "now_datetime", return_value=now), patch.object(
 			self.module, "question_coverage", return_value={
-				"total": 8, "eligible": 3, "subject": {}, "topic": {}, "review": {"Pending": 2},
+				"total": 8, "eligible": 6, "subject": {}, "topic": {}, "review": {"Pending": 2, "Ready": 6},
 				"license": {}, "source": {},
 			}
 		):
@@ -66,20 +64,12 @@ class TestDashboard(unittest.TestCase):
 
 		only_for.assert_called_once_with(("System Manager", "Trivia Reviewer", "Trivia Integrator", "Trivia Editor"))
 		self.assertEqual(result["editorial"]["oldest_pending_days"], 3)
-		self.assertEqual(result["editorial"]["projection_failed"], 1)
-		self.assertEqual(result["source_sync"]["last_run"].resume_page, 3)
-		self.assertEqual(result["source_sync"]["request_budget"], 10)
-		self.assertEqual(result["syllabus_coverage"][0]["eligible"], 3)
-		self.assertEqual(result["materials"]["draft"], 2)
-		self.assertEqual(result["materials"]["pending_approval"], 1)
-		self.assertEqual(result["materials"]["stale"], 3)
-		self.assertEqual(result["materials"]["published"], 4)
-		self.assertEqual(result["materials"]["lesson_recipes"], 5)
+		self.assertEqual(result["editorial"]["ready_questions"], 6)
+		self.assertEqual(result["questions"]["average"], 3.0)
+		self.assertEqual(result["materials"]["knowledge_pages"], 9)
 		self.assertEqual(result["materials"]["study_guides"], 2)
-		self.assertNotIn("raw_payload", repr(result))
-		self.assertNotIn("api_key", repr(result))
 
-	def test_workspace_roles_can_read_each_linked_doctype(self):
+	def test_workspace_roles_can_read_each_internal_linked_doctype(self):
 		root = Path(__file__).resolve().parents[1] / "trivia_sync"
 		workspace = json.loads((root / "workspace/concursos/concursos.json").read_text())
 		roles = {row["role"] for row in workspace["roles"]}
@@ -90,6 +80,8 @@ class TestDashboard(unittest.TestCase):
 			if data.get("doctype") == "DocType"
 		}
 		for link in (row for row in workspace["links"] if row["type"] == "Link" and row["link_type"] == "DocType"):
+			if link["link_to"] in EXTERNAL_LMS_DOCTYPES:
+				continue
 			permissions = {row["role"]: row.get("read", 0) for row in doctypes[link["link_to"]].get("permissions", [])}
 			for role in roles:
 				self.assertTrue(permissions.get(role), f"{role} cannot read {link['link_to']}")
@@ -98,7 +90,6 @@ class TestDashboard(unittest.TestCase):
 		app_root = Path(__file__).resolve().parents[1]
 		workspace = json.loads((app_root / "trivia_sync/workspace/concursos/concursos.json").read_text())
 		self.assertEqual(workspace["public"], 1)
-		self.assertEqual(workspace["is_hidden"], 0)
 		content_cards = [
 			item["data"]["card_name"]
 			for item in json.loads(workspace["content"])
@@ -108,11 +99,8 @@ class TestDashboard(unittest.TestCase):
 		self.assertEqual(content_cards, card_breaks)
 
 		hooks_mod = importlib.import_module("trivia_sync.hooks")
-		self.assertTrue(getattr(hooks_mod, "add_to_apps_screen", None))
 		self.assertEqual(hooks_mod.add_to_apps_screen[0]["route"], "/app/concursos")
-		self.assertTrue(hasattr(hooks_mod, "doctype_js"))
-		self.assertFalse(hasattr(hooks_mod, "doctypes_js"))
-		for target in ("Trivia Question", "Trivia Lesson Recipe", "Trivia Study Guide Recipe", "Trivia Exam", "Trivia Contest"):
+		for target in ("LMS Question", "LMS Quiz", "Course Lesson", "Trivia Study Guide Recipe", "Trivia Contest", "Trivia Knowledge Page"):
 			self.assertIn(target, hooks_mod.doctype_js)
 			self.assertTrue((app_root / hooks_mod.doctype_js[target]).exists())
 

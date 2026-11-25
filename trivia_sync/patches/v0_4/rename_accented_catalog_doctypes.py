@@ -7,7 +7,6 @@ RENAMES = {
     "Conteúdo Programático": "Trivia Syllabus Topic",
     "Concurso": "Trivia Contest",
     "Assunto": "Trivia Topic",
-    "Prova": "Trivia Exam",
     "Banca": "Trivia Exam Board",
     "Concurso Cargo": "Trivia Contest Position",
     "Disciplina": "Trivia Discipline",

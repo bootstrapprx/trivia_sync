@@ -2,12 +2,12 @@ import hashlib
 import json
 import copy
 import frappe
+from trivia_sync.integrations.lms_questions import upsert_qapi_lms_question
 from trivia_sync.integrations.normalization import normalize_question, normalize_resource
 from trivia_sync.integrations.ownership import source_fields_changed, update_source_owned_fields
 from trivia_sync.integrations.qapi_client import QAPIBudgetError, QAPIError, QAPI_METHOD_COSTS
 from trivia_sync.integrations.source_adapters import QAPIAdapter
 from trivia_sync.integrations.reconciliation import (
-	reconcile_question_classification,
 	resolve_resource_links,
 	sync_syllabus_tree,
 )
@@ -19,14 +19,12 @@ RESOURCE_MAP = {
 	"materias": ("Trivia Subject", "materias"),
 	"assuntos": ("Trivia Topic", "assuntos"),
 	"concursos": ("Trivia Contest", "concursos"),
-	"provas": ("Trivia Exam", "provas"),
 	"disciplinas": ("Trivia Discipline", "disciplinas"),
 	"conteudos": ("Trivia Syllabus Topic", "conteudos"),
 	"flashcards": ("Flashcard", "flashcards"),
 }
 
 DETAIL_ENDPOINTS = {
-	"provas": ("prova", 200),
 	"concursos": ("concurso", 1),
 	"disciplinas": ("disciplina", 1),
 }
@@ -38,7 +36,6 @@ RESOURCE_SWITCHES = {
 	"materias": "sync_materias",
 	"assuntos": "sync_assuntos",
 	"concursos": "sync_concursos",
-	"provas": "sync_exams",
 	"disciplinas": "sync_disciplinas",
 	"conteudos": "sync_conteudos",
 	"flashcards": "sync_flashcards",
@@ -258,31 +255,8 @@ def _save_question(adapter, row, settings_doc, metrics=None):
 	data = normalize_question(row)
 	if not data["source_id"] or not data["enunciado"]:
 		return "skipped"
-	texto_name = _sync_text(adapter, data["texto_codigo"], metrics) if settings_doc.sync_support_texts else None
-	if texto_name:
-		texto_hash = frappe.db.get_value("Trivia Supporting Text", texto_name, "sync_hash") or ""
-		data["content_hash"] = hashlib.sha256(f"{data['content_hash']}:{texto_hash}".encode()).hexdigest()
-	data["texto_apoio"] = texto_name
-	name = _find_existing("Trivia Question", data, "qcode")
-	if name:
-		doc = frappe.get_doc("Trivia Question", name)
-		if (
-			doc.sync_hash == data["sync_hash"]
-			and doc.content_hash == data["content_hash"]
-			and doc.texto_apoio == texto_name
-			and doc.source_key == data["source_key"]
-			and not source_fields_changed(doc, data, "Trivia Question")
-		):
-			return "skipped"
-		update_source_owned_fields(doc, data, "Trivia Question")
-		reconcile_question_classification(doc)
-		doc.last_synced_at = frappe.utils.now_datetime()
-		doc.save(ignore_permissions=True)
-		return "updated"
-	doc = frappe.get_doc({"doctype": "Trivia Question", **data, "last_synced_at": frappe.utils.now_datetime()})
-	reconcile_question_classification(doc)
-	doc.insert(ignore_permissions=True)
-	return "created"
+	texto_name = _sync_text(adapter, data["texto_codigo"], metrics) if settings_doc.sync_support_texts and data.get("texto_codigo") else None
+	return upsert_qapi_lms_question(data, texto_name=texto_name)
 
 
 def _sync_paginated(
@@ -357,32 +331,36 @@ def _append_error(current, doctype, source_id, error):
 
 
 def reformat_qapi_questions(question_name=None, limit=10000):
-	"""Reparse stored QAPI payloads after a normalizer/renderer upgrade; no QAPI calls."""
-	filters = {"source_type": "QAPI"}
+	"""Reparse stored QAPI payloads on LMS Question after a normalizer/renderer upgrade; no QAPI calls."""
+	filters = {"trivia_source_type": "QAPI"}
 	if question_name:
-		filters["name"] = question_name
-	rows = frappe.get_all("Trivia Question", filters=filters, fields=["name", "raw_payload"], limit_page_length=limit)
+		filters = {"name": question_name}
+	rows = frappe.get_all(
+		"LMS Question",
+		filters=filters,
+		fields=["name", "trivia_raw_payload", "trivia_texto_apoio"],
+		limit_page_length=limit,
+	)
 	updated = skipped = failed = 0
 	for row in rows:
 		try:
-			payload = json.loads(row.raw_payload or "{}")
+			if not row.get("trivia_raw_payload"):
+				skipped += 1
+				continue
+			payload = json.loads(row.trivia_raw_payload or "{}")
 			data = normalize_question(payload)
-			doc = frappe.get_doc("Trivia Question", row.name)
-			if doc.texto_apoio:
-				text_hash = frappe.db.get_value("Trivia Supporting Text", doc.texto_apoio, "sync_hash") or ""
-				data["content_hash"] = hashlib.sha256(f"{data['content_hash']}:{text_hash}".encode()).hexdigest()
-				data["texto_apoio"] = doc.texto_apoio
-			changed = source_fields_changed(doc, data, "Trivia Question")
-			update_source_owned_fields(doc, data, "Trivia Question")
-			if changed:
-				doc.last_synced_at = frappe.utils.now_datetime()
-				doc.save(ignore_permissions=True)
+			res = upsert_qapi_lms_question(
+				data,
+				texto_name=row.get("trivia_texto_apoio"),
+				force_reformat=bool(question_name),
+			)
+			if res in ("created", "updated"):
 				updated += 1
 			else:
 				skipped += 1
 		except Exception as exc:
 			failed += 1
-			frappe.log_error(f"{type(exc).__name__}: {str(exc)[:500]}", "Trivia Sync · reformat question")
+			frappe.log_error(f"{type(exc).__name__}: {str(exc)[:500]}", "Trivia Sync · reformat LMS question")
 	frappe.db.commit()
 	return {"processed": len(rows), "updated": updated, "skipped": skipped, "failed": failed}
 
@@ -591,7 +569,7 @@ def ingest_source(
 						except Exception as exc:
 							totals["errors"] += 1
 							_record_metric(metrics, "get_questoes", failed=1)
-							run.error_log = _append_error(run.error_log, "Trivia Question", row.get("qCode") or row.get("qcode"), exc)
+							run.error_log = _append_error(run.error_log, "LMS Question", row.get("qCode") or row.get("qcode"), exc)
 					if page >= _pages(payload):
 						break
 			else:

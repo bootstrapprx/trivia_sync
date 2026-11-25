@@ -27,8 +27,8 @@ class TestSourceIdentity(unittest.TestCase):
         try:
             with patch.object(frappe, "throw", side_effect=ValueError, create=True):
                 with self.assertRaises(ValueError):
-                    self.module.ensure_unique_source_key("Trivia Question", "qapi:Q-1", "QUESTION-2")
-                self.module.ensure_unique_source_key("Trivia Question", "qapi:Q-1", "QUESTION-1")
+                    self.module.ensure_unique_source_key("Trivia Contest", "qapi:C-1", "QUESTION-2")
+                self.module.ensure_unique_source_key("Trivia Contest", "qapi:C-1", "QUESTION-1")
         finally:
             if old_db is None:
                 del frappe.db

@@ -55,6 +55,10 @@ class TestQAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         sys.modules.setdefault("frappe", types.SimpleNamespace())
+        sys.modules.setdefault(
+            "requests",
+            types.SimpleNamespace(Session=FakeSession, RequestException=Exception),
+        )
         cls.client_module = importlib.import_module("trivia_sync.integrations.qapi_client")
         cls.sync_module = importlib.import_module("trivia_sync.integrations.sync")
 
@@ -164,13 +168,12 @@ class TestQAPI(unittest.TestCase):
             client.provas(page=1)
         self.assertEqual((client.requests_made, client.credits_used), (0, 0))
 
-    def test_dry_run_uses_exam_credit_cost(self):
+    def test_dry_run_excludes_retired_exam_catalog_overhead(self):
         frappe = self.sync_module.frappe
         settings = FakeSettings()
         settings.qapi_max_pages = 1
         settings.qapi_page_size = 1
         settings.sync_catalogs = 1
-        settings.sync_exams = 1
         settings.sync_flashcards = 0
         settings.sync_support_texts = 0
         old_get_single = getattr(frappe, "get_single", None)
@@ -188,7 +191,9 @@ class TestQAPI(unittest.TestCase):
                 del frappe.new_doc
             else:
                 frappe.new_doc = old_new_doc
-        self.assertGreaterEqual(result["projected_request_cost"], 200)
+        self.assertNotIn("provas", self.sync_module.RESOURCE_MAP)
+        self.assertGreater(result["projected_request_cost"], 0)
+        self.assertLess(result["projected_request_cost"], 100)
 
     def test_worker_helpers_read_common_pagination_shapes(self):
         self.assertEqual(self.sync_module._rows({"data": [{"id": 1}]}), [{"id": 1}])
@@ -269,11 +274,11 @@ class TestQAPI(unittest.TestCase):
         settings = FakeSettings()
         settings.qapi_max_pages = 1
         settings.qapi_page_size = 10
-        settings.sync_exams = 1
         settings.push_flashcards = 1
-        cost = self.sync_module._estimated_request_cost(settings, 1, True)
-        self.assertGreaterEqual(cost, 2000)
-        self.assertTrue(self.sync_module.DETAIL_ENDPOINTS["provas"])
+        cost = self.sync_module._estimated_request_cost(settings, 1, True, local_flashcard_count=5)
+        self.assertGreaterEqual(cost, 40)
+        self.assertIn("concursos", self.sync_module.DETAIL_ENDPOINTS)
+        self.assertNotIn("provas", self.sync_module.DETAIL_ENDPOINTS)
 
     def test_endpoint_metrics_track_received_created_updated_and_failed(self):
         metrics = {}
@@ -283,30 +288,41 @@ class TestQAPI(unittest.TestCase):
         self.sync_module._record_metric(metrics, "get_concursos", failed=1)
         self.assertEqual(metrics["get_concursos"], {"received": 2, "created": 1, "updated": 1, "failed": 1})
 
-    def test_repeating_same_question_payload_is_idempotent(self):
+    def test_repeating_same_question_payload_is_idempotent_on_lms_question(self):
         frappe = self.sync_module.frappe
-        old = {name: getattr(frappe, name, None) for name in ("db", "utils", "get_doc")}
+        old = {name: getattr(frappe, name, None) for name in ("db", "utils", "get_doc", "new_doc", "get_meta", "get_all")}
         store = {}
 
         class FakeDB:
-            def exists(self, doctype, filters):
-                value = filters.get("source_key") or filters.get("qcode")
-                return next((name for name, doc in store.items() if doc.source_key == value or doc.qcode == value), None)
+            def exists(self, doctype, filters=None):
+                if isinstance(filters, str):
+                    return filters in store
+                if not isinstance(filters, dict):
+                    return None
+                if doctype == "LMS Quiz Question":
+                    return False
+                value = filters.get("trivia_source_key") or filters.get("trivia_qcode")
+                return next(
+                    (name for name, doc in store.items() if getattr(doc, "trivia_source_key", None) == value or getattr(doc, "trivia_qcode", None) == value),
+                    None,
+                )
 
             def get_value(self, doctype, filters, fieldname):
-                name = self.exists(doctype, filters)
+                name = self.exists(doctype, filters) if doctype == "LMS Question" else None
                 return name if fieldname == "name" else getattr(store.get(name), fieldname, None)
 
-        class FakeDoc:
-            def __init__(self, values):
-                self.__dict__.update(values)
+        class FakeLMSDoc:
+            def __init__(self):
                 self._new = True
 
             def is_new(self):
                 return self._new
 
+            def set(self, field, value):
+                setattr(self, field, value)
+
             def insert(self, **kwargs):
-                self.name = self.qcode
+                self.name = f"LMS-{self.trivia_qcode}"
                 self._new = False
                 store[self.name] = self
 
@@ -315,22 +331,29 @@ class TestQAPI(unittest.TestCase):
 
         frappe.db = FakeDB()
         frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
-        frappe.get_doc = lambda *args: FakeDoc(args[0]) if isinstance(args[0], dict) else store[args[1]]
+        frappe.new_doc = lambda doctype: FakeLMSDoc()
+        frappe.get_doc = lambda doctype, name: store[name]
+        frappe.get_meta = lambda doctype: types.SimpleNamespace(has_field=lambda f: False)
+        frappe.get_all = lambda *a, **k: []
         try:
             settings = types.SimpleNamespace(sync_support_texts=0)
-            row = {"qCode": "Q-55", "enunciado": "Question?", "opcaoA": "A", "gabarito": "A"}
+            row = {"qCode": "Q-55", "enunciado": "Question?", "opcaoA": "A", "opcaoB": "B", "gabarito": "A"}
             first = self.sync_module._save_question(None, row, settings)
             second = self.sync_module._save_question(None, row, settings)
-            store["Q-55"].source_authors = "Legacy normalization output"
-            third = self.sync_module._save_question(None, row, settings)
-            fourth = self.sync_module._save_question(None, row, settings)
+            updated_row = {**row, "banca": "CESPE"}
+            third = self.sync_module._save_question(None, updated_row, settings)
+            fourth = self.sync_module._save_question(None, updated_row, settings)
         finally:
             for name, value in old.items():
                 if value is None:
-                    delattr(frappe, name)
+                    if hasattr(frappe, name):
+                        delattr(frappe, name)
                 else:
                     setattr(frappe, name, value)
         self.assertEqual((first, second, third, fourth, len(store)), ("created", "skipped", "updated", "skipped", 1))
+        self.assertEqual(store["LMS-Q-55"].option_1, "A")
+        self.assertEqual(store["LMS-Q-55"].option_2, "B")
+        self.assertEqual(store["LMS-Q-55"].trivia_status, "In Preparation")
 
 
 if __name__ == "__main__":

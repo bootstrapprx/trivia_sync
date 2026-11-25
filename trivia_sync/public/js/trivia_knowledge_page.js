@@ -52,7 +52,7 @@
 					? `<div class="mb-2"><strong>${__("Sub-concepts")}:</strong> ${subs.map((s) => `<a class="badge badge-secondary mr-1" href="/app/trivia-knowledge-page/${encodeURIComponent(s.name)}">${escape(s.title)} (${escape(s.status)})</a>`).join(" ")}</div>`
 					: "";
 				const qHtml = questions.length
-					? `<div><strong>${__("Linked questions")} (${questions.length}):</strong> ${questions.slice(0, 10).map((q) => `<a class="badge badge-light mr-1" href="/app/trivia-question/${encodeURIComponent(q.name)}">${escape(q.qcode || q.name)}</a>`).join(" ")}</div>`
+					? `<div><strong>${__("Linked LMS questions")} (${questions.length}):</strong> ${questions.slice(0, 10).map((q) => `<a class="badge badge-light mr-1" href="/app/lms-question/${encodeURIComponent(q.name)}">${escape(q.trivia_qcode || q.name)}</a>`).join(" ")}</div>`
 					: "";
 				frm.dashboard.set_headline_alert(`${subHtml}${qHtml}`, "blue");
 			});

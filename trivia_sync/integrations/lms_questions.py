@@ -1,138 +1,254 @@
 import hashlib
 import html
 import json
+import re
 
 import frappe
-from trivia_sync.integrations.editorial import (
-	question_option_explanations,
-	question_options,
-	validate_projection_eligibility,
-)
+
+from trivia_sync.integrations.reconciliation import reconcile_question_classification
+
+OPTION_LETTERS = "ABCDEFGHIJ"
+
+_PASSAGE_RE = re.compile(r'<div class="trivia-supporting-passage">[\s\S]*?</div>\s*<hr\s*/?>\s*', re.IGNORECASE)
+_KNOWLEDGE_RE = re.compile(r'<div class="trivia-knowledge-refs">[\s\S]*?</div>\s*$', re.IGNORECASE)
 
 
-def _published_knowledge_links(source):
-	rows = getattr(source, "knowledge_pages", None) or []
-	names = [getattr(row, "knowledge_page", None) for row in rows if getattr(row, "knowledge_page", None)]
-	if not names or not hasattr(frappe, "get_all"):
-		return []
-	pages = frappe.get_all(
-		"Trivia Knowledge Page",
-		filters={"name": ["in", names], "status": "Published"},
-		fields=["name", "title", "slug"],
-	) or []
-	by_name = {page.get("name"): page for page in pages}
-	return [by_name[name] for name in names if name in by_name and by_name[name].get("slug")]
+def strip_question_embeds(question_html: str) -> str:
+	text = _PASSAGE_RE.sub("", str(question_html or ""))
+	text = _KNOWLEDGE_RE.sub("", text)
+	return text.strip()
 
 
-def _projection_fields(source):
-	options = validate_projection_eligibility(source)
-	_, correct_options = question_options(source)
-	option_explanations = question_option_explanations(source, options, correct_options, require_all=True)
-	text = frappe.get_doc("Trivia Supporting Text", source.texto_apoio) if source.texto_apoio else None
-	question_text = source.enunciado
-	if text and text.conteudo:
-		question_text = f"<p><strong>Texto de apoio</strong></p>{text.conteudo}<hr>{question_text}"
-	knowledge_links = _published_knowledge_links(source)
-	if knowledge_links:
-		anchors = " · ".join(
-			f'<a href="/conhecimento?slug={html.escape(page["slug"])}" target="_blank" rel="noopener">{html.escape(page["title"])}</a>'
-			for page in knowledge_links
-		)
-		question_text = f'{question_text}<div class="trivia-knowledge-refs"><small><strong>Conceitos relacionados:</strong> {anchors}</small></div>'
-	ordered_options = sorted(options.items())
-	correct_indexes = {index for index, (letter, _) in enumerate(ordered_options, start=1) if letter in correct_options}
-	fields = {
-		"question": question_text,
-		"type": "Choices",
-		"marks": int(source.marks if getattr(source, "marks", None) not in (None, "") else 1),
-		"multiple": int(len(correct_options) > 1),
-		"trivia_qcode": source.qcode,
-		"trivia_source_key": source.source_key,
-		"trivia_question": source.name,
-		"trivia_banca": source.banca,
-		"trivia_orgao": source.orgao,
-		"trivia_cargo": source.cargo,
-		"trivia_ano": source.ano or None,
-		"trivia_materia": source.materia,
-		"trivia_assunto": source.assunto,
-		"trivia_source_url": source.source_url,
-		"trivia_texto_apoio": source.texto_apoio,
-		"trivia_ai_difficulty_stars": source.ai_difficulty_stars,
-		"trivia_ai_difficulty_label": source.ai_difficulty_label,
-		"trivia_ai_difficulty_reason": source.ai_difficulty_reason,
-		"trivia_ai_learning_objective": source.ai_learning_objective,
-		"trivia_ai_topics": source.ai_topics,
-		"trivia_ai_model": source.ai_model,
-		"trivia_ai_enriched_at": source.ai_enriched_at,
-		"trivia_editorial_difficulty": getattr(source, "editorial_difficulty", None),
-		"trivia_source_license": source.source_license,
-		"trivia_source_attribution": source.source_attribution,
-		"trivia_source_authors": getattr(source, "source_authors", None),
-		"trivia_redistribution_reference": source.redistribution_reference,
-		"trivia_redistribution_status": source.redistribution_status,
-		"trivia_detected_option_count": len(ordered_options),
-		"trivia_allow_variable_options": int(bool(getattr(source, "allow_variable_options", 0))),
-		"trivia_exception_reason": getattr(source, "exception_reason", None),
-	}
-	for index in range(1, 11):
-		letter, value = ordered_options[index - 1] if index <= len(ordered_options) else (None, "")
-		fields[f"option_{index}"] = value
-		fields[f"is_correct_{index}"] = int(index in correct_indexes)
-		fields[f"explanation_{index}"] = option_explanations.get(letter, "") if letter else ""
-	sync_hash = hashlib.sha256(json.dumps(fields, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-	fields["trivia_sync_hash"] = sync_hash
-	fields["trivia_projection_key"] = hashlib.sha256(f"{source.source_key}:{sync_hash}".encode("utf-8")).hexdigest()
-	return fields
+def compose_lms_question_html(base_html: str, texto_apoio: str | None = None, knowledge_rows=None) -> str:
+	clean = strip_question_embeds(base_html)
+	if texto_apoio and hasattr(frappe, "db") and frappe.db.exists("Trivia Supporting Text", texto_apoio):
+		passage = frappe.db.get_value("Trivia Supporting Text", texto_apoio, "conteudo")
+		if passage:
+			clean = f'<div class="trivia-supporting-passage"><p><strong>Texto de apoio</strong></p>{passage}</div><hr>{clean}'
+
+	names = [
+		getattr(row, "knowledge_page", None) if not isinstance(row, dict) else row.get("knowledge_page")
+		for row in (knowledge_rows or [])
+	]
+	names = [n for n in names if n]
+	if names and hasattr(frappe, "get_all"):
+		pages = frappe.get_all(
+			"Trivia Knowledge Page",
+			filters={"name": ["in", names], "status": "Published"},
+			fields=["name", "title", "slug"],
+		) or []
+		by_name = {p.get("name"): p for p in pages}
+		ordered = [by_name[n] for n in names if n in by_name and by_name[n].get("slug")]
+		if ordered:
+			anchors = " · ".join(
+				f'<a href="/conhecimento?slug={html.escape(p["slug"])}" target="_blank" rel="noopener">{html.escape(p["title"])}</a>'
+				for p in ordered
+			)
+			clean = f'{clean}<div class="trivia-knowledge-refs"><small><strong>Conceitos relacionados:</strong> {anchors}</small></div>'
+	return clean
 
 
-def validate_lms_question(question):
-	if not getattr(question, "trivia_question", None):
-		return
-	source = frappe.get_doc("Trivia Question", question.trivia_question)
-	for field, expected in _projection_fields(source).items():
-		if question.get(field) != expected:
-			frappe.throw("Trivia-linked LMS questions must be changed in Trivia Sync and projected again.")
+def extract_lms_question_options(doc) -> tuple[dict[str, str], list[str], dict[str, str]]:
+	options: dict[str, str] = {}
+	correct: list[str] = []
+	explanations: dict[str, str] = {}
+	for idx, letter in enumerate(OPTION_LETTERS, start=1):
+		val = str(getattr(doc, f"option_{idx}", None) or "").strip()
+		if not val:
+			continue
+		options[letter] = val
+		if int(getattr(doc, f"is_correct_{idx}", 0) or 0):
+			correct.append(letter)
+		exp = str(getattr(doc, f"explanation_{idx}", None) or "").strip()
+		if exp:
+			explanations[letter] = exp
+	return options, correct, explanations
 
 
-def sync_lms_question(source):
-	fields = _projection_fields(source)
-	sync_hash = fields["trivia_sync_hash"]
-	projection_key = fields["trivia_projection_key"]
-	name = frappe.db.get_value("LMS Question", {"trivia_projection_key": projection_key}, "name")
-	if not name:
-		name = frappe.db.get_value("LMS Question", {"trivia_source_key": source.source_key}, "name")
-	if not name and source.qcode:
-		name = frappe.db.get_value("LMS Question", {"trivia_qcode": source.qcode}, "name")
-	if name:
-		question = frappe.get_doc("LMS Question", name)
-		if question.trivia_source_key and question.trivia_source_key != source.source_key:
-			frappe.throw("The legacy LMS question code points to a different source identity.")
-		if question.trivia_sync_hash == sync_hash and question.trivia_source_key == source.source_key:
-			source.lms_question = question.name
-			source.editorial_status = "Published"
-			source.projection_status = "Projected"
-			source.projection_hash = sync_hash
-			source.projected_at = frappe.utils.now_datetime()
-			source.projection_error = None
-			source.save(ignore_permissions=True)
-			return question.name
-		if question.trivia_sync_hash != sync_hash and frappe.db.exists("LMS Quiz Question", {"question": question.name}):
-			question = frappe.new_doc("LMS Question")
+def apply_explanations_to_lms_question(doc, explanations_by_letter: dict[str, str]) -> int:
+	filled = 0
+	total = 0
+	for idx, letter in enumerate(OPTION_LETTERS, start=1):
+		opt_val = str(getattr(doc, f"option_{idx}", None) or "").strip()
+		if not opt_val:
+			continue
+		total += 1
+		text = str(
+			explanations_by_letter.get(letter)
+			or explanations_by_letter.get(letter.lower())
+			or getattr(doc, f"explanation_{idx}", None)
+			or ""
+		).strip()
+		doc.set(f"explanation_{idx}", text)
+		if text:
+			filled += 1
+	if total >= 2 and filled == total:
+		doc.trivia_status = "Ready"
+	return filled
+
+
+def is_lms_question_treated(doc) -> bool:
+	if getattr(doc, "trivia_status", None) == "Ready":
+		return True
+	if getattr(doc, "trivia_ai_enriched_at", None):
+		return True
+	_, correct, explanations = extract_lms_question_options(doc)
+	wrong_explained = [k for k, v in explanations.items() if k not in set(correct) and v]
+	if wrong_explained:
+		return True
+	if getattr(doc, "name", None) and hasattr(frappe, "db") and frappe.db.exists("LMS Quiz Question", {"question": doc.name}):
+		return True
+	return False
+
+
+def _parse_normalized_options(data: dict) -> tuple[list[tuple[str, str]], set[str]]:
+	raw_opts = data.get("options") or "{}"
+	opts = json.loads(raw_opts) if isinstance(raw_opts, str) else raw_opts
+	if not isinstance(opts, dict):
+		frappe.throw("Invalid question options payload.")
+	ordered = [
+		(str(k).upper(), str(v).strip())
+		for k, v in sorted(opts.items())
+		if str(k).upper() in OPTION_LETTERS and str(v or "").strip()
+	]
+	if not 2 <= len(ordered) <= 10:
+		frappe.throw("Choice questions must have between 2 and 10 non-empty options.")
+	raw_corr = data.get("correct_options") or "[]"
+	corr_list = json.loads(raw_corr) if isinstance(raw_corr, str) else raw_corr
+	correct = {str(x).upper() for x in (corr_list or []) if x}
+	if not correct and data.get("correct_option"):
+		correct = {str(data["correct_option"]).upper()}
+	valid_letters = {k for k, _ in ordered}
+	if not correct or not correct.issubset(valid_letters):
+		frappe.throw("Question answer key does not match available options.")
+	return ordered, correct
+
+
+def upsert_qapi_lms_question(data: dict, texto_name: str | None = None, force_reformat: bool = False) -> str:
+	ordered_options, correct_letters = _parse_normalized_options(data)
+	source_key = data.get("source_key")
+	qcode = data.get("qcode")
+
+	existing_name = None
+	if source_key:
+		existing_name = frappe.db.get_value("LMS Question", {"trivia_source_key": source_key}, "name")
+	if not existing_name and qcode:
+		existing_name = frappe.db.get_value("LMS Question", {"trivia_qcode": qcode}, "name")
+
+	sync_signature = hashlib.sha256(
+		json.dumps(
+			{
+				"enunciado": data.get("enunciado"),
+				"options": ordered_options,
+				"correct": sorted(correct_letters),
+				"texto_apoio": texto_name,
+				"banca": data.get("banca"),
+				"orgao": data.get("orgao"),
+				"cargo": data.get("cargo"),
+				"ano": data.get("ano"),
+				"materia": data.get("materia"),
+				"assunto": data.get("assunto"),
+			},
+			ensure_ascii=False,
+			sort_keys=True,
+		).encode("utf-8")
+	).hexdigest()
+
+	if existing_name:
+		doc = frappe.get_doc("LMS Question", existing_name)
+		if getattr(doc, "trivia_sync_hash", None) == sync_signature and not force_reformat:
+			return "skipped"
+		if is_lms_question_treated(doc) and not force_reformat:
+			# Preserve all human/AI-treated content; only fill missing metadata
+			meta_updated = False
+			for attr, val in (
+				("trivia_qcode", qcode),
+				("trivia_source_key", source_key),
+				("trivia_texto_apoio", texto_name),
+				("trivia_banca", data.get("banca")),
+				("trivia_orgao", data.get("orgao")),
+				("trivia_cargo", data.get("cargo")),
+				("trivia_ano", data.get("ano") or None),
+				("trivia_materia", data.get("materia")),
+				("trivia_assunto", data.get("assunto")),
+				("trivia_source_url", data.get("source_url")),
+				("trivia_raw_payload", data.get("raw_payload")),
+			):
+				if val and not getattr(doc, attr, None):
+					setattr(doc, attr, val)
+					meta_updated = True
+			if meta_updated:
+				reconcile_question_classification(doc)
+				doc.save(ignore_permissions=True)
+				return "updated"
+			return "skipped"
 	else:
-		question = frappe.new_doc("LMS Question")
+		doc = frappe.new_doc("LMS Question")
+		doc.trivia_status = "In Preparation"
 
-	for field, value in fields.items():
-		question.set(field, value)
+	is_new = doc.is_new()
+	doc.type = "Choices"
+	doc.marks = max(1, int(data.get("marks") or 1))
+	doc.multiple = int(len(correct_letters) > 1)
+	doc.trivia_source_type = data.get("source_type") or "QAPI"
+	doc.trivia_qcode = qcode
+	doc.trivia_source_key = source_key
+	doc.trivia_texto_apoio = texto_name or getattr(doc, "trivia_texto_apoio", None)
+	doc.trivia_banca = data.get("banca")
+	doc.trivia_orgao = data.get("orgao")
+	doc.trivia_cargo = data.get("cargo")
+	doc.trivia_ano = data.get("ano") or None
+	doc.trivia_materia = data.get("materia")
+	doc.trivia_assunto = data.get("assunto")
+	doc.trivia_source_url = data.get("source_url")
+	doc.trivia_source_license = data.get("source_license")
+	doc.trivia_source_attribution = data.get("source_attribution")
+	doc.trivia_source_authors = data.get("source_authors")
+	doc.trivia_detected_option_count = len(ordered_options)
+	doc.trivia_raw_payload = data.get("raw_payload")
+	doc.trivia_sync_hash = sync_signature
 
-	if question.is_new():
-		question.insert(ignore_permissions=True)
-	else:
-		question.save(ignore_permissions=True)
-	source.lms_question = question.name
-	source.editorial_status = "Published"
-	source.projection_status = "Projected"
-	source.projection_hash = sync_hash
-	source.projected_at = frappe.utils.now_datetime()
-	source.projection_error = None
-	source.save(ignore_permissions=True)
-	return question.name
+	general_exp = str(data.get("explanation") or "").strip()
+	if general_exp and not getattr(doc, "trivia_general_explanation", None):
+		doc.trivia_general_explanation = general_exp
+
+	doc.question = compose_lms_question_html(
+		data.get("enunciado") or "",
+		texto_apoio=doc.trivia_texto_apoio,
+		knowledge_rows=getattr(doc, "trivia_knowledge_pages", None),
+	)
+
+	for idx in range(1, 11):
+		if idx <= len(ordered_options):
+			letter, opt_text = ordered_options[idx - 1]
+			is_corr = int(letter in correct_letters)
+			existing_exp = str(getattr(doc, f"explanation_{idx}", None) or "").strip()
+			doc.set(f"option_{idx}", opt_text)
+			doc.set(f"is_correct_{idx}", is_corr)
+			doc.set(f"explanation_{idx}", existing_exp or (general_exp if is_corr else ""))
+		else:
+			doc.set(f"option_{idx}", "")
+			doc.set(f"is_correct_{idx}", 0)
+			doc.set(f"explanation_{idx}", "")
+
+	reconcile_question_classification(doc)
+	if is_new:
+		doc.insert(ignore_permissions=True)
+		return "created"
+	doc.save(ignore_permissions=True)
+	return "updated"
+
+
+def set_lms_question_status(question_name: str, status: str) -> dict:
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	if status not in ("In Preparation", "Ready"):
+		frappe.throw("Invalid question preparation status.")
+	doc = frappe.get_doc("LMS Question", question_name)
+	doc.trivia_status = status
+	doc.question = compose_lms_question_html(
+		doc.question,
+		texto_apoio=getattr(doc, "trivia_texto_apoio", None),
+		knowledge_rows=getattr(doc, "trivia_knowledge_pages", None),
+	)
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "trivia_status": doc.trivia_status}

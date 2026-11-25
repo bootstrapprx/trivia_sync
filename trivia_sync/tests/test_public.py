@@ -8,7 +8,19 @@ from unittest.mock import patch
 class TestPublicCatalog(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
-		sys.modules.setdefault("frappe", types.SimpleNamespace())
+		frappe = sys.modules.setdefault("frappe", types.SimpleNamespace())
+		if not hasattr(frappe, "whitelist"):
+			frappe.whitelist = lambda *a, **k: (lambda fn: fn)
+		if not hasattr(frappe, "utils"):
+			frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
+		if not hasattr(frappe, "get_all"):
+			frappe.get_all = lambda *a, **k: []
+		if not hasattr(frappe, "DoesNotExistError"):
+			frappe.DoesNotExistError = type("DoesNotExistError", (Exception,), {})
+		if not hasattr(frappe, "throw"):
+			def _throw(msg, exc=None):
+				raise (exc or Exception)(msg)
+			frappe.throw = _throw
 		cls.module = importlib.import_module("trivia_sync.public")
 
 	def test_public_dto_contains_only_curated_contest_and_published_course_fields(self):
