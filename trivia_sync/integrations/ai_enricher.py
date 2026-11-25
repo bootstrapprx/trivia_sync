@@ -173,49 +173,52 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 	ordered_letters = sorted(str(letter).upper() for letter, value in options.items() if value not in (None, ""))
 	if not ordered_letters:
 		raise AIEnrichmentError("Question has no alternatives to enrich.")
+	syllabus_candidates = question.get("syllabus_candidates") or []
+	properties: dict[str, Any] = {
+		"difficulty_stars": {"type": "integer", "minimum": 1, "maximum": 5},
+		"difficulty_label": {"type": "string", "enum": ["Muito fácil", "Fácil", "Média", "Difícil", "Muito difícil"]},
+		"reason": {"type": "string", "minLength": 20, "maxLength": 800},
+		"learning_objective": {"type": "string", "minLength": 5, "maxLength": 300},
+		"topics": {"type": "array", "items": {"type": "string"}, "maxItems": 8},
+		"general_explanation": {"type": "string", "minLength": 15, "maxLength": 1200},
+		"suggested_materia": {"type": "string", "maxLength": 140},
+		"suggested_assunto": {"type": "string", "maxLength": 140},
+		"option_explanations": {
+			"type": "object",
+			"additionalProperties": False,
+			"properties": {
+				letter: {"type": "string", "minLength": 10, "maxLength": 1200}
+				for letter in ordered_letters
+			},
+			"required": ordered_letters,
+		},
+	}
+	required_fields = [
+		"difficulty_stars",
+		"difficulty_label",
+		"reason",
+		"learning_objective",
+		"topics",
+		"general_explanation",
+		"suggested_materia",
+		"suggested_assunto",
+		"option_explanations",
+	]
+	if syllabus_candidates:
+		properties["syllabus_topic_ids"] = {"type": "array", "items": {"type": "string"}, "maxItems": 6}
+		required_fields.append("syllabus_topic_ids")
 	schema = {
 		"type": "object",
 		"additionalProperties": False,
-		"properties": {
-			"difficulty_stars": {"type": "integer", "minimum": 1, "maximum": 5},
-			"difficulty_label": {"type": "string", "enum": ["Muito fácil", "Fácil", "Média", "Difícil", "Muito difícil"]},
-			"reason": {"type": "string", "minLength": 20, "maxLength": 800},
-			"learning_objective": {"type": "string", "minLength": 5, "maxLength": 300},
-			"topics": {"type": "array", "items": {"type": "string"}, "maxItems": 8},
-			"general_explanation": {"type": "string", "minLength": 15, "maxLength": 1200},
-			"suggested_materia": {"type": "string", "maxLength": 140},
-			"suggested_assunto": {"type": "string", "maxLength": 140},
-			"syllabus_topic_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
-			"option_explanations": {
-				"type": "object",
-				"additionalProperties": False,
-				"properties": {
-					letter: {"type": "string", "minLength": 10, "maxLength": 1200}
-					for letter in ordered_letters
-				},
-				"required": ordered_letters,
-			},
-		},
-		"required": [
-			"difficulty_stars",
-			"difficulty_label",
-			"reason",
-			"learning_objective",
-			"topics",
-			"general_explanation",
-			"suggested_materia",
-			"suggested_assunto",
-			"syllabus_topic_ids",
-			"option_explanations",
-		],
+		"properties": properties,
+		"required": required_fields,
 	}
-	syllabus_candidates = question.get("syllabus_candidates") or []
 	messages = [
 		{
 			"role": "system",
 			"content": (
 				"Você é um professor especialista em avaliação de concursos públicos brasileiros. "
-				"Analise completamente a questão em português brasileiro, sem alterar enunciado, alternativas ou gabarito. "
+				"Use todo o seu conhecimento geral de domínio (e o texto_apoio, se fornecido) para analisar completamente a questão em português brasileiro, sem alterar enunciado, alternativas ou gabarito. "
 				"1) Classifique a dificuldade (1 a 5 estrelas), justificativa técnica, objetivo de aprendizagem, tópicos, matéria e assunto. "
 				"2) Se houver itens em ementa_candidatos, selecione em syllabus_topic_ids apenas os IDs (campo 'name') que correspondem diretamente à questão (ou lista vazia se nenhum se aplicar). "
 				"3) Escreva um comentário geral didático (general_explanation). "
@@ -575,8 +578,15 @@ def draft_question_option_explanations(question_name: str):
 		}
 	)
 	doc.option_explanations = json.dumps(draft["explanations"], ensure_ascii=False, indent=2)
-	doc.save(ignore_permissions=True)
+	_save_question_ai(doc)
 	return {"name": doc.name, "option_explanations": draft["explanations"], "model": draft["model"]}
+
+
+def _save_question_ai(doc):
+	flags = getattr(doc, "flags", None)
+	if flags is not None:
+		flags.from_ai_enrichment = True
+	doc.save(ignore_permissions=True)
 
 
 def _apply_difficulty_fields(doc, data):
@@ -698,7 +708,7 @@ def enrich_question_full(question_name: str):
 		knowledge_summary = link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
 	except Exception:
 		pass
-	doc.save(ignore_permissions=True)
+	_save_question_ai(doc)
 	return {
 		"name": doc.name,
 		"difficulty_stars": data["difficulty_stars"],
@@ -774,7 +784,7 @@ def enrich_questions_batch(
 		targets = list(dict.fromkeys(str(name) for name in question_names if name))[:batch_limit]
 	else:
 		query_filters = dict(filters or {})
-		if not force and mode in ("full", "difficulty"):
+		if not force and mode == "difficulty":
 			query_filters.setdefault("ai_enriched_at", ["is", "not set"])
 		targets = frappe.get_all(
 			"Trivia Question",
@@ -884,6 +894,7 @@ def enrich_questions_batch(
 						data = adapter.enrich_full(
 							{
 								"qcode": doc.qcode,
+								"texto_apoio": _supporting_text_content(doc),
 								"enunciado": doc.enunciado,
 								"options": options,
 								"correct_option": getattr(doc, "correct_option", None),
@@ -924,7 +935,7 @@ def enrich_questions_batch(
 								link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
 							except Exception:
 								pass
-						doc.save(ignore_permissions=True)
+						_save_question_ai(doc)
 						result["enriched"] += 1
 			except Exception:
 				result["errors"] += 1

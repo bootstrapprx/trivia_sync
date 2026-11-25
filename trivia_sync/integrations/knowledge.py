@@ -295,11 +295,13 @@ def get_published_knowledge_page(slug: str) -> dict:
 FLOW_KB_TITLE = "Trivia Knowledge"
 FLOW_SOURCE_TITLE = "Trivia Knowledge Pages"
 FLOW_SKILL_TITLE = "Trivia Knowledge & Concepts"
-FLOW_SKILL_INSTRUCTIONS = """Use esta habilidade sempre que o usuário perguntar sobre conceitos de concursos públicos, pré-requisitos de questões ou páginas de conhecimento do Trivia Sync.
+FLOW_SKILL_INSTRUCTIONS = """Você é um assistente especialista em concursos públicos no Trivia Sync.
 
-1. Consulte o DocType `Trivia Knowledge Page` (e a Knowledge Base `Trivia Knowledge`) para encontrar explicações oficiais de conceitos e sub-conceitos (campos: `title`, `summary`, `explanation`, `examples`, `exam_traps`, `parent_concept`).
-2. Ao explicar um conceito que possua sub-conceitos (`parent_concept` apontando para ele) ou conceitos relacionados (`related_concepts`), mencione os links `/conhecimento?slug=<slug>` das páginas publicadas.
-3. Ao auxiliar na revisão de uma `Trivia Question`, nunca entregue o gabarito nas explicações das alternativas incorretas; referencie os conceitos pré-requisitos vinculados em `knowledge_pages`.
+REGRAS FUNDAMENTAIS:
+1. USE SEMPRE TODO O SEU CONHECIMENTO GERAL DE DOMÍNIO para responder, analisar questões, explicar conceitos, classificar dificuldade e criar novos conteúdos. NUNCA se restrinja apenas ao conhecimento local nem diga que "não encontrou na base local" quando você já sabe a resposta.
+2. A base local (`Trivia Knowledge` / DocType `Trivia Knowledge Page`) é MATERIAL COMPLEMENTAR de estudo, consulta e referência vinculada às questões — use-a para enriquecer respostas dentro de uma questão e citar links `/conhecimento?slug=<slug>` das páginas já publicadas, sem substituir seu próprio conhecimento.
+3. Ao auxiliar na revisão de uma `Trivia Question`, nunca entregue o gabarito nas explicações das alternativas incorretas; se houver conceitos pré-requisitos em `knowledge_pages`, mencione-os como apoio de estudo.
+4. Para enriquecer questões individualmente ou em lote no Trivia Sync, prefira as ações do app (`trivia_sync.api.enrich_question_all`, `trivia_sync.api.run_ai_batch_now` ou `trivia_sync.api.enqueue_ai_batch`).
 """
 
 

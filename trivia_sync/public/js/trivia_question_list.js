@@ -34,6 +34,12 @@
 				label: __("Re-process questions that are already enriched"),
 				default: 0,
 			},
+			{
+				fieldname: "run_now",
+				fieldtype: "Check",
+				label: __("Run immediately (synchronous, up to 15 questions — does not require background worker)"),
+				default: isSelection && selectedNames.length <= 5 ? 1 : 0,
+			},
 		];
 		if (!isSelection) {
 			fields.splice(1, 0, {
@@ -68,8 +74,11 @@
 					});
 				}
 				dialog.hide();
+				const method = values.run_now ? "trivia_sync.api.run_ai_batch_now" : "trivia_sync.api.enqueue_ai_batch";
 				frappe.call({
-					method: "trivia_sync.api.enqueue_ai_batch",
+					method,
+					freeze: Boolean(values.run_now),
+					freeze_message: values.run_now ? __("Running AI enrichment batch...") : undefined,
 					args: {
 						question_names: isSelection ? JSON.stringify(selectedNames) : null,
 						mode: values.mode,
@@ -79,6 +88,18 @@
 						filters: Object.keys(activeFilters).length ? JSON.stringify(activeFilters) : null,
 					},
 				}).then(({ message }) => {
+					if (values.run_now) {
+						frappe.show_alert({
+							message: __("AI batch finished: {0} enriched, {1} skipped, {2} errors.", [
+								message?.enriched || 0,
+								message?.skipped || 0,
+								message?.errors || 0,
+							]),
+							indicator: message?.errors ? "orange" : "green",
+						});
+						listview.refresh();
+						return;
+					}
 					const scopeLabel = isSelection
 						? __("{0} selected question(s)", [selectedNames.length])
 						: __("up to {0} pending question(s)", [message?.limit || values.limit]);

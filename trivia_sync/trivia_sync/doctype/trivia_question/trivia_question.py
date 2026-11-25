@@ -29,7 +29,7 @@ class TriviaQuestion(Document):
 		ensure_unique_source_key("Trivia Question", self.source_key, self.name)
 		try:
 			options = json.loads(self.options or "{}")
-		except TypeError, ValueError:
+		except (TypeError, ValueError):
 			options = {}
 		self.detected_option_count = (
 			sum(1 for value in options.values() if value not in (None, ""))
@@ -61,9 +61,10 @@ class TriviaQuestion(Document):
 		if self.editorial_status in ("Approved", "Published"):
 			opts, correct = question_options(self)
 			question_option_explanations(self, opts, correct, require_all=True)
-		validate_editorial_transition(
-			previous.editorial_status if previous else None,
-			self.editorial_status or "Imported",
-			frappe.get_roles(frappe.session.user),
-			is_new=not previous,
-		)
+		if not getattr(getattr(self, "flags", None), "from_ai_enrichment", False):
+			validate_editorial_transition(
+				previous.editorial_status if previous else None,
+				self.editorial_status or "Imported",
+				frappe.get_roles(frappe.session.user),
+				is_new=not previous,
+			)

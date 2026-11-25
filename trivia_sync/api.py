@@ -438,7 +438,7 @@ def enqueue_ai_batch(question_names=None, mode="full", limit=None, include_knowl
 		filters=filters or None,
 		queue="long",
 		job_name=job_name,
-		enqueue_after_commit=True,
+		enqueue_after_commit=False,
 	)
 	return {
 		"queued": True,
@@ -449,6 +449,26 @@ def enqueue_ai_batch(question_names=None, mode="full", limit=None, include_knowl
 		"selected_count": len(question_names or []),
 		"limit": parsed_limit or int(settings.ai_batch_size or 10),
 	}
+
+
+@frappe.whitelist()
+def run_ai_batch_now(question_names=None, mode="full", limit=5, include_knowledge=1, force=0, filters=None):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	if isinstance(question_names, str):
+		question_names = json.loads(question_names or "[]")
+	if isinstance(filters, str):
+		filters = json.loads(filters or "{}")
+	parsed_limit = max(1, min(cint(limit or 5), 15))
+	from trivia_sync.integrations.ai_enricher import enrich_questions_batch
+
+	return enrich_questions_batch(
+		question_names=question_names or None,
+		mode=mode,
+		limit=parsed_limit,
+		include_knowledge=bool(cint(include_knowledge)),
+		force=bool(cint(force)),
+		filters=filters or None,
+	)
 
 
 @frappe.whitelist()
