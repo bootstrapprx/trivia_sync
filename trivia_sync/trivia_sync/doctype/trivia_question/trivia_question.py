@@ -29,9 +29,13 @@ class TriviaQuestion(Document):
 		ensure_unique_source_key("Trivia Question", self.source_key, self.name)
 		try:
 			options = json.loads(self.options or "{}")
-		except (TypeError, ValueError):
+		except TypeError, ValueError:
 			options = {}
-		self.detected_option_count = sum(1 for value in options.values() if value not in (None, "")) if isinstance(options, dict) else 0
+		self.detected_option_count = (
+			sum(1 for value in options.values() if value not in (None, ""))
+			if isinstance(options, dict)
+			else 0
+		)
 		previous = self.get_doc_before_save() if not self.is_new() else None
 		if previous:
 			content_fields = (
@@ -48,7 +52,10 @@ class TriviaQuestion(Document):
 				self.review_status = "Pending"
 				self.reviewed_by = self.reviewed_at = self.review_reason = None
 				self.editorial_status = "Pending Review"
-			if previous.source_license != self.source_license or previous.source_attribution != self.source_attribution:
+			if (
+				previous.source_license != self.source_license
+				or previous.source_attribution != self.source_attribution
+			):
 				self.redistribution_status = "Pending"
 				self.redistribution_decided_by = self.redistribution_decided_at = None
 		if self.editorial_status in ("Approved", "Published"):

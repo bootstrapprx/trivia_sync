@@ -76,6 +76,9 @@ doctype_js = {
 	"Trivia Contest": "public/js/trivia_contest.js",
 	"Trivia Knowledge Page": "public/js/trivia_knowledge_page.js",
 }
+doctype_list_js = {
+	"Trivia Question": "public/js/trivia_question_list.js",
+}
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]

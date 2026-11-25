@@ -32,7 +32,58 @@ frappe.ui.form.on("Trivia Sync Settings", {
 			});
 		}, "IA");
 		frm.add_custom_button("Enrich questions with AI", () => {
-			frappe.call({ method: "trivia_sync.api.enqueue_ai_enrichment" }).then(() => frappe.show_alert({ message: "AI enrichment queued.", indicator: "green" }));
+			const dialog = new frappe.ui.Dialog({
+				title: __("Queue AI Batch Enrichment"),
+				fields: [
+					{
+						fieldname: "mode",
+						fieldtype: "Select",
+						label: __("Enrichment scope"),
+						options: "full\ndifficulty\nexplanations\nknowledge",
+						default: "full",
+						reqd: 1,
+					},
+					{
+						fieldname: "limit",
+						fieldtype: "Int",
+						label: __("Max questions in batch (1–200)"),
+						default: frm.doc.ai_batch_size || 20,
+						reqd: 1,
+					},
+					{
+						fieldname: "include_knowledge",
+						fieldtype: "Check",
+						label: __("Extract & link Knowledge Pages"),
+						default: 1,
+						depends_on: "eval:doc.mode=='full'",
+					},
+					{
+						fieldname: "force",
+						fieldtype: "Check",
+						label: __("Re-process already enriched questions"),
+						default: 0,
+					},
+				],
+				primary_action_label: __("Queue Batch"),
+				primary_action(values) {
+					dialog.hide();
+					frappe.call({
+						method: "trivia_sync.api.enqueue_ai_batch",
+						args: {
+							mode: values.mode,
+							limit: values.limit,
+							include_knowledge: values.include_knowledge ? 1 : 0,
+							force: values.force ? 1 : 0,
+						},
+					}).then(({ message }) => {
+						frappe.show_alert({
+							message: `AI batch (${message?.mode || values.mode}) queued on ${message?.queue || "long"} for up to ${message?.limit || values.limit} question(s).`,
+							indicator: "green",
+						});
+					});
+				},
+			});
+			dialog.show();
 		}, "IA");
 		frm.add_custom_button("Setup Flow Knowledge & Skill", () => {
 			frappe.call({ method: "trivia_sync.api.setup_flow_knowledge_and_skill" }).then(({ message }) => {

@@ -409,15 +409,46 @@ def run_lms_sync_now():
 
 
 @frappe.whitelist()
-def enqueue_ai_enrichment():
+def enqueue_ai_enrichment(mode="full", limit=None, include_knowledge=1, force=0):
 	_admin()
-	frappe.enqueue(
-		"trivia_sync.integrations.ai_enricher.enrich_pending_questions",
+	return enqueue_ai_batch(mode=mode, limit=limit, include_knowledge=include_knowledge, force=force)
+
+
+@frappe.whitelist()
+def enqueue_ai_batch(question_names=None, mode="full", limit=None, include_knowledge=1, force=0, filters=None):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	if isinstance(question_names, str):
+		question_names = json.loads(question_names or "[]")
+	if isinstance(filters, str):
+		filters = json.loads(filters or "{}")
+	if mode not in ("full", "difficulty", "explanations", "knowledge"):
+		frappe.throw("Invalid AI batch mode.")
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in Trivia Sync Settings before queuing a batch.")
+	parsed_limit = None if limit in (None, "") else max(1, min(cint(limit), 200))
+	job_name = f"trivia_sync_ai_batch_{mode}_{uuid.uuid4().hex[:8]}"
+	job = frappe.enqueue(
+		"trivia_sync.integrations.ai_enricher.enrich_questions_batch",
+		question_names=question_names or None,
+		mode=mode,
+		limit=parsed_limit,
+		include_knowledge=bool(cint(include_knowledge)),
+		force=bool(cint(force)),
+		filters=filters or None,
 		queue="long",
-		job_name="trivia_sync_ai_enrichment",
+		job_name=job_name,
 		enqueue_after_commit=True,
 	)
-	return {"queued": True, "job": "trivia_sync_ai_enrichment"}
+	return {
+		"queued": True,
+		"job": job_name,
+		"job_id": getattr(job, "id", None),
+		"queue": "long",
+		"mode": mode,
+		"selected_count": len(question_names or []),
+		"limit": parsed_limit or int(settings.ai_batch_size or 10),
+	}
 
 
 @frappe.whitelist()

@@ -206,6 +206,85 @@ class TestAIEnricher(unittest.TestCase):
         self.assertEqual(self.module.rating_to_stars(0.6), 3)
         self.assertEqual(self.module.rating_to_stars(1.0), 5)
 
+    def test_batch_enrichment_processes_selected_questions_and_tracks_run(self):
+        class FakeDoc:
+            def __init__(self, name):
+                self.name = name
+                self.qcode = name
+                self.enunciado = "Qual a alternativa correta?"
+                self.options = '{"A":"Sim","B":"Não"}'
+                self.correct_option = "A"
+                self.correct_options = '["A"]'
+                self.explanation = ""
+                self.option_explanations = ""
+                self.materia = ""
+                self.assunto = ""
+                self.banca = "Banca X"
+                self.ano = 2024
+                self.ai_enrichment_hash = ""
+                self.knowledge_pages = []
+                self.saved = 0
+
+            def save(self, **kwargs):
+                self.saved += 1
+
+        class FakeRun:
+            name = "RUN-BATCH-1"
+            def insert(self, **kwargs): pass
+            def save(self, **kwargs): pass
+
+        docs = {"Q-1": FakeDoc("Q-1"), "Q-2": FakeDoc("Q-2")}
+        frappe = self.module.frappe
+        original = {name: getattr(frappe, name, None) for name in (
+            "get_single", "new_doc", "get_doc", "utils", "db", "log_error", "get_traceback"
+        )}
+        frappe.get_single = lambda name: FakeSettings()
+        frappe.new_doc = lambda name: FakeRun()
+        frappe.get_doc = lambda dt, name: docs[name]
+        frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
+        frappe.db = types.SimpleNamespace(commit=lambda: None)
+        frappe.log_error = lambda *args: None
+        frappe.get_traceback = traceback.format_exc
+
+        fake_adapter = types.SimpleNamespace(
+            enrich_full=lambda q: {
+                "difficulty_stars": 2,
+                "difficulty_label": "Fácil",
+                "reason": "Questão direta de nível introdutório.",
+                "learning_objective": "Reconhecer o conceito.",
+                "topics": ["Conceito A"],
+                "general_explanation": "Explicação geral.",
+                "suggested_materia": "Português",
+                "suggested_assunto": "Morfologia",
+                "syllabus_topic_ids": [],
+                "option_explanations": {"A": "Correta.", "B": "Incorreta sem entregar gabarito."},
+                "enrichment_hash": "h123",
+                "model": "test-model",
+            },
+            extract_knowledge_concepts=lambda q: {"concepts": [], "model": "test-model"},
+        )
+        try:
+            with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter), patch.object(
+                self.module, "_safe_apply_ai_topics", return_value={}
+            ):
+                res = self.module.enrich_questions_batch(
+                    question_names=["Q-1", "Q-2"],
+                    mode="full",
+                    include_knowledge=False,
+                )
+        finally:
+            for name, value in original.items():
+                if value is None:
+                    delattr(frappe, name)
+                else:
+                    setattr(frappe, name, value)
+
+        self.assertEqual(res["processed"], 2)
+        self.assertEqual(res["enriched"], 2)
+        self.assertEqual(res["errors"], 0)
+        self.assertEqual(docs["Q-1"].ai_difficulty_stars, 0.4)
+        self.assertEqual(docs["Q-2"].saved, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

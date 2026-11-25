@@ -738,6 +738,213 @@ def extract_question_knowledge(question_name: str):
 	return {"name": doc.name, "model": extracted["model"], **summary}
 
 
+def _has_all_option_explanations(doc) -> bool:
+	try:
+		options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
+		explanations = json.loads(getattr(doc, "option_explanations", None) or "{}") if isinstance(getattr(doc, "option_explanations", None), str) else (getattr(doc, "option_explanations", None) or {})
+	except (TypeError, ValueError):
+		return False
+	letters = [str(k).upper() for k, v in options.items() if v not in (None, "")]
+	if not letters:
+		return False
+	return all(str(explanations.get(letter) or explanations.get(letter.lower()) or "").strip() for letter in letters)
+
+
+def enrich_questions_batch(
+	question_names: list[str] | None = None,
+	mode: str = "full",
+	limit: int | None = None,
+	include_knowledge: bool = True,
+	force: bool = False,
+	filters: dict[str, Any] | None = None,
+):
+	if mode not in ("full", "difficulty", "explanations", "knowledge"):
+		raise frappe.ValidationError("Invalid AI batch mode.")
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		raise frappe.ValidationError("Enable AI enrichment in settings before running it.")
+	adapter = get_ai_adapter(settings)
+	default_limit = len(question_names) if question_names else int(settings.ai_batch_size or 10)
+	batch_limit = max(1, min(int(limit or default_limit), 200))
+
+	if question_names:
+		targets = list(dict.fromkeys(str(name) for name in question_names if name))[:batch_limit]
+	else:
+		query_filters = dict(filters or {})
+		if not force and mode in ("full", "difficulty"):
+			query_filters.setdefault("ai_enriched_at", ["is", "not set"])
+		targets = frappe.get_all(
+			"Trivia Question",
+			filters=query_filters,
+			pluck="name",
+			order_by="creation asc",
+			limit_page_length=batch_limit,
+		) or []
+
+	run = frappe.new_doc("Trivia Sync Run")
+	run.source = "IA"
+	run.operation = f"AI batch ({mode})"
+	run.status = "Running"
+	run.started_at = frappe.utils.now_datetime()
+	run.records_received = len(targets)
+	run.parameters_json = json.dumps(
+		{"mode": mode, "limit": batch_limit, "include_knowledge": bool(include_knowledge), "force": bool(force), "count": len(targets)},
+		ensure_ascii=False,
+	)
+	run.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	result = {"processed": 0, "enriched": 0, "skipped": 0, "errors": 0, "run": getattr(run, "name", None)}
+	try:
+		for name in targets:
+			try:
+				doc = frappe.get_doc("Trivia Question", name)
+				options = json.loads(doc.options or "{}") if isinstance(doc.options, str) else (doc.options or {})
+				correct_raw = getattr(doc, "correct_options", None)
+				correct_options = json.loads(correct_raw or "[]") if isinstance(correct_raw, str) else (correct_raw or [])
+				if not correct_options and getattr(doc, "correct_option", None):
+					correct_options = [doc.correct_option]
+
+				payload_source = json.dumps(_question_payload(doc), ensure_ascii=False, sort_keys=True, default=str)
+				digest = hashlib.sha256(payload_source.encode("utf-8")).hexdigest()
+
+				if mode == "difficulty":
+					if not force and getattr(doc, "ai_enrichment_hash", None) == digest:
+						result["skipped"] += 1
+					else:
+						data = adapter.enrich(_question_payload(doc))
+						_apply_difficulty_fields(doc, data)
+						_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
+						doc.save(ignore_permissions=True)
+						result["enriched"] += 1
+				elif mode == "explanations":
+					if not force and _has_all_option_explanations(doc):
+						result["skipped"] += 1
+					else:
+						draft = adapter.draft_option_explanations(
+							{
+								"enunciado": doc.enunciado,
+								"options": options,
+								"correct_option": getattr(doc, "correct_option", None),
+								"correct_options": correct_options,
+								"explanation": getattr(doc, "explanation", None),
+								"materia": getattr(doc, "materia", None),
+								"assunto": getattr(doc, "assunto", None),
+								"banca": getattr(doc, "banca", None),
+							}
+						)
+						doc.option_explanations = json.dumps(draft["explanations"], ensure_ascii=False, indent=2)
+						doc.save(ignore_permissions=True)
+						result["enriched"] += 1
+				elif mode == "knowledge":
+					existing_kp = getattr(doc, "knowledge_pages", None) or []
+					if not force and existing_kp:
+						result["skipped"] += 1
+					else:
+						try:
+							topics = json.loads(getattr(doc, "ai_topics", None) or "[]")
+						except (TypeError, ValueError):
+							topics = []
+						extracted = adapter.extract_knowledge_concepts(
+							{
+								"enunciado": doc.enunciado,
+								"options": options,
+								"materia": getattr(doc, "materia", None),
+								"assunto": getattr(doc, "assunto", None),
+								"topics": topics,
+								"banca": getattr(doc, "banca", None),
+							}
+						)
+						from trivia_sync.integrations.knowledge import link_knowledge_concepts
+
+						link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
+						doc.save(ignore_permissions=True)
+						result["enriched"] += 1
+				else:  # full
+					already_complete = (
+						getattr(doc, "ai_enrichment_hash", None) == digest
+						and _has_all_option_explanations(doc)
+						and (not include_knowledge or bool(getattr(doc, "knowledge_pages", None)))
+					)
+					if not force and already_complete:
+						result["skipped"] += 1
+					else:
+						try:
+							from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
+
+							syllabus_candidates = [
+								{"name": row.get("name"), "titulo": row.get("titulo")}
+								for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "concurso_cargo", None), limit=60)
+							]
+						except Exception:
+							syllabus_candidates = []
+						data = adapter.enrich_full(
+							{
+								"qcode": doc.qcode,
+								"enunciado": doc.enunciado,
+								"options": options,
+								"correct_option": getattr(doc, "correct_option", None),
+								"correct_options": correct_options,
+								"explanation": getattr(doc, "explanation", None),
+								"materia": getattr(doc, "materia", None),
+								"assunto": getattr(doc, "assunto", None),
+								"banca": getattr(doc, "banca", None),
+								"ano": getattr(doc, "ano", None),
+								"syllabus_candidates": syllabus_candidates,
+							}
+						)
+						_apply_difficulty_fields(doc, data)
+						doc.option_explanations = json.dumps(data["option_explanations"], ensure_ascii=False, indent=2)
+						if not (getattr(doc, "explanation", None) or "").strip() and data.get("general_explanation"):
+							doc.explanation = data["general_explanation"]
+						_safe_apply_ai_topics(
+							doc,
+							topics=data.get("topics") or [],
+							suggested_materia=data.get("suggested_materia"),
+							suggested_assunto=data.get("suggested_assunto"),
+							syllabus_topic_names=data.get("syllabus_topic_ids") or [],
+						)
+						if include_knowledge:
+							try:
+								from trivia_sync.integrations.knowledge import link_knowledge_concepts
+
+								extracted = adapter.extract_knowledge_concepts(
+									{
+										"enunciado": doc.enunciado,
+										"options": options,
+										"materia": getattr(doc, "materia", None),
+										"assunto": getattr(doc, "assunto", None),
+										"topics": data.get("topics") or [],
+										"banca": getattr(doc, "banca", None),
+									}
+								)
+								link_knowledge_concepts(doc, extracted["concepts"], ai_model=extracted["model"])
+							except Exception:
+								pass
+						doc.save(ignore_permissions=True)
+						result["enriched"] += 1
+			except Exception:
+				result["errors"] += 1
+				frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI batch ({mode}) · {name}")
+			result["processed"] += 1
+			run.records_created = result["enriched"]
+			run.records_skipped = result["skipped"]
+			run.records_errors = result["errors"]
+			run.save(ignore_permissions=True)
+			frappe.db.commit()
+		run.status = "Partial" if result["errors"] else "Completed"
+		return result
+	except Exception:
+		run.status = "Failed"
+		run.error_log = frappe.get_traceback()
+		frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI batch ({mode})")
+		raise
+	finally:
+		run.finished_at = frappe.utils.now_datetime()
+		run.save(ignore_permissions=True)
+		frappe.db.commit()
+
+
 def _question_payload(doc):
 	return {
 		"qcode": doc.qcode,
