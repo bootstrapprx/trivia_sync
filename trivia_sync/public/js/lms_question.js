@@ -32,6 +32,11 @@
 		return frappe.utils.sanitize_html ? frappe.utils.sanitize_html(raw) : raw;
 	};
 	const escapeAttr = (value) => frappe.utils.escape_html(String(value ?? ""));
+	const stripEmbeds = (htmlStr) =>
+		String(htmlStr ?? "")
+			.replace(/<div class="trivia-supporting-passage">[\s\S]*?<\/div>\s*<hr\s*\/?>\s*/gi, "")
+			.replace(/<div class="trivia-knowledge-refs">[\s\S]*?<\/div>\s*$/gi, "")
+			.trim();
 	const rich = (value) => {
 		const raw = String(value ?? "").trim();
 		if (!raw) return `<span class="text-muted">${__("Not provided")}</span>`;
@@ -181,7 +186,7 @@
 			</div>
 			<div class="trivia-cockpit-block">
 				<div class="trivia-cockpit-block-head"><h4>${__("Question preview")}</h4></div>
-				<div class="trivia-question-surface trivia-rich-content">${rich(d.question)}</div>
+				<div class="trivia-question-surface trivia-rich-content">${rich(stripEmbeds(d.question))}</div>
 			</div>
 			<div class="trivia-cockpit-block">
 				<div class="trivia-cockpit-block-head">

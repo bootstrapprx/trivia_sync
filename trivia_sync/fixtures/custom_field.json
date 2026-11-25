@@ -1,12 +1,25 @@
 [
   {
     "doctype": "Custom Field",
+    "name": "LMS Question-trivia_title",
+    "dt": "LMS Question",
+    "fieldname": "trivia_title",
+    "label": "Question",
+    "fieldtype": "Data",
+    "length": 140,
+    "read_only": 1,
+    "hidden": 1,
+    "insert_after": "question",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
     "name": "LMS Question-trivia_section",
     "dt": "LMS Question",
     "fieldname": "trivia_section",
     "label": "Contest & Editorial",
     "fieldtype": "Section Break",
-    "insert_after": "question",
+    "insert_after": "trivia_title",
     "module": "Trivia Sync"
   },
   {

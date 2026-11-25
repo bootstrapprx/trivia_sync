@@ -1,0 +1,33 @@
+[
+  {
+    "doctype": "Property Setter",
+    "name": "LMS Question-main-title_field",
+    "doctype_or_field": "DocType",
+    "doc_type": "LMS Question",
+    "property": "title_field",
+    "property_type": "Data",
+    "value": "trivia_title",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Property Setter",
+    "name": "LMS Question-main-show_title_field_in_link",
+    "doctype_or_field": "DocType",
+    "doc_type": "LMS Question",
+    "property": "show_title_field_in_link",
+    "property_type": "Check",
+    "value": "1",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Property Setter",
+    "name": "LMS Question-question-in_list_view",
+    "doctype_or_field": "DocField",
+    "doc_type": "LMS Question",
+    "field_name": "question",
+    "property": "in_list_view",
+    "property_type": "Check",
+    "value": "0",
+    "module": "Trivia Sync"
+  }
+]

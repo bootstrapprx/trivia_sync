@@ -13,10 +13,31 @@ _PASSAGE_RE = re.compile(r'<div class="trivia-supporting-passage">[\s\S]*?</div>
 _KNOWLEDGE_RE = re.compile(r'<div class="trivia-knowledge-refs">[\s\S]*?</div>\s*$', re.IGNORECASE)
 
 
+MAX_TITLE_CHARS = 135
+
+
 def strip_question_embeds(question_html: str) -> str:
 	text = _PASSAGE_RE.sub("", str(question_html or ""))
 	text = _KNOWLEDGE_RE.sub("", text)
 	return text.strip()
+
+
+def build_question_title(question_html: str, fallback: str = "") -> str:
+	"""Build a clean <=135-char plain-text title for LMS Question (safe for Tag Link, ToDo, List View)."""
+	clean = strip_question_embeds(question_html)
+	plain = html.unescape(re.sub(r"<[^>]+>", " ", clean))
+	plain = re.sub(r"\s+", " ", plain).strip()
+	if not plain:
+		plain = re.sub(r"\s+", " ", str(fallback or "Questão")).strip()
+	if len(plain) > MAX_TITLE_CHARS:
+		return plain[: MAX_TITLE_CHARS - 1].rstrip() + "…"
+	return plain
+
+
+def sync_lms_question_title(doc, method=None):
+	"""doc_events hook (`before_validate`) keeping `LMS Question.trivia_title` concise and HTML-free."""
+	fallback = getattr(doc, "trivia_qcode", None) or getattr(doc, "name", None) or "Questão"
+	doc.trivia_title = build_question_title(getattr(doc, "question", "") or "", fallback=fallback)
 
 
 def compose_lms_question_html(base_html: str, texto_apoio: str | None = None, knowledge_rows=None) -> str:
@@ -230,6 +251,7 @@ def upsert_qapi_lms_question(data: dict, texto_name: str | None = None, force_re
 		texto_apoio=doc.trivia_texto_apoio,
 		knowledge_rows=getattr(doc, "trivia_knowledge_pages", None),
 	)
+	doc.trivia_title = build_question_title(doc.question, fallback=qcode or getattr(doc, "name", "") or "Questão")
 
 	for idx in range(1, 11):
 		if idx <= len(ordered_options):
@@ -263,5 +285,6 @@ def set_lms_question_status(question_name: str, status: str) -> dict:
 		texto_apoio=getattr(doc, "trivia_texto_apoio", None),
 		knowledge_rows=getattr(doc, "trivia_knowledge_pages", None),
 	)
+	sync_lms_question_title(doc)
 	doc.save(ignore_permissions=True)
 	return {"name": doc.name, "trivia_status": doc.trivia_status}

@@ -241,6 +241,26 @@ class TestLMSQuestionsBridge(unittest.TestCase):
 		self.assertIsNone(good_doc.trivia_texto_apoio)
 		self.assertIsNone(good_doc.trivia_subject_link)
 
+	def test_build_question_title_strips_passages_html_and_fits_tag_link_140_char_limit(self):
+		long_passage = "<p>" + ("Texto longo de apoio com vários parágrafos. " * 15) + "</p>"
+		long_stem = (
+			"<p><strong>A palavra “quantidade” tem 10 letras.</strong> "
+			"Assinale a alternativa que apresenta corretamente a quantidade exata de fonemas dessa palavra "
+			"segundo a gramática normativa da língua portuguesa contemporânea.</p>"
+		)
+		composed = (
+			f'<div class="trivia-supporting-passage"><p><strong>Texto de apoio</strong></p>{long_passage}</div><hr>'
+			f'{long_stem}'
+			f'<div class="trivia-knowledge-refs"><small><strong>Conceitos relacionados:</strong> <a href="/conhecimento?slug=fonetica">Fonética</a></small></div>'
+		)
+		title = self.module.build_question_title(composed, fallback="QTS-2026-00155")
+		self.assertLessEqual(len(title), 135)
+		self.assertNotIn("Texto de apoio", title)
+		self.assertNotIn("Texto longo", title)
+		self.assertNotIn("<", title)
+		self.assertTrue(title.startswith("A palavra “quantidade” tem 10 letras."))
+		self.assertTrue(title.endswith("…"))
+
 
 if __name__ == "__main__":
 	unittest.main()

@@ -3,7 +3,11 @@ import json
 
 import frappe
 
-from trivia_sync.integrations.lms_questions import compose_lms_question_html, disambiguate_option_pairs
+from trivia_sync.integrations.lms_questions import (
+	build_question_title,
+	compose_lms_question_html,
+	disambiguate_option_pairs,
+)
 
 RETIRED_DOCTYPES = (
 	"Trivia Question",
@@ -168,9 +172,56 @@ def cleanup_retired_metadata():
 			frappe.clear_cache(doctype="LMS Question")
 
 
+def backfill_lms_question_titles() -> int:
+	"""Populate concise <=135-char plain-text `trivia_title` on LMS Question and clean Tag Link titles."""
+	if not hasattr(frappe, "db") or not hasattr(frappe.db, "has_column"):
+		return 0
+	if not frappe.db.has_column("LMS Question", "trivia_title"):
+		return 0
+
+	updated = 0
+	rows = frappe.get_all(
+		"LMS Question",
+		fields=["name", "question", "trivia_qcode", "trivia_title"],
+		limit_page_length=100000,
+	) or []
+	title_by_name = {}
+	for row in rows:
+		new_title = build_question_title(
+			row.get("question") or "",
+			fallback=row.get("trivia_qcode") or row.get("name") or "Questão",
+		)
+		title_by_name[row["name"]] = new_title
+		if row.get("trivia_title") != new_title:
+			frappe.db.set_value("LMS Question", row["name"], "trivia_title", new_title, update_modified=False)
+			updated += 1
+
+	with contextlib.suppress(Exception):
+		if frappe.db.table_exists("Tag Link"):
+			tag_links = frappe.get_all(
+				"Tag Link",
+				filters={"document_type": "LMS Question"},
+				fields=["name", "document_name", "title"],
+				limit_page_length=100000,
+			) or []
+			for tl in tag_links:
+				target_title = title_by_name.get(tl.get("document_name")) or build_question_title(
+					tl.get("title") or "", fallback=tl.get("document_name") or "Questão"
+				)
+				if tl.get("title") != target_title:
+					frappe.db.set_value("Tag Link", tl["name"], "title", target_title, update_modified=False)
+
+	if hasattr(frappe, "clear_cache") and callable(frappe.clear_cache):
+		with contextlib.suppress(Exception):
+			frappe.clear_cache(doctype="LMS Question")
+	return updated
+
+
 def ensure_lms_native_clean():
-	"""Idempotent `after_migrate` hook to guarantee no dangling references to retired DocTypes remain."""
+	"""Idempotent `after_migrate` hook to guarantee clean metadata and concise LMS Question titles."""
 	cleanup_retired_metadata()
+	with contextlib.suppress(Exception):
+		backfill_lms_question_titles()
 	if hasattr(frappe, "db") and hasattr(frappe.db, "commit"):
 		frappe.db.commit()
 
@@ -297,6 +348,10 @@ def _migrate_single_row(row: dict) -> str:
 		row.get("enunciado") or "",
 		texto_apoio=texto_apoio,
 		knowledge_rows=doc.get("trivia_knowledge_pages"),
+	)
+	doc.trivia_title = build_question_title(
+		doc.question,
+		fallback=row.get("qcode") or row.get("name") or "Questão",
 	)
 
 	if hasattr(doc, "flags") and doc.flags is not None:

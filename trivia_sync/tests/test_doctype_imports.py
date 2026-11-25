@@ -32,6 +32,13 @@ class TestDocTypeControllerImports(unittest.TestCase):
 
 		configured = set(hooks.fixtures[1]["filters"][0][2])
 		self.assertEqual(fixture_names, configured)
+		self.assertIn("LMS Question-trivia_title", fixture_names)
+
+		ps_path = APP_ROOT / "trivia_sync" / "fixtures" / "property_setter.json"
+		ps_rows = json.loads(ps_path.read_text())
+		ps_by_name = {row["name"]: row for row in ps_rows}
+		self.assertEqual(ps_by_name["LMS Question-main-title_field"]["value"], "trivia_title")
+		self.assertEqual(set(ps_by_name), set(hooks.fixtures[2]["filters"][0][2]))
 		self.assertIn("LMS Question", hooks.doctype_js)
 		self.assertIn("LMS Quiz", hooks.doctype_js)
 		self.assertIn("Course Lesson", hooks.doctype_js)

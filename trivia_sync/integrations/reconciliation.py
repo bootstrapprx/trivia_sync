@@ -247,11 +247,23 @@ def match_syllabus_topics_by_names(topics, concurso_cargo=None):
 	return list(dict.fromkeys(name for name in matched if name))
 
 
-def _add_frappe_tag(doctype, name, tag):
+def _add_frappe_tag(doctype, name, tag, doc=None):
 	cleaned = re.sub(r"[,\r\n]+", " ", str(tag or "")).strip()[:60]
 	if not cleaned or not name:
 		return None
 	try:
+		if doctype == "LMS Question" and hasattr(frappe, "db") and hasattr(frappe.db, "has_column"):
+			from trivia_sync.integrations.lms_questions import build_question_title
+
+			if frappe.db.has_column("LMS Question", "trivia_title"):
+				current_title = frappe.db.get_value("LMS Question", name, "trivia_title")
+				if not current_title or len(str(current_title)) > 140:
+					q_html = getattr(doc, "question", None) or frappe.db.get_value("LMS Question", name, "question") or ""
+					short_title = build_question_title(q_html, fallback=name)
+					frappe.db.set_value("LMS Question", name, "trivia_title", short_title, update_modified=False)
+					if doc is not None:
+						doc.trivia_title = short_title
+
 		from frappe.desk.doctype.tag.tag import add_tag
 
 		add_tag(cleaned, doctype, name)
@@ -326,7 +338,7 @@ def apply_ai_topics_to_question(
 	q_name = getattr(question, "name", None)
 	if q_name:
 		for tag in cleaned_topics:
-			added = _add_frappe_tag("LMS Question", q_name, tag)
+			added = _add_frappe_tag("LMS Question", q_name, tag, doc=question)
 			if added:
 				tags_added.append(added)
 

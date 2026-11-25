@@ -115,7 +115,7 @@ class TestReconciliation(unittest.TestCase):
 		), patch.object(frappe.db, "get_value", return_value=None), patch.object(
 			frappe, "new_doc", side_effect=FakeNewDoc
 		), patch.object(
-			self.module, "_add_frappe_tag", side_effect=lambda dt, name, tag: (added_tags.append((dt, tag)), tag)[1]
+			self.module, "_add_frappe_tag", side_effect=lambda dt, name, tag, doc=None: (added_tags.append((dt, tag)), tag)[1]
 		):
 			result = self.module.apply_ai_topics_to_question(
 				question,

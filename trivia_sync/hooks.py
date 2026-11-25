@@ -25,6 +25,7 @@ fixtures = [
 				"name",
 				"in",
 				[
+					"LMS Question-trivia_title",
 					"LMS Question-trivia_section",
 					"LMS Question-trivia_status",
 					"LMS Question-trivia_source_type",
@@ -67,6 +68,20 @@ fixtures = [
 			]
 		],
 	},
+	{
+		"dt": "Property Setter",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"LMS Question-main-title_field",
+					"LMS Question-main-show_title_field_in_link",
+					"LMS Question-question-in_list_view",
+				],
+			]
+		],
+	},
 ]
 
 after_migrate = [
@@ -75,7 +90,10 @@ after_migrate = [
 
 scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enabled"]}
 doc_events = {
-	"LMS Question": {"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_question"},
+	"LMS Question": {
+		"before_validate": "trivia_sync.integrations.lms_questions.sync_lms_question_title",
+		"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_question",
+	},
 	"Trivia Methodology": {"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_methodology"},
 }
 doctype_js = {
