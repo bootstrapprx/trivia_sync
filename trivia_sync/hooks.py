@@ -28,6 +28,7 @@ fixtures = [
 					"LMS Question-trivia_title",
 					"LMS Question-trivia_section",
 					"LMS Question-trivia_status",
+					"LMS Question-trivia_answer_key_pending",
 					"LMS Question-trivia_source_type",
 					"LMS Question-trivia_qcode",
 					"LMS Question-trivia_source_key",
@@ -107,13 +108,17 @@ doctype_js = {
 }
 doctype_list_js = {
 	"LMS Question": "public/js/lms_question_list.js",
+	"LMS Quiz": "public/js/lms_quiz_list.js",
 }
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
-app_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
+app_include_js = [
+	"/assets/trivia_sync/js/math_renderer.js",
+	"/assets/trivia_sync/js/exam_importer.js",
+]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=6"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=7"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
-	"/assets/trivia_sync/css/trivia_question.css?v=6",
+	"/assets/trivia_sync/css/trivia_question.css?v=7",
 ]

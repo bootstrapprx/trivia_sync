@@ -158,6 +158,7 @@
 				</div>
 				<div class="trivia-cockpit-status">
 					<span class="indicator-pill ${statusColor}">${safe(status)}</span>
+					${d.trivia_answer_key_pending ? `<span class="indicator-pill orange">${__("Answer key pending")}</span>` : ""}
 					<span class="indicator-pill ${coveragePillColor}" data-coverage-pill>${safe(coverageLabel)}</span>
 				</div>
 			</div>
@@ -257,6 +258,9 @@
 				tools.append(`<button class="btn btn-default btn-sm" data-cockpit="reformat">${__("Repair rich formatting")}</button>`);
 			}
 
+			if (d.trivia_answer_key_pending) {
+				actions.append(`<button class="btn btn-default btn-sm" data-cockpit="confirm-key">${__("Confirm answer key")}</button>`);
+			}
 			if (status !== "Ready") {
 				actions.append(`<button class="btn btn-primary btn-sm" data-cockpit="mark-ready">${__("Mark Ready")}</button>`);
 			} else {
@@ -299,6 +303,9 @@
 		});
 		tools.find('[data-cockpit="reformat"]').on("click", () => {
 			call("trivia_sync.api.repair_qapi_question", { question_name: d.name }, __("Rich content reparsed from stored QAPI payload."));
+		});
+		actions.find('[data-cockpit="confirm-key"]').on("click", () => {
+			call("trivia_sync.api.confirm_question_answer_key", { question_name: d.name }, __("Answer key confirmed."));
 		});
 		actions.find('[data-cockpit="mark-ready"]').on("click", () => {
 			call("trivia_sync.api.update_lms_question_status", { question_name: d.name, status: "Ready" }, __("Question marked Ready."));

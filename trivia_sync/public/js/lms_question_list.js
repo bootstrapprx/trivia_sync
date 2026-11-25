@@ -137,6 +137,12 @@
 			listview.page.add_inner_button(__("Enrich pending batch (AI)"), () => {
 				openBatchDialog(listview, []);
 			});
+
+			listview.page.add_inner_button(__("Import Ready Exam"), () => {
+				window.trivia_sync?.openExamImporterDialog?.({
+					onImported: () => listview.refresh(),
+				});
+			});
 		},
 	};
 })();

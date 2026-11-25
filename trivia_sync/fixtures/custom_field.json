@@ -38,6 +38,18 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "LMS Question-trivia_answer_key_pending",
+    "dt": "LMS Question",
+    "fieldname": "trivia_answer_key_pending",
+    "label": "Answer key pending",
+    "fieldtype": "Check",
+    "default": "0",
+    "in_standard_filter": 1,
+    "insert_after": "trivia_status",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
     "name": "LMS Question-trivia_source_type",
     "dt": "LMS Question",
     "fieldname": "trivia_source_type",
@@ -46,7 +58,7 @@
     "options": "Manual\nQAPI\nExternal",
     "default": "Manual",
     "in_standard_filter": 1,
-    "insert_after": "trivia_status",
+    "insert_after": "trivia_answer_key_pending",
     "module": "Trivia Sync"
   },
   {

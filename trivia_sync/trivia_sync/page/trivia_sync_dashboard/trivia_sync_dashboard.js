@@ -4,7 +4,10 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
   main.html(`
     <div class="trivia-dashboard-header">
       <div><div class="trivia-onboarding-eyebrow">TRIVIA SYNC</div><h2>${__("Editorial and contests")}</h2><p>${__("Track reviews, licenses, LMS projections, budgets, and question coverage by position.")}</p></div>
-      <button class="btn btn-default" data-action="refresh">${__("Refresh")}</button>
+      <div class="d-flex" style="gap:8px;">
+        <button class="btn btn-primary" data-action="import-exam">${__("Import Ready Exam")}</button>
+        <button class="btn btn-default" data-action="refresh">${__("Refresh")}</button>
+      </div>
     </div>
     <div class="trivia-dashboard-grid" data-cards></div>
     <div class="trivia-dashboard-columns">
@@ -60,6 +63,9 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     main.find("[data-updated]").text(`${__("Updated at")} ${data.generated_at || "—"}`);
   };
   const load = () => frappe.call("trivia_sync.dashboard.metrics").then(({ message }) => render(message || {}));
+  main.find('[data-action="import-exam"]').on("click", () => {
+    window.trivia_sync?.openExamImporterDialog?.({ onImported: load });
+  });
   main.find('[data-action="refresh"]').on("click", load);
   load();
   setInterval(load, 30000);

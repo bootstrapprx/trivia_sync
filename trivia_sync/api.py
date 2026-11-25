@@ -13,6 +13,13 @@ from trivia_sync.integrations.ai_enricher import (
 	extract_question_knowledge as extract_knowledge_for_question,
 	test_ai_connection,
 )
+from trivia_sync.integrations.exam_importer import (
+	apply_quiz_answer_key as apply_lms_quiz_answer_key,
+	confirm_question_answer_key as confirm_lms_question_answer_key,
+	get_quiz_answer_key_state as fetch_quiz_answer_key_state,
+	import_ready_exam as import_ready_exam_payload,
+	preview_ready_exam as preview_ready_exam_payload,
+)
 from trivia_sync.integrations.exams import build_lms_quiz_from_bank
 from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.knowledge import (
@@ -529,3 +536,45 @@ def create_and_link_supporting_text(question_name, titulo, conteudo):
 	)
 	question.save(ignore_permissions=True)
 	return {"supporting_text": text_doc.name, "titulo": text_doc.titulo, "question": question.name}
+
+
+@frappe.whitelist()
+def preview_ready_exam(payload, answer_key=None):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	return preview_ready_exam_payload(payload, answer_key=answer_key)
+
+
+@frappe.whitelist()
+def import_ready_exam(
+	payload,
+	answer_key=None,
+	quiz_title=None,
+	passing_percentage=60,
+	contest=None,
+	contest_position=None,
+	update_existing=1,
+):
+	return import_ready_exam_payload(
+		payload,
+		answer_key=answer_key,
+		quiz_title=quiz_title,
+		passing_percentage=cint(passing_percentage or 60),
+		contest=contest or None,
+		contest_position=contest_position or None,
+		update_existing=bool(cint(update_existing)),
+	)
+
+
+@frappe.whitelist()
+def get_quiz_answer_key_state(quiz_name):
+	return fetch_quiz_answer_key_state(quiz_name)
+
+
+@frappe.whitelist()
+def apply_quiz_answer_key(quiz_name, answer_key):
+	return apply_lms_quiz_answer_key(quiz_name, answer_key)
+
+
+@frappe.whitelist()
+def confirm_question_answer_key(question_name):
+	return confirm_lms_question_answer_key(question_name)
