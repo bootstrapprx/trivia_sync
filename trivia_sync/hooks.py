@@ -69,6 +69,10 @@ fixtures = [
 	},
 ]
 
+after_migrate = [
+	"trivia_sync.patches.v0_6.migrate_to_lms_native.ensure_lms_native_clean",
+]
+
 scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enabled"]}
 doc_events = {
 	"LMS Question": {"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_question"},

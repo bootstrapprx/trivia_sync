@@ -1,6 +1,7 @@
 [pre_model_sync]
 # Patches added in this section will be executed before doctypes are migrated
 trivia_sync.patches.v0_4.rename_accented_catalog_doctypes
+trivia_sync.patches.v0_6.purge_retired_custom_fields
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
@@ -8,3 +9,4 @@ trivia_sync.patches.v0_4.rename_accented_catalog_doctypes
 [post_fixture_sync]
 # Patches added in this section will be executed after fixtures and customizations
 trivia_sync.patches.v0_6.migrate_to_lms_native
+trivia_sync.patches.v0_6.cleanup_and_migrate_lms_native

@@ -169,6 +169,78 @@ class TestLMSQuestionsBridge(unittest.TestCase):
 		self.assertEqual(created.trivia_ai_difficulty_stars, 0.4)
 		self.assertEqual(created.explanation_2, "Sinônimo.")
 
+	def test_migration_purges_dangling_custom_fields_disambiguates_duplicates_and_isolates_bad_rows(self):
+		frappe = self.module.frappe
+		patch_mod = importlib.import_module("trivia_sync.patches.v0_6.migrate_to_lms_native")
+
+		deleted_docs = []
+		cleared_doctypes = []
+		frappe.delete_doc = lambda dt, name, **kw: deleted_docs.append((dt, name))
+		frappe.clear_cache = lambda doctype=None: cleared_doctypes.append(doctype)
+		frappe.db.has_column = lambda dt, col: (dt == "LMS Question" and col == "trivia_question")
+		frappe.db.savepoint = lambda name: None
+		frappe.db.rollback = lambda save_point=None: None
+
+		good_doc = FakeLMSQuestion("QTS-DUP-OK")
+
+		class FailingLMSQuestion(FakeLMSQuestion):
+			def insert(self, **kwargs):
+				raise RuntimeError("Simulated DB error on single corrupt row")
+
+		bad_doc = FailingLMSQuestion("QTS-CORRUPT")
+
+		rows = [
+			{
+				"name": "Q-DUP",
+				"qcode": "Q-DUP",
+				"source_key": "qapi:Q-DUP",
+				"enunciado": "Questão com alternativas duplicadas na origem.",
+				"options": '{"A":"Mesmo texto","B":"Mesmo texto","C":"Outra"}',
+				"correct_options": '["A"]',
+				"texto_apoio": "DELETED-TXT",
+				"trivia_materia": "DELETED-SUBJ",
+			},
+			{
+				"name": "Q-BAD",
+				"qcode": "Q-BAD",
+				"source_key": "qapi:Q-BAD",
+				"enunciado": "Questão corrompida.",
+				"options": '{"A":"Um","B":"Dois"}',
+				"correct_options": '["B"]',
+			},
+		]
+
+		def fake_get_all(dt, filters=None, **kw):
+			if dt == "Custom Field" and isinstance(filters, dict) and "options" in filters:
+				return ["LMS Question-custom_legacy_trivia_q"]
+			return []
+
+		with patch.object(
+			frappe.db,
+			"exists",
+			side_effect=lambda dt, name=None: (dt == "Custom Field" and name == "LMS Question-trivia_question"),
+		), patch.object(
+			frappe.db, "table_exists", side_effect=lambda t: t == "Trivia Question"
+		), patch.object(
+			frappe.db, "sql", side_effect=lambda q, *a, **kw: rows if "FROM `tabTrivia Question`" in q else []
+		), patch.object(
+			frappe.db, "get_value", return_value=None
+		), patch.object(
+			frappe, "get_all", side_effect=fake_get_all
+		), patch.object(
+			frappe, "new_doc", side_effect=[good_doc, bad_doc]
+		):
+			counts = patch_mod.execute()
+
+		self.assertEqual(counts, {"migrated": 1, "updated": 0, "skipped": 0, "failed": 1})
+		self.assertIn(("Custom Field", "LMS Question-trivia_question"), deleted_docs)
+		self.assertIn(("Custom Field", "LMS Question-custom_legacy_trivia_q"), deleted_docs)
+		self.assertIn("LMS Question", cleared_doctypes)
+		self.assertNotEqual(good_doc.option_1, good_doc.option_2)
+		self.assertEqual(good_doc.option_2, "Mesmo texto (B)")
+		self.assertIsNone(good_doc.trivia_texto_apoio)
+		self.assertIsNone(good_doc.trivia_subject_link)
+
 
 if __name__ == "__main__":
 	unittest.main()

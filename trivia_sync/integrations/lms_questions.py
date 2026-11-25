@@ -101,6 +101,18 @@ def is_lms_question_treated(doc) -> bool:
 	return False
 
 
+def disambiguate_option_pairs(ordered: list[tuple[str, str]]) -> list[tuple[str, str]]:
+	seen: set[str] = set()
+	result: list[tuple[str, str]] = []
+	for letter, text in ordered:
+		candidate = text
+		if candidate in seen:
+			candidate = f"{text} ({letter})"
+		seen.add(candidate)
+		result.append((letter, candidate))
+	return result
+
+
 def _parse_normalized_options(data: dict) -> tuple[list[tuple[str, str]], set[str]]:
 	raw_opts = data.get("options") or "{}"
 	opts = json.loads(raw_opts) if isinstance(raw_opts, str) else raw_opts
@@ -113,6 +125,7 @@ def _parse_normalized_options(data: dict) -> tuple[list[tuple[str, str]], set[st
 	]
 	if not 2 <= len(ordered) <= 10:
 		frappe.throw("Choice questions must have between 2 and 10 non-empty options.")
+	ordered = disambiguate_option_pairs(ordered)
 	raw_corr = data.get("correct_options") or "[]"
 	corr_list = json.loads(raw_corr) if isinstance(raw_corr, str) else raw_corr
 	correct = {str(x).upper() for x in (corr_list or []) if x}
