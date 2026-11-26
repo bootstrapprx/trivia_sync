@@ -330,6 +330,98 @@ class TestAIEnricher(unittest.TestCase):
 		self.assertEqual(doc.trivia_status, "Ready")
 		self.assertIn("executou", doc.explanation_2)
 
+	def test_teacher_comment_is_isolated_from_initial_ai_and_only_used_in_replica(self):
+		class FakeIsolatedDoc:
+			def __init__(self):
+				self.name = "QTS-2026-00213"
+				self.trivia_qcode = "EX-PREV-Q55"
+				self.question = "<p>Hortênsia é servidora pública efetiva.</p>"
+				self.option_1 = "Integralidade da remuneração"
+				self.option_2 = "Teto do RGPS mais 70% do excedente"
+				self.is_correct_1 = 0
+				self.is_correct_2 = 1
+				for i in range(3, 11):
+					setattr(self, f"option_{i}", "")
+					setattr(self, f"is_correct_{i}", 0)
+				for i in range(1, 11):
+					setattr(self, f"explanation_{i}", "")
+				self.trivia_status = "In Preparation"
+				self.trivia_answer_key_pending = 0
+				self.trivia_knowledge_pages = []
+				self.trivia_general_explanation = "<p>Anotação exclusiva do professor sobre o art. 2º da Lei 10.887/2004.</p>"
+				self.trivia_ai_comment = ""
+
+			def set(self, field, value):
+				setattr(self, field, value)
+
+			def save(self, **kwargs):
+				pass
+
+		doc = FakeIsolatedDoc()
+		frappe = self.module.frappe
+		frappe.only_for = lambda roles: None
+		frappe.get_single = lambda name: FakeSettings()
+		frappe.get_doc = lambda dt, name: doc
+		frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
+
+		# 1. Default payload never leaks Comentário do Professor
+		default_payload = self.module._question_payload(doc)
+		self.assertEqual(default_payload["explanation"], "")
+
+		# 2. Replica payload includes Comentário do Professor only when requested
+		replica_payload = self.module._question_payload(doc, include_teacher_comment=True)
+		self.assertIn("Lei 10.887/2004", replica_payload["explanation"])
+
+		# 3. Initial full enrichment writes to trivia_ai_comment and never touches trivia_general_explanation
+		seen_initial_payload = {}
+		fake_adapter = types.SimpleNamespace(
+			enrich_full=lambda q: (
+				seen_initial_payload.update(q),
+				{
+					"difficulty_stars": 3,
+					"difficulty_label": "Média",
+					"reason": "Cálculo de pensão por morte no RPPS.",
+					"learning_objective": "Aplicar a regra do art. 2º da Lei 10.887/2004.",
+					"topics": ["Pensão por morte"],
+					"general_explanation": "Comentário gerado automaticamente pela IA.",
+					"suggested_materia": "Direito Previdenciário",
+					"suggested_assunto": "Pensão por morte",
+					"option_explanations": {
+						"A": "Incorreta: a EC 41/2003 eliminou a integralidade.",
+						"B": "Correta: aplica-se o teto do RGPS mais 70% do excedente.",
+					},
+					"enrichment_hash": "h-iso",
+					"model": "test-model",
+				},
+			)[1],
+			extract_knowledge_concepts=lambda q: {"concepts": [], "model": "test-model"},
+			review_with_feedback=lambda q, reviewer_feedback, proposed_correct=None, history=None: {
+				"agrees_with_reviewer": True,
+				"ai_reply": q.get("explanation", ""),
+				"recommended_correct_options": ["B"],
+				"difficulty_stars": 3,
+				"difficulty_label": "Média",
+				"reason": "Confirmado.",
+				"option_explanations": {"A": "Errada.", "B": "Correta."},
+				"model": "test-model",
+			},
+		)
+		with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter), patch.object(
+			self.module, "_safe_apply_ai_topics", return_value={}
+		):
+			self.module.enrich_question_full(doc.name)
+
+		self.assertEqual(seen_initial_payload["explanation"], "")
+		self.assertEqual(doc.trivia_ai_comment, "Comentário gerado automaticamente pela IA.")
+		self.assertIn("Anotação exclusiva do professor", doc.trivia_general_explanation)
+
+		# 4. Réplica receives teacher comment when opted in, and omits it when opted out
+		with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter):
+			res_with = self.module.review_question_with_feedback(doc.name, feedback="Revisar", include_general_comment=1)
+			res_without = self.module.review_question_with_feedback(doc.name, feedback="Revisar", include_general_comment=0)
+		self.assertIn("Anotação exclusiva do professor", res_with["ai_reply"])
+		self.assertNotIn("Anotação exclusiva do professor", res_without["ai_reply"])
+
 
 if __name__ == "__main__":
 	unittest.main()

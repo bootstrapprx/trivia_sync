@@ -260,12 +260,24 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "LMS Question-trivia_teacher_comment_section",
+    "dt": "LMS Question",
+    "fieldname": "trivia_teacher_comment_section",
+    "label": "Comentário do Professor",
+    "fieldtype": "Section Break",
+    "collapsible": 0,
+    "insert_after": "trivia_knowledge_pages",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
     "name": "LMS Question-trivia_general_explanation",
     "dt": "LMS Question",
     "fieldname": "trivia_general_explanation",
-    "label": "General comment",
+    "label": "Comentário do Professor",
+    "description": "Redação exclusiva do professor (destinada ao aluno e, opcionalmente, à réplica com a IA — nunca lida nem alterada na análise inicial da IA).",
     "fieldtype": "Text Editor",
-    "insert_after": "trivia_knowledge_pages",
+    "insert_after": "trivia_teacher_comment_section",
     "module": "Trivia Sync"
   },
   {
@@ -336,6 +348,17 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "LMS Question-trivia_ai_comment",
+    "dt": "LMS Question",
+    "fieldname": "trivia_ai_comment",
+    "label": "Comentário da IA",
+    "fieldtype": "Text Editor",
+    "read_only": 1,
+    "insert_after": "trivia_ai_learning_objective",
+    "module": "Trivia Sync"
+  },
+  {
+    "doctype": "Custom Field",
     "name": "LMS Question-trivia_ai_topics",
     "dt": "LMS Question",
     "fieldname": "trivia_ai_topics",
@@ -343,7 +366,7 @@
     "fieldtype": "Code",
     "options": "JSON",
     "read_only": 1,
-    "insert_after": "trivia_ai_learning_objective",
+    "insert_after": "trivia_ai_comment",
     "module": "Trivia Sync"
   },
   {

@@ -693,7 +693,7 @@ def _supporting_text_content(doc) -> str:
 	return ""
 
 
-def _question_payload(doc) -> dict[str, Any]:
+def _question_payload(doc, include_teacher_comment: bool = False) -> dict[str, Any]:
 	options, correct, explanations = extract_lms_question_options(doc)
 	enunciado = strip_question_embeds(getattr(doc, "question", None) or getattr(doc, "enunciado", None) or "")
 	if not options and getattr(doc, "options", None):
@@ -702,6 +702,13 @@ def _question_payload(doc) -> dict[str, Any]:
 		correct = [doc.correct_option]
 	answer_key_pending = bool(getattr(doc, "trivia_answer_key_pending", 0))
 	effective_correct = [] if answer_key_pending else correct
+	# Teacher comment (`trivia_general_explanation`) is strictly isolated from initial AI analysis;
+	# it is only shared when explicitly requested during a Réplica/Tréplica debate.
+	explanation_for_ai = (
+		(getattr(doc, "trivia_general_explanation", None) or "")
+		if include_teacher_comment
+		else (getattr(doc, "trivia_ai_comment", None) or "")
+	)
 	payload: dict[str, Any] = {
 		"qcode": getattr(doc, "trivia_qcode", None) or getattr(doc, "qcode", None),
 		"enunciado": enunciado,
@@ -710,7 +717,7 @@ def _question_payload(doc) -> dict[str, Any]:
 		"correct_options": effective_correct,
 		"answer_key_pending": answer_key_pending,
 		"current_explanations": explanations,
-		"explanation": getattr(doc, "trivia_general_explanation", None) or getattr(doc, "explanation", None) or "",
+		"explanation": explanation_for_ai,
 		"materia": getattr(doc, "trivia_materia", None) or getattr(doc, "materia", None),
 		"assunto": getattr(doc, "trivia_assunto", None) or getattr(doc, "assunto", None),
 		"banca": getattr(doc, "trivia_banca", None) or getattr(doc, "banca", None),
@@ -862,8 +869,8 @@ def enrich_question_full(question_name: str):
 		data = adapter.enrich_full(payload)
 		_apply_difficulty_fields(doc, data)
 		apply_explanations_to_lms_question(doc, data["option_explanations"])
-		if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
-			doc.trivia_general_explanation = data["general_explanation"]
+		if data.get("general_explanation"):
+			doc.trivia_ai_comment = data["general_explanation"]
 		applied = _safe_apply_ai_topics(
 			doc,
 			topics=data.get("topics") or [],
@@ -913,9 +920,7 @@ def review_question_with_feedback(
 	if not cleaned_feedback:
 		frappe.throw("Provide your argument / feedback for the AI review.")
 	doc = frappe.get_doc("LMS Question", question_name)
-	payload = _question_payload(doc)
-	if not include_general_comment:
-		payload["explanation"] = ""
+	payload = _question_payload(doc, include_teacher_comment=bool(include_general_comment))
 
 	parsed_proposed: list[str] | None = None
 	if proposed_correct:
@@ -1133,8 +1138,8 @@ def enrich_questions_batch(
 							data = adapter.enrich_full(payload)
 							_apply_difficulty_fields(doc, data)
 							apply_explanations_to_lms_question(doc, data["option_explanations"])
-							if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
-								doc.trivia_general_explanation = data["general_explanation"]
+							if data.get("general_explanation"):
+								doc.trivia_ai_comment = data["general_explanation"]
 							_safe_apply_ai_topics(
 								doc,
 								topics=data.get("topics") or [],

@@ -59,7 +59,19 @@
 		return rows;
 	};
 
+	const styleCommentSections = (frm) => {
+		const teacherWrapper = frm.fields_dict.trivia_general_explanation?.$wrapper;
+		if (teacherWrapper) {
+			teacherWrapper.closest(".form-section").addClass("trivia-teacher-section-card");
+		}
+		const aiWrapper = frm.fields_dict.trivia_ai_comment?.$wrapper;
+		if (aiWrapper) {
+			aiWrapper.closest(".form-section").addClass("trivia-ai-section-card");
+		}
+	};
+
 	const renderCockpit = (frm) => {
+		styleCommentSections(frm);
 		const field = frm.fields_dict.question?.$wrapper;
 		if (!field) return;
 		let root = frm.$wrapper.find(".trivia-question-cockpit");
@@ -126,18 +138,43 @@
 			aiTopics = [];
 		}
 
-		const hasAiEnrichment = Boolean(d.trivia_ai_enriched_at || d.trivia_ai_difficulty_stars || d.trivia_ai_learning_objective || d.trivia_ai_difficulty_reason);
+		const hasAiEnrichment = Boolean(
+			d.trivia_ai_enriched_at ||
+			d.trivia_ai_difficulty_stars ||
+			d.trivia_ai_learning_objective ||
+			d.trivia_ai_difficulty_reason ||
+			d.trivia_ai_comment
+		);
+		const aiCommentHtml = d.trivia_ai_comment
+			? `<div class="trivia-ai-comment-block">
+				<div class="trivia-ai-comment-label">${__("Comentário da IA")}</div>
+				<div class="trivia-ai-comment-surface trivia-rich-content">${rich(d.trivia_ai_comment)}</div>
+			</div>`
+			: "";
 		const aiSummaryHtml = hasAiEnrichment
-			? `<div class="trivia-cockpit-block">
+			? `<div class="trivia-cockpit-block trivia-ai-block">
 				<div class="trivia-cockpit-block-head">
 					<h4>${__("AI pedagogical analysis")}</h4>
-					<span class="text-muted small">${safe(d.trivia_ai_model || "")}${d.trivia_ai_difficulty_label ? ` · ${safe(d.trivia_ai_difficulty_label)}` : ""}</span>
+					<div class="trivia-cockpit-actions-group">
+						<span class="indicator-pill blue">${__("Gerado por IA")}</span>
+						<span class="text-muted small">${safe(d.trivia_ai_model || "")}${d.trivia_ai_difficulty_label ? ` · ${safe(d.trivia_ai_difficulty_label)}` : ""}</span>
+					</div>
 				</div>
 				<div class="trivia-question-surface trivia-ai-summary">
 					${d.trivia_ai_learning_objective ? `<div class="trivia-ai-row"><strong>${__("Learning objective")}:</strong> ${safe(d.trivia_ai_learning_objective)}</div>` : ""}
 					${d.trivia_ai_difficulty_reason ? `<div class="trivia-ai-row"><strong>${__("Difficulty rationale")}:</strong> ${safe(d.trivia_ai_difficulty_reason)}</div>` : ""}
+					${aiCommentHtml}
 					${aiTopics.length ? `<div class="trivia-ai-topics">${aiTopics.map((topic) => `<span class="trivia-ai-topic-tag">${safe(topic)}</span>`).join("")}</div>` : ""}
 				</div>
+			</div>`
+			: "";
+		const teacherCommentHtml = d.trivia_general_explanation
+			? `<div class="trivia-cockpit-block trivia-teacher-comment-block">
+				<div class="trivia-cockpit-block-head">
+					<h4>${__("Comentário do Professor")}</h4>
+					<span class="indicator-pill green">${__("Exclusivo do Professor · Isolado da IA")}</span>
+				</div>
+				<div class="trivia-question-surface trivia-teacher-comment-surface trivia-rich-content">${rich(d.trivia_general_explanation)}</div>
 			</div>`
 			: "";
 
@@ -204,7 +241,7 @@
 				</div>
 				<div class="trivia-ai-topics" data-knowledge-chips></div>
 			</div>
-			${d.trivia_general_explanation ? `<div class="trivia-cockpit-block"><div class="trivia-cockpit-block-head"><h4>${__("General comment")}</h4></div><div class="trivia-question-surface trivia-rich-content">${rich(d.trivia_general_explanation)}</div></div>` : ""}
+			${teacherCommentHtml}
 			<div class="trivia-cockpit-actions">
 				<div class="trivia-cockpit-actions-group" data-tools></div>
 				<div class="trivia-cockpit-actions-group" data-actions></div>
@@ -328,7 +365,7 @@
 					{
 						fieldname: "include_general_comment",
 						fieldtype: "Check",
-						label: __("Include General comment as reference for the AI"),
+						label: __("Include Comentário do Professor as reference for the AI"),
 						default: 1,
 					},
 					{
@@ -497,6 +534,8 @@
 		question(frm) { renderCockpit(frm); },
 		type(frm) { renderCockpit(frm); },
 		trivia_texto_apoio(frm) { renderCockpit(frm); },
+		trivia_general_explanation(frm) { renderCockpit(frm); },
+		trivia_ai_comment(frm) { renderCockpit(frm); },
 	};
 	for (let i = 1; i <= 10; i += 1) {
 		handlers[`option_${i}`] = (frm) => renderCockpit(frm);

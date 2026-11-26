@@ -23,10 +23,22 @@ class TestDocTypeControllerImports(unittest.TestCase):
 			"LMS Question-trivia_topic_link",
 			"LMS Question-trivia_syllabus_topics",
 			"LMS Question-trivia_knowledge_pages",
+			"LMS Question-trivia_teacher_comment_section",
+			"LMS Question-trivia_general_explanation",
+			"LMS Question-trivia_ai_comment",
 			"LMS Question-trivia_ai_difficulty_stars",
 		}
 		self.assertTrue(required_custom_fields <= fixture_names)
 		self.assertNotIn("LMS Question-trivia_question", fixture_names)
+
+		by_name = {row["name"]: row for row in fixture_rows}
+		self.assertEqual(by_name["LMS Question-trivia_teacher_comment_section"]["fieldtype"], "Section Break")
+		self.assertEqual(by_name["LMS Question-trivia_teacher_comment_section"]["label"], "Comentário do Professor")
+		self.assertEqual(by_name["LMS Question-trivia_teacher_comment_section"]["collapsible"], 0)
+		self.assertEqual(by_name["LMS Question-trivia_general_explanation"]["label"], "Comentário do Professor")
+		self.assertEqual(by_name["LMS Question-trivia_general_explanation"]["insert_after"], "trivia_teacher_comment_section")
+		self.assertEqual(by_name["LMS Question-trivia_ai_comment"]["label"], "Comentário da IA")
+		self.assertEqual(by_name["LMS Question-trivia_ai_comment"]["read_only"], 1)
 
 		import trivia_sync.hooks as hooks
 

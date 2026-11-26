@@ -48,6 +48,7 @@ fixtures = [
 					"LMS Question-trivia_links_col_break",
 					"LMS Question-trivia_syllabus_topics",
 					"LMS Question-trivia_knowledge_pages",
+					"LMS Question-trivia_teacher_comment_section",
 					"LMS Question-trivia_general_explanation",
 					"LMS Question-trivia_ai_section",
 					"LMS Question-trivia_editorial_difficulty",
@@ -55,6 +56,7 @@ fixtures = [
 					"LMS Question-trivia_ai_difficulty_label",
 					"LMS Question-trivia_ai_difficulty_reason",
 					"LMS Question-trivia_ai_learning_objective",
+					"LMS Question-trivia_ai_comment",
 					"LMS Question-trivia_ai_topics",
 					"LMS Question-trivia_ai_model",
 					"LMS Question-trivia_ai_enriched_at",
@@ -116,9 +118,9 @@ app_include_js = [
 	"/assets/trivia_sync/js/exam_importer.js",
 ]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=7"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=8"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
-	"/assets/trivia_sync/css/trivia_question.css?v=7",
+	"/assets/trivia_sync/css/trivia_question.css?v=8",
 ]
