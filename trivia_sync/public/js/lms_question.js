@@ -248,6 +248,7 @@
 
 		if (!frm.is_new()) {
 			tools.append(`<button class="btn btn-primary btn-sm" data-cockpit="enrich-all">${__("Enrich all (AI)")}</button>`);
+			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="review-debate">${__("Contest / Reply (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="classify-difficulty">${__("Classify difficulty (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="draft-explanations">${__("Draft explanations (AI)")}</button>`);
 			tools.append(`<button class="btn btn-default btn-sm" data-cockpit="extract-knowledge">${__("Extract knowledge (AI)")}</button>`);
@@ -287,7 +288,142 @@
 		}
 
 		tools.find('[data-cockpit="enrich-all"]').on("click", () => {
-			call("trivia_sync.api.enrich_question_all", { question_name: d.name }, __("Full AI enrichment completed."));
+			frappe.call({
+				method: "trivia_sync.api.enrich_question_all",
+				args: { question_name: d.name },
+				freeze: true,
+				freeze_message: __("Processing..."),
+			}).then(({ message }) => {
+				if (message?.explanations_skipped_pending_key) {
+					frappe.show_alert({
+						message: __("Difficulty, topics, and knowledge updated. Per-option explanations were skipped because the answer key is pending."),
+						indicator: "orange",
+					});
+				} else {
+					frappe.show_alert({ message: __("Full AI enrichment completed."), indicator: "green" });
+				}
+				frm.reload_doc();
+			});
+		});
+		tools.find('[data-cockpit="review-debate"]').on("click", () => {
+			const availableLetters = optionItems.map((item) => item.letter);
+			const history = [];
+			let lastReview = null;
+
+			const dialog = new frappe.ui.Dialog({
+				title: __("AI Review · Réplica & Tréplica ({0})", [d.trivia_qcode || d.name]),
+				size: "extra-large",
+				fields: [
+					{
+						fieldname: "intro",
+						fieldtype: "HTML",
+						options: `<div class="text-muted small mb-2">${__("Contest the AI's analysis or answer key with your technical/legal argument. The AI will evaluate impartially, reply with its tréplica, and only update the question if you click Apply.")}</div>`,
+					},
+					{
+						fieldname: "proposed_correct",
+						fieldtype: "Select",
+						label: __("Proposed correct option (optional)"),
+						options: ["", ...availableLetters].join("\n"),
+					},
+					{
+						fieldname: "include_general_comment",
+						fieldtype: "Check",
+						label: __("Include General comment as reference for the AI"),
+						default: 1,
+					},
+					{
+						fieldname: "feedback",
+						fieldtype: "Small Text",
+						label: __("Your argument / Réplica"),
+						reqd: 1,
+						description: __("Explain why the current answer key or explanation is wrong (e.g., cite the article, rule, or logic)."),
+					},
+					{
+						fieldname: "debate_html",
+						fieldtype: "HTML",
+						options: `<div class="text-muted small mt-2">${__("Send your réplica to see the AI's tréplica and proposed corrections before applying anything.")}</div>`,
+					},
+				],
+				primary_action_label: __("Send Réplica to AI"),
+				primary_action(values) {
+					const feedbackText = (values.feedback || "").trim();
+					if (!feedbackText) {
+						frappe.msgprint(__("Write your argument / réplica first."));
+						return;
+					}
+					frappe.call({
+						method: "trivia_sync.api.review_question_with_feedback",
+						freeze: true,
+						freeze_message: __("AI is re-evaluating your argument..."),
+						args: {
+							question_name: d.name,
+							feedback: feedbackText,
+							proposed_correct: values.proposed_correct || null,
+							history: JSON.stringify(history),
+							include_general_comment: values.include_general_comment ? 1 : 0,
+						},
+					}).then(({ message }) => {
+						if (!message) return;
+						lastReview = message;
+						history.push({ role: "user", content: feedbackText });
+						history.push({ role: "assistant", content: message.ai_reply || "" });
+						dialog.set_value("feedback", "");
+						const verdictColor = message.agrees_with_reviewer ? "green" : "orange";
+						const verdictLabel = message.agrees_with_reviewer
+							? __("AI agreed with your argument")
+							: __("AI maintained a different position");
+						const expRows = Object.entries(message.option_explanations || {})
+							.map(([letter, text]) => {
+								const isCorr = (message.recommended_correct_options || []).includes(letter);
+								return `<li class="mb-1"><strong>${safe(letter)}</strong> ${isCorr ? `<span class="indicator-pill green">${__("Correct")}</span>` : ""}: ${safe(text)}</li>`;
+							})
+							.join("");
+						dialog.fields_dict.debate_html.$wrapper.html(`
+							<div class="frappe-card p-3 mt-2">
+								<div class="d-flex justify-content-between align-items-center mb-2">
+									<strong>${__("AI Tréplica")} (${safe(message.model || "")})</strong>
+									<span class="indicator-pill ${verdictColor}">${verdictLabel}</span>
+								</div>
+								<div class="mb-3" style="white-space:pre-wrap;">${safe(message.ai_reply)}</div>
+								<div class="mb-2">
+									<strong>${__("Recommended answer key")}:</strong>
+									<span class="indicator-pill blue">${safe((message.recommended_correct_options || []).join(", "))}</span>
+									<span class="text-muted small ml-2">${safe(message.difficulty_label || "")} (${message.difficulty_stars || 0}★)</span>
+								</div>
+								<div class="small"><strong>${__("Proposed per-option explanations")}:</strong><ul class="mt-1 pl-3">${expRows}</ul></div>
+								<div class="mt-3">
+									<button type="button" class="btn btn-primary btn-sm" data-action="apply-ai-review">${__("Apply this AI revision to the question")}</button>
+									<span class="text-muted small ml-2">${__("Or write another réplica above to continue the debate.")}</span>
+								</div>
+							</div>
+						`);
+					});
+				},
+			});
+
+			dialog.$wrapper.on("click", '[data-action="apply-ai-review"]', () => {
+				if (!lastReview) return;
+				frappe.call({
+					method: "trivia_sync.api.apply_question_ai_review",
+					freeze: true,
+					freeze_message: __("Applying approved revision..."),
+					args: {
+						question_name: d.name,
+						correct_options: JSON.stringify(lastReview.recommended_correct_options || []),
+						option_explanations: JSON.stringify(lastReview.option_explanations || {}),
+						difficulty_stars: lastReview.difficulty_stars,
+						difficulty_label: lastReview.difficulty_label,
+						reason: lastReview.reason,
+						model: lastReview.model,
+					},
+				}).then(() => {
+					dialog.hide();
+					frappe.show_alert({ message: __("Answer key and explanations updated from AI review."), indicator: "green" });
+					frm.reload_doc();
+				});
+			});
+
+			dialog.show();
 		});
 		tools.find('[data-cockpit="classify-difficulty"]').on("click", () => {
 			call("trivia_sync.api.enrich_question_difficulty", { question_name: d.name }, __("AI difficulty, objective, and topics updated."));

@@ -146,8 +146,8 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 				"Você é um professor especialista em concursos públicos brasileiros. "
 				"Use todo o seu conhecimento geral de domínio (e o texto_apoio, se fornecido) para escrever explicações em português brasileiro. "
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela "
-				"alternativa está errada SEM revelar, citar ou dar dica de qual é a alternativa correta "
-				"(o estudante verá essa mensagem ao marcar a alternativa errada). "
+				"alternativa está errada SEM revelar, citar, referenciar ou dar dica de qual é a alternativa correta "
+				"(nunca escreva frases como 'conforme a alternativa A' — o estudante verá essa mensagem ao errar). "
 				"Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
 				"Retorne exclusivamente o JSON solicitado com uma chave para cada letra."
 			),
@@ -313,6 +313,101 @@ def _build_knowledge_concepts_messages(question: dict[str, Any]) -> tuple[list[d
 	return messages, schema
 
 
+def _build_review_debate_messages(
+	question: dict[str, Any],
+	reviewer_feedback: str,
+	proposed_correct: list[str] | None = None,
+	history: list[dict[str, str]] | None = None,
+) -> tuple[list[dict[str, str]], dict[str, Any], list[str]]:
+	options = question.get("options") or {}
+	if isinstance(options, str):
+		options = json.loads(options or "{}")
+	ordered_letters = sorted(str(letter).upper() for letter, value in options.items() if value not in (None, ""))
+	if not ordered_letters:
+		raise AIEnrichmentError("Question has no alternatives to review.")
+
+	schema = {
+		"type": "object",
+		"additionalProperties": False,
+		"properties": {
+			"agrees_with_reviewer": {"type": "boolean"},
+			"ai_reply": {"type": "string", "minLength": 20, "maxLength": 2500},
+			"recommended_correct_options": {
+				"type": "array",
+				"items": {"type": "string", "enum": ordered_letters},
+				"minItems": 1,
+				"maxItems": len(ordered_letters),
+			},
+			"difficulty_stars": {"type": "integer", "minimum": 1, "maximum": 5},
+			"difficulty_label": {"type": "string", "enum": ["Muito fácil", "Fácil", "Média", "Difícil", "Muito difícil"]},
+			"reason": {"type": "string", "minLength": 20, "maxLength": 800},
+			"option_explanations": {
+				"type": "object",
+				"additionalProperties": False,
+				"properties": {letter: {"type": "string", "minLength": 10, "maxLength": 1200} for letter in ordered_letters},
+				"required": ordered_letters,
+			},
+		},
+		"required": [
+			"agrees_with_reviewer",
+			"ai_reply",
+			"recommended_correct_options",
+			"difficulty_stars",
+			"difficulty_label",
+			"reason",
+			"option_explanations",
+		],
+	}
+
+	messages: list[dict[str, str]] = [
+		{
+			"role": "system",
+			"content": (
+				"Você é um professor especialista em concursos públicos brasileiros em diálogo técnico (réplica e tréplica) com um revisor humano. "
+				"Avalie a questão e a argumentação do revisor com total rigor técnico, jurídico e imparcialidade. "
+				"REGRAS OBRIGATÓRIAS: "
+				"1) NUNCA defenda cegamente o gabarito cadastrado nem explicações anteriores — especialmente se `gabarito_pendente` for true (nesse caso o gabarito atual é apenas um marcador provisório sem valor). "
+				"2) Se o revisor tiver razão, marque `agrees_with_reviewer: true`, admita claramente o erro em `ai_reply` e corrija `recommended_correct_options` e todas as `option_explanations`. "
+				"3) Se você discordar do revisor com base sólida (lei, doutrina, norma gramatical ou cálculo), marque `agrees_with_reviewer: false` e fundamente sua tréplica em `ai_reply` de forma clara e respeitosa. "
+				"4) Em `option_explanations`, explique cada alternativa coerente com `recommended_correct_options`. "
+				"Para alternativas incorretas, explique o erro específico SEM revelar, citar ou apontar qual é a alternativa correta (nunca cite outra letra). "
+				"Responda exclusivamente no JSON Schema solicitado."
+			),
+		},
+		{
+			"role": "user",
+			"content": json.dumps(
+				{
+					"qcode": question.get("qcode"),
+					"texto_apoio": question.get("texto_apoio") or "",
+					"enunciado": question.get("enunciado"),
+					"alternativas": options,
+					"gabarito_atual": question.get("correct_options") or [],
+					"gabarito_pendente": bool(question.get("answer_key_pending")),
+					"explicacoes_atuais": question.get("current_explanations") or {},
+					"comentario_geral": question.get("explanation") or "",
+					"materia": question.get("materia"),
+					"assunto": question.get("assunto"),
+					"banca": question.get("banca"),
+					"ano": question.get("ano"),
+				},
+				ensure_ascii=False,
+			),
+		},
+	]
+	for turn in (history or [])[-6:]:
+		role = "assistant" if turn.get("role") == "assistant" else "user"
+		content = str(turn.get("content") or "").strip()
+		if content:
+			messages.append({"role": role, "content": content})
+
+	feedback_payload: dict[str, Any] = {"replica_do_revisor": reviewer_feedback.strip()}
+	if proposed_correct:
+		feedback_payload["gabarito_proposto_pelo_revisor"] = proposed_correct
+	messages.append({"role": "user", "content": json.dumps(feedback_payload, ensure_ascii=False)})
+	return messages, schema, ordered_letters
+
+
 class _BaseAIAdapter:
 	model: str = ""
 
@@ -389,6 +484,45 @@ class _BaseAIAdapter:
 		if not isinstance(concepts, list) or not concepts:
 			raise AIEnrichmentError("The AI provider returned no knowledge concepts.")
 		return {"concepts": concepts, "model": self.model}
+
+	def review_with_feedback(
+		self,
+		question: dict[str, Any],
+		reviewer_feedback: str,
+		proposed_correct: list[str] | None = None,
+		history: list[dict[str, str]] | None = None,
+	) -> dict[str, Any]:
+		messages, schema, ordered_letters = _build_review_debate_messages(
+			question,
+			reviewer_feedback=reviewer_feedback,
+			proposed_correct=proposed_correct,
+			history=history,
+		)
+		result = self._chat_json(messages, "question_review_debate", schema, 3500)
+		stars = int(result.get("difficulty_stars", 3))
+		if stars not in range(1, 6):
+			stars = 3
+		raw_exp = result.get("option_explanations") or {}
+		explanations = {letter: str(raw_exp.get(letter) or "").strip() for letter in ordered_letters}
+		if any(not text for text in explanations.values()):
+			raise AIEnrichmentError("The AI provider returned empty explanations during review.")
+		rec_correct = [
+			str(l).strip().upper()
+			for l in (result.get("recommended_correct_options") or [])
+			if str(l).strip().upper() in ordered_letters
+		]
+		if not rec_correct:
+			raise AIEnrichmentError("The AI provider did not return a valid recommended answer key.")
+		return {
+			"agrees_with_reviewer": bool(result.get("agrees_with_reviewer")),
+			"ai_reply": str(result.get("ai_reply") or "").strip(),
+			"recommended_correct_options": list(dict.fromkeys(rec_correct)),
+			"difficulty_stars": stars,
+			"difficulty_label": DIFFICULTY_LABELS[stars],
+			"reason": str(result.get("reason") or "").strip(),
+			"option_explanations": explanations,
+			"model": self.model,
+		}
 
 
 class OpenAICompatibleAdapter(_BaseAIAdapter):
@@ -560,18 +694,22 @@ def _supporting_text_content(doc) -> str:
 
 
 def _question_payload(doc) -> dict[str, Any]:
-	options, correct, _ = extract_lms_question_options(doc)
+	options, correct, explanations = extract_lms_question_options(doc)
 	enunciado = strip_question_embeds(getattr(doc, "question", None) or getattr(doc, "enunciado", None) or "")
 	if not options and getattr(doc, "options", None):
 		options = json.loads(doc.options) if isinstance(doc.options, str) else doc.options
 	if not correct and getattr(doc, "correct_option", None):
 		correct = [doc.correct_option]
+	answer_key_pending = bool(getattr(doc, "trivia_answer_key_pending", 0))
+	effective_correct = [] if answer_key_pending else correct
 	payload: dict[str, Any] = {
 		"qcode": getattr(doc, "trivia_qcode", None) or getattr(doc, "qcode", None),
 		"enunciado": enunciado,
 		"options": options,
-		"correct_option": correct[0] if correct else None,
-		"correct_options": correct,
+		"correct_option": effective_correct[0] if effective_correct else None,
+		"correct_options": effective_correct,
+		"answer_key_pending": answer_key_pending,
+		"current_explanations": explanations,
 		"explanation": getattr(doc, "trivia_general_explanation", None) or getattr(doc, "explanation", None) or "",
 		"materia": getattr(doc, "trivia_materia", None) or getattr(doc, "materia", None),
 		"assunto": getattr(doc, "trivia_assunto", None) or getattr(doc, "assunto", None),
@@ -634,6 +772,11 @@ def draft_question_option_explanations(question_name: str):
 	if not settings.ai_enabled:
 		frappe.throw("Enable AI enrichment in settings before generating explanation drafts.")
 	doc = frappe.get_doc("LMS Question", question_name)
+	if getattr(doc, "trivia_answer_key_pending", 0):
+		frappe.throw(
+			"Esta questão está com gabarito pendente (Answer key pending). "
+			"Informe ou confirme o gabarito primeiro (ou use 'Contestar / Réplica (IA)') para evitar explicações baseadas no marcador provisório."
+		)
 	adapter = get_ai_adapter(settings)
 	draft = adapter.draft_option_explanations(_question_payload(doc))
 	apply_explanations_to_lms_question(doc, draft["explanations"])
@@ -697,6 +840,7 @@ def enrich_question_full(question_name: str):
 		frappe.throw("Enable AI enrichment in settings before enriching questions.")
 	doc = frappe.get_doc("LMS Question", question_name)
 	payload = _question_payload(doc)
+	pending_key = bool(payload.get("answer_key_pending"))
 	try:
 		from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
 
@@ -708,18 +852,26 @@ def enrich_question_full(question_name: str):
 		payload["syllabus_candidates"] = []
 
 	adapter = get_ai_adapter(settings)
-	data = adapter.enrich_full(payload)
-	_apply_difficulty_fields(doc, data)
-	apply_explanations_to_lms_question(doc, data["option_explanations"])
-	if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
-		doc.trivia_general_explanation = data["general_explanation"]
-	applied = _safe_apply_ai_topics(
-		doc,
-		topics=data.get("topics") or [],
-		suggested_materia=data.get("suggested_materia"),
-		suggested_assunto=data.get("suggested_assunto"),
-		syllabus_topic_names=data.get("syllabus_topic_ids") or [],
-	)
+	if pending_key:
+		# Never generate per-option explanations from the temporary placeholder answer key
+		data = adapter.enrich(payload)
+		_apply_difficulty_fields(doc, data)
+		applied = _safe_apply_ai_topics(doc, topics=data.get("topics") or [])
+		explanations_out = {}
+	else:
+		data = adapter.enrich_full(payload)
+		_apply_difficulty_fields(doc, data)
+		apply_explanations_to_lms_question(doc, data["option_explanations"])
+		if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
+			doc.trivia_general_explanation = data["general_explanation"]
+		applied = _safe_apply_ai_topics(
+			doc,
+			topics=data.get("topics") or [],
+			suggested_materia=data.get("suggested_materia"),
+			suggested_assunto=data.get("suggested_assunto"),
+			syllabus_topic_names=data.get("syllabus_topic_ids") or [],
+		)
+		explanations_out = data["option_explanations"]
 	knowledge_summary = {"knowledge_pages_linked": [], "knowledge_pages_created": [], "knowledge_pages_reused": []}
 	try:
 		from trivia_sync.integrations.knowledge import link_knowledge_concepts
@@ -733,14 +885,132 @@ def enrich_question_full(question_name: str):
 	return {
 		"name": doc.name,
 		"trivia_status": getattr(doc, "trivia_status", None),
+		"explanations_skipped_pending_key": pending_key,
 		"difficulty_stars": data["difficulty_stars"],
 		"difficulty_label": data["difficulty_label"],
 		"learning_objective": data["learning_objective"],
 		"topics": data["topics"],
-		"option_explanations": data["option_explanations"],
+		"option_explanations": explanations_out,
 		"model": data["model"],
 		**applied,
 		**knowledge_summary,
+	}
+
+
+def review_question_with_feedback(
+	question_name: str,
+	feedback: str,
+	proposed_correct: str | list[str] | None = None,
+	history: str | list[dict[str, str]] | None = None,
+	include_general_comment: bool = True,
+) -> dict[str, Any]:
+	"""Run an interactive Réplica/Tréplica review with the AI without mutating the question yet."""
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	settings = frappe.get_single("Trivia Sync Settings")
+	if not settings.ai_enabled:
+		frappe.throw("Enable AI enrichment in settings before starting an AI review.")
+	cleaned_feedback = str(feedback or "").strip()
+	if not cleaned_feedback:
+		frappe.throw("Provide your argument / feedback for the AI review.")
+	doc = frappe.get_doc("LMS Question", question_name)
+	payload = _question_payload(doc)
+	if not include_general_comment:
+		payload["explanation"] = ""
+
+	parsed_proposed: list[str] | None = None
+	if proposed_correct:
+		if isinstance(proposed_correct, str):
+			try:
+				maybe = json.loads(proposed_correct)
+				parsed_proposed = [str(x).strip().upper() for x in maybe] if isinstance(maybe, list) else [proposed_correct.strip().upper()]
+			except ValueError:
+				parsed_proposed = [p.strip().upper() for p in re.split(r"[,;/\s]+", proposed_correct) if p.strip()]
+		elif isinstance(proposed_correct, list):
+			parsed_proposed = [str(x).strip().upper() for x in proposed_correct if str(x).strip()]
+
+	parsed_history: list[dict[str, str]] = []
+	if history:
+		if isinstance(history, str):
+			try:
+				parsed_history = json.loads(history) or []
+			except ValueError:
+				parsed_history = []
+		elif isinstance(history, list):
+			parsed_history = history
+
+	adapter = get_ai_adapter(settings)
+	review = adapter.review_with_feedback(
+		payload,
+		reviewer_feedback=cleaned_feedback,
+		proposed_correct=parsed_proposed,
+		history=parsed_history,
+	)
+	return {
+		"name": doc.name,
+		"current_correct_options": payload.get("correct_options") or [],
+		"answer_key_pending": bool(payload.get("answer_key_pending")),
+		**review,
+	}
+
+
+def apply_question_ai_review(
+	question_name: str,
+	correct_options: str | list[str],
+	option_explanations: str | dict[str, str],
+	difficulty_stars: int | None = None,
+	difficulty_label: str | None = None,
+	reason: str | None = None,
+	model: str | None = None,
+) -> dict[str, Any]:
+	"""Apply an approved AI review (answer key, per-option explanations, difficulty) to LMS Question."""
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	doc = frappe.get_doc("LMS Question", question_name)
+	if isinstance(correct_options, str):
+		try:
+			parsed_corr = json.loads(correct_options)
+		except ValueError:
+			parsed_corr = [p.strip().upper() for p in re.split(r"[,;/\s]+", correct_options) if p.strip()]
+	else:
+		parsed_corr = list(correct_options or [])
+	chosen = {str(x).strip().upper() for x in parsed_corr if str(x).strip()}
+	if not chosen:
+		frappe.throw("Provide at least one correct option letter to apply.")
+
+	if isinstance(option_explanations, str):
+		explanations = json.loads(option_explanations or "{}")
+	else:
+		explanations = dict(option_explanations or {})
+
+	options, _, _ = extract_lms_question_options(doc)
+	if not chosen.issubset(set(options.keys())):
+		frappe.throw("Selected correct options do not match the question's alternatives.")
+
+	from trivia_sync.integrations.lms_questions import OPTION_LETTERS
+
+	for idx, letter in enumerate(OPTION_LETTERS, start=1):
+		if letter in options:
+			doc.set(f"is_correct_{idx}", int(letter in chosen))
+		else:
+			doc.set(f"is_correct_{idx}", 0)
+	doc.multiple = int(len(chosen) > 1)
+	doc.trivia_answer_key_pending = 0
+
+	if difficulty_stars:
+		doc.trivia_ai_difficulty_stars = stars_to_rating(int(difficulty_stars))
+		doc.trivia_ai_difficulty_label = difficulty_label or DIFFICULTY_LABELS[max(1, min(5, int(difficulty_stars)))]
+	if reason:
+		doc.trivia_ai_difficulty_reason = reason
+	if model:
+		doc.trivia_ai_model = model
+	doc.trivia_ai_enriched_at = frappe.utils.now_datetime()
+
+	apply_explanations_to_lms_question(doc, explanations)
+	doc.save(ignore_permissions=True)
+	return {
+		"name": doc.name,
+		"correct_options": sorted(chosen),
+		"trivia_answer_key_pending": 0,
+		"trivia_status": getattr(doc, "trivia_status", None),
 	}
 
 
@@ -815,7 +1085,7 @@ def enrich_questions_batch(
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
 				elif mode == "explanations":
-					if not force and _has_all_lms_explanations(doc):
+					if payload.get("answer_key_pending") or (not force and _has_all_lms_explanations(doc)):
 						result["skipped"] += 1
 					else:
 						draft = adapter.draft_option_explanations(payload)
@@ -846,27 +1116,32 @@ def enrich_questions_batch(
 					if not force and already_complete:
 						result["skipped"] += 1
 					else:
-						try:
-							from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
+						if payload.get("answer_key_pending"):
+							data = adapter.enrich(payload)
+							_apply_difficulty_fields(doc, data)
+							_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
+						else:
+							try:
+								from trivia_sync.integrations.reconciliation import candidate_syllabus_topics
 
-							payload["syllabus_candidates"] = [
-								{"name": row.get("name"), "titulo": row.get("titulo")}
-								for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "trivia_concurso_cargo", None), limit=60)
-							]
-						except Exception:
-							payload["syllabus_candidates"] = []
-						data = adapter.enrich_full(payload)
-						_apply_difficulty_fields(doc, data)
-						apply_explanations_to_lms_question(doc, data["option_explanations"])
-						if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
-							doc.trivia_general_explanation = data["general_explanation"]
-						_safe_apply_ai_topics(
-							doc,
-							topics=data.get("topics") or [],
-							suggested_materia=data.get("suggested_materia"),
-							suggested_assunto=data.get("suggested_assunto"),
-							syllabus_topic_names=data.get("syllabus_topic_ids") or [],
-						)
+								payload["syllabus_candidates"] = [
+									{"name": row.get("name"), "titulo": row.get("titulo")}
+									for row in candidate_syllabus_topics(concurso_cargo=getattr(doc, "trivia_concurso_cargo", None), limit=60)
+								]
+							except Exception:
+								payload["syllabus_candidates"] = []
+							data = adapter.enrich_full(payload)
+							_apply_difficulty_fields(doc, data)
+							apply_explanations_to_lms_question(doc, data["option_explanations"])
+							if not (getattr(doc, "trivia_general_explanation", None) or "").strip() and data.get("general_explanation"):
+								doc.trivia_general_explanation = data["general_explanation"]
+							_safe_apply_ai_topics(
+								doc,
+								topics=data.get("topics") or [],
+								suggested_materia=data.get("suggested_materia"),
+								suggested_assunto=data.get("suggested_assunto"),
+								syllabus_topic_names=data.get("syllabus_topic_ids") or [],
+							)
 						if include_knowledge:
 							try:
 								from trivia_sync.integrations.knowledge import link_knowledge_concepts

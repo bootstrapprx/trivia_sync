@@ -192,6 +192,144 @@ class TestAIEnricher(unittest.TestCase):
 		self.assertEqual(docs["QTS-1"].explanation_4, "Sinônimo.")
 		self.assertEqual(docs["QTS-1"].trivia_ai_difficulty_stars, 0.4)
 
+	def test_pending_answer_key_blocks_option_explanations_and_keeps_question_in_preparation(self):
+		class FakePendingDoc:
+			def __init__(self):
+				self.name = "QTS-2026-00217"
+				self.trivia_qcode = "EX-C1FD3A-Q59"
+				self.question = "<p>Declarado nulo o contrato, caberá</p>"
+				self.option_1 = "indenizar todo o valor"
+				self.option_2 = "vedar indenização"
+				self.is_correct_1 = 1
+				self.is_correct_2 = 0
+				for i in range(3, 11):
+					setattr(self, f"option_{i}", "")
+					setattr(self, f"is_correct_{i}", 0)
+				for i in range(1, 11):
+					setattr(self, f"explanation_{i}", "")
+				self.trivia_status = "In Preparation"
+				self.trivia_answer_key_pending = 1
+				self.trivia_knowledge_pages = []
+
+			def set(self, field, value):
+				setattr(self, field, value)
+
+			def save(self, **kwargs):
+				pass
+
+		doc = FakePendingDoc()
+		frappe = self.module.frappe
+		frappe.only_for = lambda roles: None
+		frappe.throw = lambda msg, exc=None: (_ for _ in ()).throw(ValueError(msg))
+		frappe.get_single = lambda name: FakeSettings()
+		frappe.get_doc = lambda dt, name: doc
+		frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
+
+		# 1. Direct option explanation draft must be blocked while answer key is pending
+		with self.assertRaises(ValueError):
+			self.module.draft_question_option_explanations(doc.name)
+
+		# 2. Full enrichment skips option explanations and keeps status In Preparation
+		seen_payload = {}
+		fake_adapter = types.SimpleNamespace(
+			enrich=lambda q: (
+				seen_payload.update(q),
+				{
+					"difficulty_stars": 3,
+					"difficulty_label": "Média",
+					"reason": "Cobra art. 59 parágrafo único da Lei 8.666/93.",
+					"learning_objective": "Identificar efeitos da nulidade contratual.",
+					"topics": ["Nulidade de Contratos"],
+					"enrichment_hash": "h999",
+					"model": "test-model",
+				},
+			)[1],
+			extract_knowledge_concepts=lambda q: {"concepts": [], "model": "test-model"},
+		)
+		with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter), patch.object(
+			self.module, "_safe_apply_ai_topics", return_value={}
+		):
+			res = self.module.enrich_question_full(doc.name)
+
+		self.assertTrue(res["explanations_skipped_pending_key"])
+		self.assertEqual(seen_payload["correct_options"], [])
+		self.assertEqual(doc.trivia_status, "In Preparation")
+		self.assertEqual(doc.explanation_1, "")
+
+	def test_replica_treplica_review_and_apply_fixes_wrong_answer_key_and_explanations(self):
+		class FakeReviewDoc:
+			def __init__(self):
+				self.name = "QTS-2026-00217"
+				self.trivia_qcode = "EX-C1FD3A-Q59"
+				self.question = "<p>Declarado nulo o contrato, caberá</p>"
+				self.option_1 = "indenizar todo o valor"
+				self.option_2 = "indenizar pelos serviços executados"
+				self.is_correct_1 = 1
+				self.is_correct_2 = 0
+				for i in range(3, 11):
+					setattr(self, f"option_{i}", "")
+					setattr(self, f"is_correct_{i}", 0)
+				for i in range(1, 11):
+					setattr(self, f"explanation_{i}", "")
+				self.trivia_status = "In Preparation"
+				self.trivia_answer_key_pending = 1
+				self.trivia_general_explanation = "Art. 59, parágrafo único da Lei 8.666/93."
+
+			def set(self, field, value):
+				setattr(self, field, value)
+
+			def save(self, **kwargs):
+				pass
+
+		doc = FakeReviewDoc()
+		frappe = self.module.frappe
+		frappe.only_for = lambda roles: None
+		frappe.get_single = lambda name: FakeSettings()
+		frappe.get_doc = lambda dt, name: doc
+		frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
+
+		fake_adapter = types.SimpleNamespace(
+			review_with_feedback=lambda q, reviewer_feedback, proposed_correct=None, history=None: {
+				"agrees_with_reviewer": True,
+				"ai_reply": "Você tem razão: pelo art. 59, parágrafo único da Lei 8.666/93, a indenização limita-se ao que foi executado.",
+				"recommended_correct_options": ["B"],
+				"difficulty_stars": 3,
+				"difficulty_label": "Média",
+				"reason": "Exige conhecimento direto do art. 59, parágrafo único.",
+				"option_explanations": {
+					"A": "Incorreta: não se indeniza parcela ainda não executada.",
+					"B": "Correta: o contratado de boa-fé recebe pelo que executou até a declaração de nulidade.",
+				},
+				"model": "test-model",
+			}
+		)
+		with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter):
+			review = self.module.review_question_with_feedback(
+				doc.name,
+				feedback="A correta é a B conforme art. 59 parágrafo único da Lei 8.666/93.",
+				proposed_correct="B",
+			)
+		self.assertTrue(review["agrees_with_reviewer"])
+		self.assertEqual(review["recommended_correct_options"], ["B"])
+		# Reviewing alone must NOT mutate the document
+		self.assertEqual(doc.is_correct_1, 1)
+		self.assertEqual(doc.trivia_answer_key_pending, 1)
+
+		applied = self.module.apply_question_ai_review(
+			doc.name,
+			correct_options=review["recommended_correct_options"],
+			option_explanations=review["option_explanations"],
+			difficulty_stars=review["difficulty_stars"],
+			difficulty_label=review["difficulty_label"],
+			reason=review["reason"],
+			model=review["model"],
+		)
+		self.assertEqual(applied["correct_options"], ["B"])
+		self.assertEqual((doc.is_correct_1, doc.is_correct_2), (0, 1))
+		self.assertEqual(doc.trivia_answer_key_pending, 0)
+		self.assertEqual(doc.trivia_status, "Ready")
+		self.assertIn("executou", doc.explanation_2)
+
 
 if __name__ == "__main__":
 	unittest.main()

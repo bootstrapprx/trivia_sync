@@ -35,9 +35,17 @@ def build_question_title(question_html: str, fallback: str = "") -> str:
 
 
 def sync_lms_question_title(doc, method=None):
-	"""doc_events hook (`before_validate`) keeping `LMS Question.trivia_title` concise and HTML-free."""
+	"""doc_events hook (`before_validate`) keeping `LMS Question.trivia_title` concise and clearing pending key on manual edit."""
 	fallback = getattr(doc, "trivia_qcode", None) or getattr(doc, "name", None) or "Questão"
 	doc.trivia_title = build_question_title(getattr(doc, "question", "") or "", fallback=fallback)
+	if (
+		getattr(doc, "trivia_answer_key_pending", 0)
+		and hasattr(doc, "is_new")
+		and not doc.is_new()
+		and hasattr(doc, "has_value_changed")
+		and any(doc.has_value_changed(f"is_correct_{i}") for i in range(1, 11))
+	):
+		doc.trivia_answer_key_pending = 0
 
 
 def compose_lms_question_html(base_html: str, texto_apoio: str | None = None, knowledge_rows=None) -> str:
@@ -103,7 +111,7 @@ def apply_explanations_to_lms_question(doc, explanations_by_letter: dict[str, st
 		doc.set(f"explanation_{idx}", text)
 		if text:
 			filled += 1
-	if total >= 2 and filled == total:
+	if total >= 2 and filled == total and not getattr(doc, "trivia_answer_key_pending", 0):
 		doc.trivia_status = "Ready"
 	return filled
 

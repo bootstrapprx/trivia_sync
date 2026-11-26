@@ -6,11 +6,13 @@ from frappe.utils import cint
 
 from trivia_sync.integrations.ai_enricher import (
 	apply_ai_topics as apply_question_topics_from_ai,
+	apply_question_ai_review as apply_lms_question_ai_review,
 	draft_question_option_explanations as generate_option_explanations_draft,
 	enrich_questions_batch,
 	enrich_question_full as enrich_single_question_all,
 	enrich_single_question_difficulty,
 	extract_question_knowledge as extract_knowledge_for_question,
+	review_question_with_feedback as review_lms_question_with_feedback,
 	test_ai_connection,
 )
 from trivia_sync.integrations.exam_importer import (
@@ -578,3 +580,41 @@ def apply_quiz_answer_key(quiz_name, answer_key):
 @frappe.whitelist()
 def confirm_question_answer_key(question_name):
 	return confirm_lms_question_answer_key(question_name)
+
+
+@frappe.whitelist()
+def review_question_with_feedback(
+	question_name,
+	feedback,
+	proposed_correct=None,
+	history=None,
+	include_general_comment=1,
+):
+	return review_lms_question_with_feedback(
+		question_name=question_name,
+		feedback=feedback,
+		proposed_correct=proposed_correct,
+		history=history,
+		include_general_comment=bool(cint(include_general_comment)),
+	)
+
+
+@frappe.whitelist()
+def apply_question_ai_review(
+	question_name,
+	correct_options,
+	option_explanations,
+	difficulty_stars=None,
+	difficulty_label=None,
+	reason=None,
+	model=None,
+):
+	return apply_lms_question_ai_review(
+		question_name=question_name,
+		correct_options=correct_options,
+		option_explanations=option_explanations,
+		difficulty_stars=cint(difficulty_stars) if difficulty_stars not in (None, "") else None,
+		difficulty_label=difficulty_label,
+		reason=reason,
+		model=model,
+	)
