@@ -118,9 +118,9 @@ app_include_js = [
 	"/assets/trivia_sync/js/exam_importer.js",
 ]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=9"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=10"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
-	"/assets/trivia_sync/css/trivia_question.css?v=9",
+	"/assets/trivia_sync/css/trivia_question.css?v=10",
 ]

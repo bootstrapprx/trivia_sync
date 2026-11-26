@@ -1,0 +1,208 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<main class="container py-5 trivia-aprofundar-page" style="max-width: 880px;">
+	{% if error_message %}
+		<div class="alert alert-warning" role="alert">
+			<strong>Atenção:</strong> {{ error_message }}
+		</div>
+	{% elif deep_dive %}
+		<header class="mb-4 pb-3 border-bottom">
+			<div class="d-flex flex-wrap align-items-center justify-content-between" style="gap: 8px;">
+				<span class="badge badge-success px-3 py-2" style="font-size: 0.8rem;">Comentário do Professor</span>
+				<div class="text-muted small">
+					{% if deep_dive.banca %}<span>{{ deep_dive.banca }}</span>{% endif %}
+					{% if deep_dive.materia %}<span> · {{ deep_dive.materia }}</span>{% endif %}
+					{% if deep_dive.assunto %}<span> · {{ deep_dive.assunto }}</span>{% endif %}
+					{% if deep_dive.ano %}<span> · {{ deep_dive.ano }}</span>{% endif %}
+				</div>
+			</div>
+			<h1 class="h3 mt-3 mb-1">Aprofunde seu conhecimento</h1>
+			<div class="text-muted small">Questão {{ deep_dive.qcode }}</div>
+		</header>
+
+		<details class="trivia-aprofundar-stem mb-4">
+			<summary>Ver enunciado da questão</summary>
+			<div class="mt-3">
+				{% if deep_dive.supporting_html %}
+					<div class="trivia-supporting-passage mb-3 p-3 rounded border">
+						<div class="small font-weight-bold mb-2">Texto de apoio</div>
+						<div class="trivia-rich-content lms-question-content">{{ deep_dive.supporting_html | safe }}</div>
+					</div>
+				{% endif %}
+				<div class="trivia-rich-content lms-question-content">{{ deep_dive.enunciado_html | safe }}</div>
+			</div>
+		</details>
+
+		{% if deep_dive.teacher_comment_html %}
+			<section class="trivia-aprofundar-teacher-card mb-4">
+				<div class="trivia-rich-content lms-question-content">{{ deep_dive.teacher_comment_html | safe }}</div>
+			</section>
+		{% else %}
+			<div class="alert alert-info mb-4">
+				O professor ainda não adicionou um comentário aprofundado para esta questão.
+			</div>
+		{% endif %}
+
+		{% if deep_dive.knowledge_pages %}
+			<section class="mb-4">
+				<h2 class="h6 text-muted text-uppercase mb-2">Conceitos relacionados</h2>
+				<div class="d-flex flex-wrap" style="gap: 8px;">
+					{% for page in deep_dive.knowledge_pages %}
+						<a href="/conhecimento?slug={{ page.slug }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+							{{ page.title }} ↗
+						</a>
+					{% endfor %}
+				</div>
+			</section>
+		{% endif %}
+
+		{% if deep_dive.teacher_comment_html %}
+			<section class="trivia-aprofundar-athena-card mb-4" data-question-name="{{ deep_dive.question_name }}">
+				<div class="d-flex align-items-center mb-2" style="gap: 10px;">
+					<span class="trivia-athena-emblem">
+						<svg class="trivia-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M5 4l3.5 3A7.5 7.5 0 0 1 12 6.2c1.25 0 2.45.28 3.5.8L19 4l-.8 4.4A7.2 7.2 0 0 1 19.5 12.5c0 4.2-3.2 7.5-7.5 7.5s-7.5-3.3-7.5-7.5c0-1.5.45-2.9 1.3-4.1L5 4z"/>
+							<circle cx="9.2" cy="11.6" r="1.8"/>
+							<circle cx="14.8" cy="11.6" r="1.8"/>
+							<path d="M12 13.4l-1.1 1.6L12 16.5l1.1-1.5L12 13.4z"/>
+							<path d="M8.5 19.2c1 .5 2.2.8 3.5.8s2.5-.3 3.5-.8"/>
+						</svg>
+					</span>
+					<div>
+						<h2 class="h5 mb-0">Quer testar seu entendimento com a Athena?</h2>
+						<p class="text-muted small mb-0">Opcional: responda abaixo à pergunta ou exercício proposto pelo professor. A Athena corrige seu raciocínio e comenta passo a passo.</p>
+					</div>
+				</div>
+
+				<form id="trivia-reflection-form" class="mt-3">
+					<div class="form-group mb-3">
+						<label for="trivia-student-answer" class="small font-weight-bold">Sua resposta / cálculo</label>
+						<textarea
+							id="trivia-student-answer"
+							class="form-control"
+							rows="4"
+							maxlength="6000"
+							placeholder="Escreva aqui sua resposta, cálculo ou explicação para a Athena corrigir..."
+						></textarea>
+					</div>
+					<div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+						<button type="submit" class="btn btn-primary" id="trivia-submit-reflection">
+							Enviar para a Athena corrigir
+						</button>
+						<span class="text-muted small" id="trivia-reflection-status"></span>
+					</div>
+				</form>
+
+				<div id="trivia-reflection-latest" class="mt-4" style="display: none;"></div>
+			</section>
+
+			<section class="mb-4" id="trivia-reflection-history-wrap" {% if not deep_dive.reflections %}style="display: none;"{% endif %}>
+				<h3 class="h6 text-muted text-uppercase mb-3">Suas tentativas anteriores</h3>
+				<div id="trivia-reflection-history" class="d-flex flex-column" style="gap: 12px;">
+					{% for item in deep_dive.reflections %}
+						<article class="trivia-reflection-item p-3 rounded border">
+							<div class="d-flex flex-wrap justify-content-between align-items-center mb-2" style="gap: 8px;">
+								<span class="badge {% if item.verdict == 'Correta' %}badge-success{% elif item.verdict == 'Incorreta' %}badge-danger{% elif item.verdict == 'Parcialmente correta' %}badge-warning{% else %}badge-info{% endif %}">
+									{{ item.verdict or 'Reflexão registrada' }}
+								</span>
+								<small class="text-muted">{{ item.submitted_at }}</small>
+							</div>
+							<div class="small mb-2">
+								<strong>Sua resposta:</strong>
+								<div class="mt-1" style="white-space: pre-wrap;">{{ item.student_answer }}</div>
+							</div>
+							<div class="small pt-2 border-top">
+								<strong>Comentário da Athena:</strong>
+								<div class="mt-1 trivia-rich-content lms-question-content" style="white-space: pre-wrap;">{{ item.athena_feedback | safe }}</div>
+								{% if item.key_takeaway %}
+									<div class="mt-2 p-2 rounded" style="background: rgba(59, 130, 246, 0.08);">
+										<strong>Ponto-chave:</strong> {{ item.key_takeaway }}
+									</div>
+								{% endif %}
+							</div>
+						</article>
+					{% endfor %}
+				</div>
+			</section>
+		{% endif %}
+	{% endif %}
+</main>
+
+{% if deep_dive and deep_dive.teacher_comment_html %}
+<script>
+(() => {
+	const form = document.getElementById("trivia-reflection-form");
+	if (!form) return;
+	const textarea = document.getElementById("trivia-student-answer");
+	const submitBtn = document.getElementById("trivia-submit-reflection");
+	const statusEl = document.getElementById("trivia-reflection-status");
+	const latestEl = document.getElementById("trivia-reflection-latest");
+	const historyWrap = document.getElementById("trivia-reflection-history-wrap");
+	const historyList = document.getElementById("trivia-reflection-history");
+	const questionName = form.closest("[data-question-name]").getAttribute("data-question-name");
+
+	const esc = (v) => String(v ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
+
+	const badgeClass = (verdict) => {
+		if (verdict === "Correta") return "badge-success";
+		if (verdict === "Incorreta") return "badge-danger";
+		if (verdict === "Parcialmente correta") return "badge-warning";
+		return "badge-info";
+	};
+
+	const renderCard = (item) => `
+		<article class="trivia-reflection-item p-3 rounded border">
+			<div class="d-flex flex-wrap justify-content-between align-items-center mb-2" style="gap: 8px;">
+				<span class="badge ${badgeClass(item.verdict)}">${esc(item.verdict || "Reflexão registrada")}</span>
+				<small class="text-muted">${esc(item.submitted_at || "")}</small>
+			</div>
+			<div class="small mb-2">
+				<strong>Sua resposta:</strong>
+				<div class="mt-1" style="white-space: pre-wrap;">${esc(item.student_answer)}</div>
+			</div>
+			<div class="small pt-2 border-top">
+				<strong>Comentário da Athena:</strong>
+				<div class="mt-1 trivia-rich-content lms-question-content" style="white-space: pre-wrap;">${esc(item.athena_feedback)}</div>
+				${item.key_takeaway ? `<div class="mt-2 p-2 rounded" style="background: rgba(59, 130, 246, 0.08);"><strong>Ponto-chave:</strong> ${esc(item.key_takeaway)}</div>` : ""}
+			</div>
+		</article>
+	`;
+
+	form.addEventListener("submit", (ev) => {
+		ev.preventDefault();
+		const answer = (textarea.value || "").trim();
+		if (!answer) {
+			statusEl.textContent = "Escreva sua resposta antes de enviar.";
+			return;
+		}
+		submitBtn.disabled = true;
+		statusEl.textContent = "Athena está corrigindo sua resposta...";
+		frappe.call({
+			method: "trivia_sync.api.submit_student_reflection",
+			args: { question_name: questionName, student_answer: answer },
+		}).then(({ message }) => {
+			if (!message) return;
+			const html = renderCard(message);
+			latestEl.innerHTML = html;
+			latestEl.style.display = "block";
+			if (historyWrap && historyList) {
+				historyWrap.style.display = "block";
+				historyList.insertAdjacentHTML("afterbegin", html);
+			}
+			textarea.value = "";
+			statusEl.textContent = "Correção concluída pela Athena.";
+		}).catch((err) => {
+			statusEl.textContent = (err && err.message) ? err.message : "Não foi possível obter a correção da Athena agora.";
+		}).finally(() => {
+			submitBtn.disabled = false;
+		});
+	});
+})();
+</script>
+{% endif %}
+{% endblock %}

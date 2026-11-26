@@ -349,6 +349,96 @@
 	text-decoration: none;
 }
 
+/* Student-facing inline 'Aprofunde seu conhecimento' block inside LMS Quiz feedback */
+details.trivia-deep-dive {
+	margin-top: 12px;
+	border: 1px solid color-mix(in srgb, var(--green-500, #2f9e44) 45%, var(--border-color, #d1d5db));
+	border-left: 4px solid var(--green-500, #2f9e44);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--green-500, #2f9e44) 6%, var(--card-bg, #ffffff));
+	padding: 10px 14px;
+}
+
+details.trivia-deep-dive > summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--green-600, #237a35);
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+details.trivia-deep-dive > summary::-webkit-details-marker {
+	display: none;
+}
+
+details.trivia-deep-dive > summary::before {
+	content: "▸";
+	font-size: 0.9em;
+	transition: transform 0.15s ease;
+}
+
+details.trivia-deep-dive[open] > summary::before {
+	transform: rotate(90deg);
+}
+
+details.trivia-deep-dive .trivia-deep-dive-body {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px dashed color-mix(in srgb, var(--green-500, #2f9e44) 30%, var(--border-color, #d1d5db));
+	line-height: 1.65;
+}
+
+details.trivia-deep-dive .trivia-deep-dive-cta {
+	margin-top: 12px;
+	padding-top: 10px;
+	border-top: 1px solid color-mix(in srgb, var(--border-color, #d1d5db) 60%, transparent);
+}
+
+details.trivia-deep-dive .trivia-deep-dive-cta a {
+	display: inline-block;
+	font-weight: 600;
+	font-size: 0.875rem;
+	color: var(--blue-600, #2563eb);
+	text-decoration: none;
+}
+
+details.trivia-deep-dive .trivia-deep-dive-cta a:hover {
+	text-decoration: underline;
+}
+
+/* Dedicated /aprofundar student portal page */
+.trivia-aprofundar-stem {
+	border: 1px solid var(--border-color, #e5e7eb);
+	border-radius: 8px;
+	padding: 12px 16px;
+	background: var(--control-bg, #f9fafb);
+}
+
+.trivia-aprofundar-stem > summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--text-color, inherit);
+}
+
+.trivia-aprofundar-teacher-card {
+	border: 1px solid color-mix(in srgb, var(--green-500, #2f9e44) 40%, var(--border-color, #d1d5db));
+	border-left: 4px solid var(--green-500, #2f9e44);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--green-500, #2f9e44) 5%, var(--card-bg, #ffffff));
+	padding: 20px 24px;
+	line-height: 1.7;
+}
+
+.trivia-aprofundar-athena-card {
+	border: 1px solid color-mix(in srgb, var(--blue-500, #3b82f6) 35%, var(--border-color, #d1d5db));
+	border-left: 4px solid var(--blue-500, #3b82f6);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--blue-500, #3b82f6) 5%, var(--card-bg, #ffffff));
+	padding: 20px 24px;
+}
+
 .trivia-question-cockpit .trivia-ai-row {
 	font-size: var(--text-sm);
 	line-height: 1.5;

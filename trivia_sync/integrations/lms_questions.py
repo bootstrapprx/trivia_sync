@@ -2,6 +2,7 @@ import hashlib
 import html
 import json
 import re
+from urllib.parse import quote
 
 import frappe
 
@@ -11,6 +12,7 @@ OPTION_LETTERS = "ABCDEFGHIJ"
 
 _PASSAGE_RE = re.compile(r'<div class="trivia-supporting-passage">[\s\S]*?</div>\s*<hr\s*/?>\s*', re.IGNORECASE)
 _KNOWLEDGE_RE = re.compile(r'<div class="trivia-knowledge-refs">[\s\S]*?</div>\s*$', re.IGNORECASE)
+_DEEP_DIVE_RE = re.compile(r'\s*<details class="trivia-deep-dive">[\s\S]*?</details>\s*$', re.IGNORECASE)
 
 
 MAX_TITLE_CHARS = 135
@@ -20,6 +22,71 @@ def strip_question_embeds(question_html: str) -> str:
 	text = _PASSAGE_RE.sub("", str(question_html or ""))
 	text = _KNOWLEDGE_RE.sub("", text)
 	return text.strip()
+
+
+def strip_teacher_comment_embed(explanation_html: str) -> str:
+	return _DEEP_DIVE_RE.sub("", str(explanation_html or "")).strip()
+
+
+def _sanitize_portal_html(raw_html: str) -> str:
+	text = str(raw_html or "").strip()
+	if not text:
+		return ""
+	try:
+		if hasattr(frappe, "utils") and hasattr(frappe.utils, "sanitize_html"):
+			return frappe.utils.sanitize_html(text)
+	except Exception:
+		pass
+	return text
+
+
+def _has_meaningful_html(raw_html: str) -> bool:
+	plain = html.unescape(re.sub(r"<[^>]+>", " ", str(raw_html or "")))
+	return bool(re.sub(r"\s+", " ", plain).strip())
+
+
+def compose_correct_explanation_html(
+	base_explanation: str,
+	question_name: str | None,
+	teacher_comment: str | None,
+) -> str:
+	clean_base = strip_teacher_comment_embed(base_explanation)
+	if not question_name or not _has_meaningful_html(teacher_comment or ""):
+		return clean_base
+	safe_comment = _sanitize_portal_html(teacher_comment or "")
+	deep_dive_url = f"/aprofundar?q={quote(str(question_name), safe='')}"
+	block = (
+		'<details class="trivia-deep-dive">'
+		"<summary>Aprofunde seu conhecimento</summary>"
+		f'<div class="trivia-deep-dive-body">{safe_comment}</div>'
+		'<div class="trivia-deep-dive-cta">'
+		f'<a href="{deep_dive_url}" target="_blank" rel="noopener">'
+		"Responder desafio com a Athena / Abrir página completa ↗"
+		"</a>"
+		"</div>"
+		"</details>"
+	)
+	return f"{clean_base}\n{block}" if clean_base else block
+
+
+def sync_lms_question_deep_dive_embeds(doc) -> None:
+	"""Keep the collapsible 'Aprofunde seu conhecimento' block synced exclusively on correct option(s)."""
+	teacher_comment = getattr(doc, "trivia_general_explanation", None) or ""
+	question_name = getattr(doc, "name", None)
+	answer_key_pending = bool(getattr(doc, "trivia_answer_key_pending", 0))
+	should_embed = bool(question_name and not answer_key_pending and _has_meaningful_html(teacher_comment))
+
+	for idx in range(1, len(OPTION_LETTERS) + 1):
+		raw_exp = getattr(doc, f"explanation_{idx}", None) or ""
+		clean_exp = strip_teacher_comment_embed(raw_exp)
+		opt_text = str(getattr(doc, f"option_{idx}", None) or "").strip()
+		is_correct = bool(int(getattr(doc, f"is_correct_{idx}", 0) or 0))
+		if should_embed and opt_text and is_correct:
+			new_exp = compose_correct_explanation_html(clean_exp, question_name, teacher_comment)
+		else:
+			new_exp = clean_exp
+		if new_exp != raw_exp:
+			doc.set(f"explanation_{idx}", new_exp)
 
 
 def build_question_title(question_html: str, fallback: str = "") -> str:
@@ -35,7 +102,7 @@ def build_question_title(question_html: str, fallback: str = "") -> str:
 
 
 def sync_lms_question_title(doc, method=None):
-	"""doc_events hook (`before_validate`) keeping `LMS Question.trivia_title` concise and clearing pending key on manual edit."""
+	"""doc_events hook (`before_validate`) keeping `LMS Question.trivia_title` concise, clearing pending key, and syncing deep-dive embeds."""
 	fallback = getattr(doc, "trivia_qcode", None) or getattr(doc, "name", None) or "Questão"
 	doc.trivia_title = build_question_title(getattr(doc, "question", "") or "", fallback=fallback)
 	if (
@@ -46,6 +113,7 @@ def sync_lms_question_title(doc, method=None):
 		and any(doc.has_value_changed(f"is_correct_{i}") for i in range(1, 11))
 	):
 		doc.trivia_answer_key_pending = 0
+	sync_lms_question_deep_dive_embeds(doc)
 
 
 def compose_lms_question_html(base_html: str, texto_apoio: str | None = None, knowledge_rows=None) -> str:
@@ -88,7 +156,7 @@ def extract_lms_question_options(doc) -> tuple[dict[str, str], list[str], dict[s
 		options[letter] = val
 		if int(getattr(doc, f"is_correct_{idx}", 0) or 0):
 			correct.append(letter)
-		exp = str(getattr(doc, f"explanation_{idx}", None) or "").strip()
+		exp = strip_teacher_comment_embed(getattr(doc, f"explanation_{idx}", None) or "")
 		if exp:
 			explanations[letter] = exp
 	return options, correct, explanations
@@ -105,7 +173,7 @@ def apply_explanations_to_lms_question(doc, explanations_by_letter: dict[str, st
 		text = str(
 			explanations_by_letter.get(letter)
 			or explanations_by_letter.get(letter.lower())
-			or getattr(doc, f"explanation_{idx}", None)
+			or strip_teacher_comment_embed(getattr(doc, f"explanation_{idx}", None) or "")
 			or ""
 		).strip()
 		doc.set(f"explanation_{idx}", text)

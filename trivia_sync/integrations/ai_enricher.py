@@ -525,6 +525,32 @@ class _BaseAIAdapter:
 		}
 
 
+	def grade_student_reflection(
+		self,
+		question: dict[str, Any],
+		teacher_comment: str,
+		student_answer: str,
+	) -> dict[str, Any]:
+		messages, schema = _build_student_reflection_messages(
+			question,
+			teacher_comment=teacher_comment,
+			student_answer=student_answer,
+		)
+		result = self._chat_json(messages, "student_reflection_grading", schema, 2000)
+		verdict = str(result.get("verdict") or "Reflexão registrada").strip()
+		if verdict not in ("Correta", "Parcialmente correta", "Incorreta", "Reflexão registrada"):
+			verdict = "Reflexão registrada"
+		feedback = str(result.get("feedback") or "").strip()
+		if not feedback:
+			raise AIEnrichmentError("Athena não retornou comentário para a resposta.")
+		return {
+			"verdict": verdict,
+			"feedback": feedback,
+			"key_takeaway": str(result.get("key_takeaway") or "").strip(),
+			"model": self.model,
+		}
+
+
 class OpenAICompatibleAdapter(_BaseAIAdapter):
 	"""Adapter for OpenAI-compatible chat endpoints; credentials stay in Frappe Password fields."""
 
@@ -1178,6 +1204,169 @@ def enrich_questions_batch(
 		run.finished_at = frappe.utils.now_datetime()
 		run.save(ignore_permissions=True)
 		frappe.db.commit()
+
+
+def _build_student_reflection_messages(
+	question: dict[str, Any],
+	teacher_comment: str,
+	student_answer: str,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+	schema = {
+		"type": "object",
+		"additionalProperties": False,
+		"required": ["verdict", "feedback", "key_takeaway"],
+		"properties": {
+			"verdict": {
+				"type": "string",
+				"enum": ["Correta", "Parcialmente correta", "Incorreta", "Reflexão registrada"],
+			},
+			"feedback": {"type": "string", "minLength": 20},
+			"key_takeaway": {"type": "string", "minLength": 10},
+		},
+	}
+	payload = {
+		"questao": {
+			"codigo": question.get("qcode"),
+			"materia": question.get("materia"),
+			"assunto": question.get("assunto"),
+			"banca": question.get("banca"),
+			"ano": question.get("ano"),
+			"enunciado": question.get("enunciado"),
+		},
+		"comentario_do_professor": teacher_comment,
+		"resposta_do_aluno": student_answer,
+	}
+	messages = [
+		{
+			"role": "system",
+			"content": (
+				"Você é Athena, tutora pedagógica especialista em concursos públicos brasileiros. "
+				"O professor deixou um Comentário do Professor que pode conter uma pergunta retórica, exercício de cálculo ou desafio de fixação para o aluno. "
+				"Um aluno decidiu responder a esse desafio. Avalie a resposta do aluno com clareza, cordialidade e rigor técnico, "
+				"tomando o Comentário do Professor e o ordenamento jurídico/teórico aplicável como referência. "
+				"Quando houver cálculo ou comparação entre regras/incisos, mostre o passo a passo de forma didática. "
+				"Se o aluno acertou, confirme e reforce o raciocínio; se errou ou acertou parcialmente, aponte exatamente onde está o ajuste sem desanimá-lo. "
+				"Se a resposta for uma reflexão aberta sem gabarito único, use o veredito 'Reflexão registrada' e comente construtivamente. "
+				"Responda sempre em português brasileiro."
+			),
+		},
+		{"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+	]
+	return messages, schema
+
+
+def get_question_deep_dive(question_name: str) -> dict[str, Any]:
+	"""Return teacher commentary, question context, published knowledge links, and the logged-in student's reflection history."""
+	user = getattr(getattr(frappe, "session", None), "user", None)
+	if not user or user == "Guest":
+		frappe.throw("Faça login para acessar o aprofundamento da questão.", frappe.PermissionError)
+	if not question_name or not frappe.db.exists("LMS Question", question_name):
+		frappe.throw("Questão não encontrada.", frappe.DoesNotExistError)
+
+	doc = frappe.get_doc("LMS Question", question_name)
+	teacher_comment = getattr(doc, "trivia_general_explanation", None) or ""
+	if hasattr(frappe, "utils") and hasattr(frappe.utils, "sanitize_html"):
+		teacher_comment = frappe.utils.sanitize_html(teacher_comment)
+		enunciado_html = frappe.utils.sanitize_html(strip_question_embeds(getattr(doc, "question", "") or ""))
+	else:
+		enunciado_html = strip_question_embeds(getattr(doc, "question", "") or "")
+
+	supporting_html = _supporting_text_content(doc)
+	if supporting_html and hasattr(frappe, "utils") and hasattr(frappe.utils, "sanitize_html"):
+		supporting_html = frappe.utils.sanitize_html(supporting_html)
+
+	knowledge_pages = []
+	try:
+		from trivia_sync.integrations.knowledge import get_question_knowledge_pages
+
+		knowledge_pages = [
+			p for p in (get_question_knowledge_pages(doc.name) or [])
+			if p.get("status") == "Published" and p.get("slug")
+		]
+	except Exception:
+		knowledge_pages = []
+
+	reflections = []
+	if frappe.db.exists("DocType", "Trivia Student Reflection"):
+		reflections = frappe.get_all(
+			"Trivia Student Reflection",
+			filters={"question": doc.name, "user": user},
+			fields=["name", "student_answer", "verdict", "athena_feedback", "key_takeaway", "athena_model", "submitted_at"],
+			order_by="submitted_at desc, creation desc",
+			limit=20,
+		) or []
+
+	return {
+		"question_name": doc.name,
+		"qcode": getattr(doc, "trivia_qcode", None) or doc.name,
+		"title": getattr(doc, "trivia_title", None) or doc.name,
+		"materia": getattr(doc, "trivia_materia", None) or "",
+		"assunto": getattr(doc, "trivia_assunto", None) or "",
+		"banca": getattr(doc, "trivia_banca", None) or "",
+		"ano": getattr(doc, "trivia_ano", None) or "",
+		"supporting_html": supporting_html,
+		"enunciado_html": enunciado_html,
+		"teacher_comment_html": teacher_comment,
+		"knowledge_pages": knowledge_pages,
+		"reflections": reflections,
+	}
+
+
+def submit_student_reflection(question_name: str, student_answer: str) -> dict[str, Any]:
+	"""Grade a logged-in student's answer to the teacher's challenge with Athena and persist the attempt."""
+	user = getattr(getattr(frappe, "session", None), "user", None)
+	if not user or user == "Guest":
+		frappe.throw("Faça login para enviar sua resposta à Athena.", frappe.PermissionError)
+	answer = str(student_answer or "").strip()
+	if not answer:
+		frappe.throw("Escreva sua resposta antes de enviar para a Athena.")
+	if len(answer) > 6000:
+		frappe.throw("Sua resposta excedeu o limite máximo de 6.000 caracteres.")
+	if not question_name or not frappe.db.exists("LMS Question", question_name):
+		frappe.throw("Questão não encontrada.", frappe.DoesNotExistError)
+
+	doc = frappe.get_doc("LMS Question", question_name)
+	teacher_comment = str(getattr(doc, "trivia_general_explanation", None) or "").strip()
+	if not teacher_comment:
+		frappe.throw("Esta questão ainda não possui Comentário do Professor para correção.")
+
+	payload = _question_payload(doc, include_teacher_comment=True)
+	adapter = get_ai_adapter()
+	graded = adapter.grade_student_reflection(
+		payload,
+		teacher_comment=teacher_comment,
+		student_answer=answer,
+	)
+
+	feedback_text = graded["feedback"]
+	if hasattr(frappe, "utils") and hasattr(frappe.utils, "sanitize_html"):
+		feedback_text = frappe.utils.sanitize_html(feedback_text)
+
+	submitted_at = frappe.utils.now_datetime()
+	saved_name = None
+	if frappe.db.exists("DocType", "Trivia Student Reflection"):
+		reflection = frappe.new_doc("Trivia Student Reflection")
+		reflection.question = doc.name
+		reflection.user = user
+		reflection.student_answer = answer
+		reflection.verdict = graded["verdict"]
+		reflection.athena_feedback = feedback_text
+		reflection.key_takeaway = graded.get("key_takeaway") or ""
+		reflection.athena_model = graded.get("model") or ""
+		reflection.submitted_at = submitted_at
+		reflection.insert(ignore_permissions=True)
+		saved_name = reflection.name
+
+	return {
+		"name": saved_name,
+		"question": doc.name,
+		"student_answer": answer,
+		"verdict": graded["verdict"],
+		"athena_feedback": feedback_text,
+		"key_takeaway": graded.get("key_takeaway") or "",
+		"athena_model": graded.get("model") or "",
+		"submitted_at": str(submitted_at),
+	}
 
 
 def enrich_pending_questions():

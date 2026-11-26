@@ -11,3 +11,4 @@ trivia_sync.patches.v0_6.purge_retired_custom_fields
 trivia_sync.patches.v0_6.migrate_to_lms_native
 trivia_sync.patches.v0_6.cleanup_and_migrate_lms_native
 trivia_sync.patches.v0_6.backfill_lms_question_titles
+trivia_sync.patches.v0_6.backfill_deep_dive_embeds

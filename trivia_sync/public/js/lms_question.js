@@ -97,6 +97,10 @@
 			.replace(/<div class="trivia-supporting-passage">[\s\S]*?<\/div>\s*<hr\s*\/?>\s*/gi, "")
 			.replace(/<div class="trivia-knowledge-refs">[\s\S]*?<\/div>\s*$/gi, "")
 			.trim();
+	const stripDeepDive = (htmlStr) =>
+		String(htmlStr ?? "")
+			.replace(/\s*<details class="trivia-deep-dive">[\s\S]*?<\/details>\s*$/gi, "")
+			.trim();
 	const rich = (value) => {
 		const raw = String(value ?? "").trim();
 		if (!raw) return `<span class="text-muted">${__("Not provided")}</span>`;
@@ -113,7 +117,7 @@
 				letter: LETTERS[i - 1],
 				text,
 				correct: Boolean(Number(doc[`is_correct_${i}`] || 0)),
-				explanation: String(doc[`explanation_${i}`] || "").trim(),
+				explanation: stripDeepDive(doc[`explanation_${i}`] || ""),
 			});
 		}
 		return rows;

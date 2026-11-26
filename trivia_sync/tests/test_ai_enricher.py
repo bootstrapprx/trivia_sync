@@ -422,6 +422,106 @@ class TestAIEnricher(unittest.TestCase):
 		self.assertIn("Anotação exclusiva do professor", res_with["ai_reply"])
 		self.assertNotIn("Anotação exclusiva do professor", res_without["ai_reply"])
 
+	def test_deep_dive_embed_only_on_correct_option_and_stripped_for_ai(self):
+		from trivia_sync.integrations.lms_questions import (
+			extract_lms_question_options,
+			sync_lms_question_deep_dive_embeds,
+		)
+
+		class FakeDeepDiveDoc:
+			def __init__(self):
+				self.name = "QTS-2026-00213"
+				self.option_1 = "Integralidade"
+				self.option_2 = "Teto RGPS + 70% do excedente"
+				self.is_correct_1 = 0
+				self.is_correct_2 = 1
+				self.explanation_1 = "Incorreta: sem integralidade."
+				self.explanation_2 = "Correta conforme art. 2º da Lei 10.887/2004."
+				for i in range(3, 11):
+					setattr(self, f"option_{i}", "")
+					setattr(self, f"is_correct_{i}", 0)
+					setattr(self, f"explanation_{i}", "")
+				self.trivia_answer_key_pending = 0
+				self.trivia_general_explanation = "<p>6. Vamos testar seu entendimento? Calcule a pensão.</p>"
+
+			def set(self, field, value):
+				setattr(self, field, value)
+
+		doc = FakeDeepDiveDoc()
+		sync_lms_question_deep_dive_embeds(doc)
+		# Idempotency check
+		sync_lms_question_deep_dive_embeds(doc)
+
+		self.assertNotIn("trivia-deep-dive", doc.explanation_1)
+		self.assertIn("Aprofunde seu conhecimento", doc.explanation_2)
+		self.assertIn("/aprofundar?q=QTS-2026-00213", doc.explanation_2)
+		self.assertEqual(doc.explanation_2.count("trivia-deep-dive-body"), 1)
+
+		# AI extraction strips the embedded teacher comment completely
+		_, _, extracted_exps = extract_lms_question_options(doc)
+		self.assertEqual(extracted_exps["B"], "Correta conforme art. 2º da Lei 10.887/2004.")
+
+		# Pending answer key removes the embed
+		doc.trivia_answer_key_pending = 1
+		sync_lms_question_deep_dive_embeds(doc)
+		self.assertNotIn("trivia-deep-dive", doc.explanation_2)
+
+	def test_submit_student_reflection_requires_login_grades_with_athena_and_persists(self):
+		class FakeQuestion:
+			name = "QTS-2026-00213"
+			trivia_qcode = "EX-PREV-Q55"
+			question = "<p>Hortênsia é servidora pública.</p>"
+			option_1 = "A"
+			option_2 = "B"
+			is_correct_1 = 0
+			is_correct_2 = 1
+			trivia_general_explanation = "<p>6. Vamos testar seu entendimento? R$ 12.000 com teto R$ 6.000.</p>"
+
+		inserted_records = []
+
+		class FakeReflection:
+			def __init__(self):
+				self.name = "REF-001"
+
+			def insert(self, ignore_permissions=False):
+				inserted_records.append(self)
+
+		frappe = self.module.frappe
+		frappe.PermissionError = PermissionError
+		frappe.DoesNotExistError = KeyError
+		frappe.throw = lambda msg, exc=None: (_ for _ in ()).throw((exc or ValueError)(msg))
+		frappe.session = types.SimpleNamespace(user="Guest")
+		frappe.db = types.SimpleNamespace(exists=lambda dt, name=None: True)
+		frappe.get_doc = lambda dt, name: FakeQuestion()
+		frappe.new_doc = lambda dt: FakeReflection()
+		frappe.utils = types.SimpleNamespace(now_datetime=lambda: "2026-11-26 15:25:00", sanitize_html=lambda s: s)
+
+		# 1. Guest is blocked
+		with self.assertRaises(PermissionError):
+			self.module.submit_student_reflection("QTS-2026-00213", "R$ 10.200,00")
+
+		# 2. Logged-in student gets Athena grading & saved record
+		frappe.session = types.SimpleNamespace(user="aluno@example.com")
+		fake_adapter = types.SimpleNamespace(
+			grade_student_reflection=lambda q, teacher_comment, student_answer: {
+				"verdict": "Correta",
+				"feedback": "Excelente! 6.000 + 70% de 6.000 (4.200) = R$ 10.200,00.",
+				"key_takeaway": "Na regra histórica da Lei 10.887/2004, soma-se o teto do RGPS a 70% do excedente.",
+				"model": "test-model",
+			}
+		)
+		with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter):
+			res = self.module.submit_student_reflection(
+				"QTS-2026-00213",
+				"R$ 6.000 + 70% de R$ 6.000 = R$ 10.200,00",
+			)
+
+		self.assertEqual(res["verdict"], "Correta")
+		self.assertIn("10.200", res["athena_feedback"])
+		self.assertEqual(len(inserted_records), 1)
+		self.assertEqual(inserted_records[0].user, "aluno@example.com")
+		self.assertEqual(inserted_records[0].question, "QTS-2026-00213")
+
 
 if __name__ == "__main__":
 	unittest.main()

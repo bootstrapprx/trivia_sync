@@ -12,7 +12,9 @@ from trivia_sync.integrations.ai_enricher import (
 	enrich_question_full as enrich_single_question_all,
 	enrich_single_question_difficulty,
 	extract_question_knowledge as extract_knowledge_for_question,
+	get_question_deep_dive as fetch_question_deep_dive,
 	review_question_with_feedback as review_lms_question_with_feedback,
+	submit_student_reflection as evaluate_student_reflection,
 	test_ai_connection,
 )
 from trivia_sync.integrations.exam_importer import (
@@ -618,3 +620,13 @@ def apply_question_ai_review(
 		reason=reason,
 		model=model,
 	)
+
+
+@frappe.whitelist()
+def get_question_deep_dive(question_name):
+	return fetch_question_deep_dive(question_name)
+
+
+@frappe.whitelist()
+def submit_student_reflection(question_name, student_answer):
+	return evaluate_student_reflection(question_name, student_answer)
