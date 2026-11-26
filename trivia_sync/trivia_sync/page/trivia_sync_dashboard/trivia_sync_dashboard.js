@@ -17,7 +17,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     <section class="frappe-card trivia-dashboard-card"><h3>${__("Materials lifecycle")}</h3><div class="trivia-dashboard-grid" data-materials></div></section>
     <section class="frappe-card trivia-dashboard-card"><h3>${__("Coverage by position")}</h3><div class="trivia-dashboard-table-wrap"><table class="table table-sm"><thead><tr><th>${__("Contest")}</th><th>${__("Position")}</th><th>${__("Bank")}</th><th>${__("Eligible")}</th><th>${__("Pending review")}</th></tr></thead><tbody data-coverage></tbody></table></div></section>
     <div class="trivia-dashboard-columns">
-      <section class="frappe-card trivia-dashboard-card"><h3>${__("AI difficulty")}</h3><div data-difficulty></div></section>
+      <section class="frappe-card trivia-dashboard-card"><h3>${__("Dificuldade (Athena)")}</h3><div data-difficulty></div></section>
       <section class="frappe-card trivia-dashboard-card"><h3>${__("Recent workers")}</h3><div class="trivia-dashboard-table-wrap"><table class="table table-sm"><thead><tr><th>${__("Source")}</th><th>${__("Operation")}</th><th>${__("Status")}</th><th>${__("Errors")}</th><th>${__("Requests · credits / limit · reserve")}</th><th>${__("Resume")}</th><th>${__("Finished")}</th></tr></thead><tbody data-runs></tbody></table></div></section>
     </div>
     <section class="frappe-card trivia-dashboard-card"><h3>${__("Endpoint utilization")}</h3><div class="trivia-dashboard-table-wrap"><table class="table table-sm"><thead><tr><th>${__("Endpoint")}</th><th>${__("Received")}</th><th>${__("Created")}</th><th>${__("Updated")}</th><th>${__("Failed")}</th><th>${__("Utilization")}</th></tr></thead><tbody data-endpoints></tbody></table></div></section>
@@ -31,7 +31,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     main.find("[data-cards]").html([
       card(__("Active workers"), w.running, __("Runs in progress"), w.running ? "orange" : "green"),
       card(__("Questions"), q.total, `${q.enriched} ${__("enriched")} · ${q.coverage_percent}%`, "blue"),
-      card(__("Pending AI enrichment"), q.pending, __("Awaiting classification"), q.pending ? "orange" : "green"),
+      card(__("Pendentes para Athena"), q.pending, __("Aguardando análise"), q.pending ? "orange" : "green"),
       card(__("Average difficulty"), `${q.average || 0} ★`, __("Scale of 1 to 5 stars"), "purple"),
       card(__("Recent failures"), w.failed_recent, __("Partial or failed workers"), w.failed_recent ? "red" : "green"),
       card(__("In preparation"), e.pending_review, `${e.oldest_pending_days || 0} ${__("days in oldest item")}`, e.pending_review ? "orange" : "green"),
@@ -39,7 +39,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
       card(__("Catalogs"), Object.values(c).reduce((a, b) => a + (Number(b) || 0), 0), __("Catalog records"), "blue"),
     ].join(""));
     const dist = q.distribution || {};
-    main.find("[data-difficulty]").html(Object.keys(dist).map((stars) => `<div class="trivia-dashboard-bar-row"><span>${stars} ★</span><div class="trivia-dashboard-bar"><i style="width:${q.enriched ? Math.min(100, (dist[stars] / q.enriched) * 100) : 0}%"></i></div><strong>${dist[stars]}</strong></div>`).join("") || `<p class="text-muted">${__("No AI classifications yet.")}</p>`);
+    main.find("[data-difficulty]").html(Object.keys(dist).map((stars) => `<div class="trivia-dashboard-bar-row"><span>${stars} ★</span><div class="trivia-dashboard-bar"><i style="width:${q.enriched ? Math.min(100, (dist[stars] / q.enriched) * 100) : 0}%"></i></div><strong>${dist[stars]}</strong></div>`).join("") || `<p class="text-muted">${__("Nenhuma classificação da Athena ainda.")}</p>`);
     main.find("[data-runs]").html((w.recent_runs || []).map((run) => `<tr><td>${escape(run.source)}</td><td>${escape(run.operation)} · ${escape(run.current_operation || "")}</td><td><span class="indicator-pill ${run.status === "Completed" ? "green" : run.status === "Running" ? "orange" : "red"}">${escape(run.status)}</span></td><td>${escape(run.records_errors || 0)}</td><td>${escape(run.requests_made || 0)} · ${escape(run.credits_used || 0)} / ${escape(run.request_budget || 0)} · ${escape(run.credit_reserve || 0)}</td><td>${escape(run.resume_operation || "—")} ${escape(run.resume_page || "")}</td><td>${escape(run.finished_at || "—")}</td></tr>`).join("") || `<tr><td colspan="7" class="text-muted">${__("No runs recorded.")}</td></tr>`);
     main.find("[data-editorial]").html([
       card(__("In preparation"), e.pending_review || 0, `${e.oldest_pending_days || 0} ${__("days in oldest item")}`, e.pending_review ? "orange" : "green"),

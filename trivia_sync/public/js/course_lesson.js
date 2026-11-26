@@ -8,24 +8,24 @@
 	frappe.ui.form.on("Course Lesson", {
 		refresh(frm) {
 			if (frm.is_new() || !canGenerate()) return;
-			frm.add_custom_button(__("Generate lesson draft (AI)"), () => {
+			frm.add_custom_button(__("Gerar rascunho da aula (Athena)"), () => {
 				const dialog = new frappe.ui.Dialog({
-					title: __("Generate AI Study Material into Lesson"),
+					title: __("Gerar material de estudo com a Athena"),
 					fields: [
-						{ fieldname: "level", fieldtype: "Select", label: __("Depth level"), options: "mais\n180\n360", default: "180", reqd: 1 },
-						{ fieldname: "trivia_subject", fieldtype: "Link", options: "Trivia Subject", label: __("Subject filter (optional)") },
-						{ fieldname: "trivia_topic", fieldtype: "Link", options: "Trivia Topic", label: __("Topic filter (optional)") },
-						{ fieldname: "syllabus_topic", fieldtype: "Link", options: "Trivia Syllabus Topic", label: __("Syllabus topic filter (optional)") },
-						{ fieldname: "methodology", fieldtype: "Link", options: "Trivia Methodology", label: __("Methodology (optional)") },
-						{ fieldname: "prompt", fieldtype: "Small Text", label: __("Additional instructions") },
+						{ fieldname: "level", fieldtype: "Select", label: __("Nível de profundidade"), options: "mais\n180\n360", default: "180", reqd: 1 },
+						{ fieldname: "trivia_subject", fieldtype: "Link", options: "Trivia Subject", label: __("Filtro de matéria (opcional)") },
+						{ fieldname: "trivia_topic", fieldtype: "Link", options: "Trivia Topic", label: __("Filtro de tópico (opcional)") },
+						{ fieldname: "syllabus_topic", fieldtype: "Link", options: "Trivia Syllabus Topic", label: __("Filtro de item do edital (opcional)") },
+						{ fieldname: "methodology", fieldtype: "Link", options: "Trivia Methodology", label: __("Metodologia (opcional)") },
+						{ fieldname: "prompt", fieldtype: "Small Text", label: __("Instruções adicionais para a Athena") },
 					],
-					primary_action_label: __("Generate into Lesson"),
+					primary_action_label: __("Gerar na aula"),
 					primary_action(values) {
 						dialog.hide();
 						frappe.call({
 							method: "trivia_sync.api.generate_course_lesson_material",
 							freeze: true,
-							freeze_message: __("Generating lesson material..."),
+							freeze_message: __("Athena está gerando o material da aula..."),
 							args: {
 								lesson_name: frm.doc.name,
 								level: values.level,

@@ -267,64 +267,64 @@
     {
       "fieldname": "ai_section",
       "fieldtype": "Section Break",
-      "label": "AI adapter · question enrichment"
+      "label": "Athena · enriquecimento de questões"
     },
     {
       "fieldname": "ai_enabled",
       "fieldtype": "Check",
-      "label": "Enable AI enrichment",
+      "label": "Ativar Athena",
       "default": "0",
-      "description": "AI enrichment is opt-in and consumes requests from the configured provider."
+      "description": "A análise da Athena é opcional e consome requisições do provedor configurado."
     },
     {
       "fieldname": "ai_backend",
       "fieldtype": "Select",
-      "label": "AI provider source",
+      "label": "Provedor da Athena",
       "options": "Frappe Flow\nCustom OpenAI-compatible",
       "default": "Frappe Flow",
-      "description": "Use the provider and models already configured in Frappe Flow, or specify a custom OpenAI-compatible endpoint."
+      "description": "Use o provedor e modelos já configurados no Frappe Flow, ou informe um endpoint compatível com OpenAI."
     },
     {
       "fieldname": "ai_flow_model",
       "fieldtype": "Link",
-      "label": "Flow Model",
+      "label": "Modelo Flow (Athena)",
       "options": "Flow Model",
       "depends_on": "eval:doc.ai_backend!='Custom OpenAI-compatible'",
-      "description": "Optional. Leave blank to automatically use an enabled chat model configured in Frappe Flow."
+      "description": "Opcional. Deixe em branco para usar automaticamente um modelo de chat habilitado no Frappe Flow."
     },
     {
       "fieldname": "ai_base_url",
       "fieldtype": "Data",
-      "label": "AI base URL",
+      "label": "URL base da Athena",
       "default": "https://api.openai.com/v1",
       "depends_on": "eval:doc.ai_backend=='Custom OpenAI-compatible'"
     },
     {
       "fieldname": "ai_api_key",
       "fieldtype": "Password",
-      "label": "AI provider key",
-      "description": "Leave blank to keep the saved key. Never expose it in the frontend or repository.",
+      "label": "Chave de API da Athena",
+      "description": "Deixe em branco para manter a chave salva. Nunca exponha no frontend ou repositório.",
       "depends_on": "eval:doc.ai_backend=='Custom OpenAI-compatible'"
     },
     {
       "fieldname": "ai_model",
       "fieldtype": "Data",
-      "label": "AI model",
+      "label": "Modelo da Athena",
       "default": "gpt-6-luna",
       "depends_on": "eval:doc.ai_backend=='Custom OpenAI-compatible'"
     },
     {
       "fieldname": "ai_timeout",
       "fieldtype": "Int",
-      "label": "AI timeout (seconds)",
+      "label": "Tempo limite da Athena (segundos)",
       "default": "90"
     },
     {
       "fieldname": "ai_batch_size",
       "fieldtype": "Int",
-      "label": "Questions per AI run",
+      "label": "Questões por execução da Athena",
       "default": "10",
-      "description": "Safety limit for each manual run or worker."
+      "description": "Limite de segurança para cada execução manual ou em fila."
     },
     {
       "fieldname": "qapi_max_requests_per_run",

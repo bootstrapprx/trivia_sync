@@ -70,20 +70,20 @@
 			}
 
 			if (!isArchived && hasAnyRole("Trivia Integrator")) {
-				frm.add_custom_button(__("Generate AI draft"), () => {
+				frm.add_custom_button(__("Gerar rascunho com Athena"), () => {
 					const dialog = new frappe.ui.Dialog({
-						title: __("Generate AI Study Guide Draft"),
+						title: __("Gerar rascunho de apostila · Athena"),
 						fields: [
-							{ fieldname: "level", fieldtype: "Select", label: __("Level"), options: "mais\n180\n360", default: "mais", reqd: 1 },
+							{ fieldname: "level", fieldtype: "Select", label: __("Nível"), options: "mais\n180\n360", default: "mais", reqd: 1 },
 						],
-						primary_action_label: __("Generate"),
+						primary_action_label: __("Gerar"),
 						primary_action(values) {
 							dialog.hide();
 							runAction(
 								frm,
 								"trivia_sync.api.generate_apostila_recipe_material",
 								{ recipe_name: frm.doc.name, level: values.level },
-								__("AI draft generated.")
+								__("Rascunho gerado pela Athena.")
 							);
 						},
 					});

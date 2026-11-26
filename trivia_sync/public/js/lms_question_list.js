@@ -11,12 +11,12 @@
 			{
 				fieldname: "mode",
 				fieldtype: "Select",
-				label: __("Enrichment scope"),
+				label: __("Escopo da análise da Athena"),
 				options: [
-					{ label: __("Full enrichment (difficulty + topics/Tags + per-option explanations + knowledge)"), value: "full" },
-					{ label: __("Difficulty, objective & topics/Tags only"), value: "difficulty" },
-					{ label: __("Per-option explanations only"), value: "explanations" },
-					{ label: __("Knowledge pages (concepts & sub-concepts) only"), value: "knowledge" },
+					{ label: __("Análise completa (dificuldade + tópicos/Tags + explicações + conhecimento)"), value: "full" },
+					{ label: __("Apenas dificuldade, objetivo e tópicos/Tags"), value: "difficulty" },
+					{ label: __("Apenas explicações por alternativa"), value: "explanations" },
+					{ label: __("Apenas páginas de conhecimento (conceitos e subconceitos)"), value: "knowledge" },
 				],
 				default: "full",
 				reqd: 1,
@@ -24,20 +24,20 @@
 			{
 				fieldname: "include_knowledge",
 				fieldtype: "Check",
-				label: __("Extract & link Knowledge Pages (concepts/sub-concepts)"),
+				label: __("Extrair e vincular páginas de conhecimento"),
 				default: 1,
 				depends_on: "eval:doc.mode=='full'",
 			},
 			{
 				fieldname: "force",
 				fieldtype: "Check",
-				label: __("Re-process questions that are already Ready/enriched"),
+				label: __("Reprocessar questões já analisadas / Prontas"),
 				default: 0,
 			},
 			{
 				fieldname: "run_now",
 				fieldtype: "Check",
-				label: __("Run immediately (synchronous, up to 15 questions — no background worker needed)"),
+				label: __("Executar agora (síncrono, até 15 questões — sem aguardar worker)"),
 				default: isSelection && selectedNames.length <= 5 ? 1 : 0,
 			},
 		];
@@ -45,24 +45,24 @@
 			fields.splice(1, 0, {
 				fieldname: "limit",
 				fieldtype: "Int",
-				label: __("Max questions in this batch (1–200)"),
+				label: __("Máximo de questões neste lote (1–200)"),
 				default: 20,
 				reqd: 1,
 			});
 			fields.splice(2, 0, {
 				fieldname: "use_list_filters",
 				fieldtype: "Check",
-				label: __("Respect active list filters (subject, board, status, etc.)"),
+				label: __("Respeitar filtros ativos da lista (matéria, banca, status, etc.)"),
 				default: 1,
 			});
 		}
 
 		const dialog = new frappe.ui.Dialog({
 			title: isSelection
-				? __("Batch AI Enrichment · {0} selected LMS question(s)", [selectedNames.length])
-				: __("Batch AI Enrichment · In Preparation Questions"),
+				? __("Athena em lote · {0} questão(ões) selecionada(s)", [selectedNames.length])
+				: __("Athena em lote · Questões em preparação"),
 			fields,
-			primary_action_label: __("Start AI Batch"),
+			primary_action_label: __("Iniciar análise da Athena"),
 			primary_action(values) {
 				const activeFilters = {};
 				if (!isSelection && values.use_list_filters && listview.filter_area) {
@@ -78,7 +78,7 @@
 				frappe.call({
 					method,
 					freeze: Boolean(values.run_now),
-					freeze_message: values.run_now ? __("Running AI enrichment batch...") : undefined,
+					freeze_message: values.run_now ? __("Athena está analisando o lote...") : undefined,
 					args: {
 						question_names: isSelection ? JSON.stringify(selectedNames) : null,
 						mode: values.mode,
@@ -90,7 +90,7 @@
 				}).then(({ message }) => {
 					if (values.run_now) {
 						frappe.show_alert({
-							message: __("AI batch finished: {0} enriched, {1} skipped, {2} errors.", [
+							message: __("Athena concluiu o lote: {0} analisada(s), {1} ignorada(s), {2} erro(s).", [
 								message?.enriched || 0,
 								message?.skipped || 0,
 								message?.errors || 0,
@@ -101,10 +101,10 @@
 						return;
 					}
 					const scopeLabel = isSelection
-						? __("{0} selected question(s)", [selectedNames.length])
-						: __("up to {0} question(s)", [message?.limit || values.limit]);
+						? __("{0} questão(ões) selecionada(s)", [selectedNames.length])
+						: __("até {0} questão(ões)", [message?.limit || values.limit]);
 					frappe.show_alert({
-						message: __("AI batch ({0}) queued on {1} for {2}. Track progress in Trivia Sync Run or Dashboard.", [
+						message: __("Lote da Athena ({0}) enfileirado em {1} para {2}. Acompanhe no Trivia Sync Run ou Dashboard.", [
 							message?.mode || values.mode,
 							message?.queue || "long",
 							scopeLabel,
@@ -125,20 +125,20 @@
 			if (typeof previousOnload === "function") previousOnload(listview);
 			if (!canRunAI()) return;
 
-			listview.page.add_action_item(__("Enrich selected with AI"), () => {
+			listview.page.add_action_item(__("Analisar selecionadas com Athena"), () => {
 				const selected = (listview.get_checked_items() || []).map((row) => row.name);
 				if (!selected.length) {
-					frappe.msgprint(__("Select at least one question first."));
+					frappe.msgprint(__("Selecione ao menos uma questão primeiro."));
 					return;
 				}
 				openBatchDialog(listview, selected);
 			});
 
-			listview.page.add_inner_button(__("Enrich pending batch (AI)"), () => {
+			listview.page.add_inner_button(__("Athena · Analisar pendentes"), () => {
 				openBatchDialog(listview, []);
 			});
 
-			listview.page.add_inner_button(__("Import Ready Exam"), () => {
+			listview.page.add_inner_button(__("Importar Prova Pronta"), () => {
 				window.trivia_sync?.openExamImporterDialog?.({
 					onImported: () => listview.refresh(),
 				});

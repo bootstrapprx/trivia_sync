@@ -26,7 +26,7 @@
 					fieldname: "help_html",
 					fieldtype: "HTML",
 					options: `<div class="text-muted small mb-2">
-						${__("Paste or upload a structured exam (YAML or JSON with <code>prova</code>, <code>textos_apoio</code>, and <code>questoes</code>). All questions enter the standard LMS Question flow (AI enrichment, Cockpit, Knowledge Pages) and an LMS Quiz is created automatically.")}
+						${__("Cole ou envie uma prova estruturada (YAML ou JSON com <code>prova</code>, <code>textos_apoio</code> e <code>questoes</code>). Todas as questões entram no fluxo padrão do LMS Question (análise da Athena, Cockpit, Páginas de Conhecimento) e um LMS Quiz é criado automaticamente.")}
 					</div>`,
 				},
 				{

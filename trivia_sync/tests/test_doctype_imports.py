@@ -37,7 +37,7 @@ class TestDocTypeControllerImports(unittest.TestCase):
 		self.assertEqual(by_name["LMS Question-trivia_teacher_comment_section"]["collapsible"], 0)
 		self.assertEqual(by_name["LMS Question-trivia_general_explanation"]["label"], "Comentário do Professor")
 		self.assertEqual(by_name["LMS Question-trivia_general_explanation"]["insert_after"], "trivia_teacher_comment_section")
-		self.assertEqual(by_name["LMS Question-trivia_ai_comment"]["label"], "Comentário da IA")
+		self.assertEqual(by_name["LMS Question-trivia_ai_comment"]["label"], "Comentário da Athena")
 		self.assertEqual(by_name["LMS Question-trivia_ai_comment"]["read_only"], 1)
 
 		import trivia_sync.hooks as hooks

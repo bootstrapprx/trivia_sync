@@ -22,23 +22,23 @@ frappe.ui.form.on("Trivia Sync Settings", {
 				frappe.show_alert({ message: `Reformat queued on ${message?.queue || "long"}${message?.job_id ? ` · ${message.job_id}` : ""}.`, indicator: "green" });
 			});
 		}, "Sync");
-		frm.add_custom_button("Test AI connection", () => {
+		frm.add_custom_button(__("Testar conexão da Athena"), () => {
 			frappe.call({ method: "trivia_sync.api.ai_status" }).then(({ message }) => {
 				frappe.msgprint(
 					message?.ok
-						? `AI OK (${message.backend}): ${message.model}${message.flow_model ? ` · Flow Model: ${message.flow_model}` : ""}`
-						: (message?.error || "Could not validate AI connection.")
+						? `Athena OK (${message.backend}): ${message.model}${message.flow_model ? ` · Flow Model: ${message.flow_model}` : ""}`
+						: (message?.error || "Não foi possível validar a conexão da Athena.")
 				);
 			});
-		}, "IA");
-		frm.add_custom_button("Enrich questions with AI", () => {
+		}, "Athena");
+		frm.add_custom_button(__("Analisar questões em lote"), () => {
 			const dialog = new frappe.ui.Dialog({
-				title: __("Queue AI Batch Enrichment"),
+				title: __("Enfileirar lote da Athena"),
 				fields: [
 					{
 						fieldname: "mode",
 						fieldtype: "Select",
-						label: __("Enrichment scope"),
+						label: __("Escopo da análise"),
 						options: "full\ndifficulty\nexplanations\nknowledge",
 						default: "full",
 						reqd: 1,
@@ -46,25 +46,25 @@ frappe.ui.form.on("Trivia Sync Settings", {
 					{
 						fieldname: "limit",
 						fieldtype: "Int",
-						label: __("Max questions in batch (1–200)"),
+						label: __("Máximo de questões no lote (1–200)"),
 						default: frm.doc.ai_batch_size || 20,
 						reqd: 1,
 					},
 					{
 						fieldname: "include_knowledge",
 						fieldtype: "Check",
-						label: __("Extract & link Knowledge Pages"),
+						label: __("Extrair e vincular páginas de conhecimento"),
 						default: 1,
 						depends_on: "eval:doc.mode=='full'",
 					},
 					{
 						fieldname: "force",
 						fieldtype: "Check",
-						label: __("Re-process already enriched questions"),
+						label: __("Reprocessar questões já analisadas"),
 						default: 0,
 					},
 				],
-				primary_action_label: __("Queue Batch"),
+				primary_action_label: __("Enfileirar lote"),
 				primary_action(values) {
 					dialog.hide();
 					frappe.call({
@@ -77,23 +77,23 @@ frappe.ui.form.on("Trivia Sync Settings", {
 						},
 					}).then(({ message }) => {
 						frappe.show_alert({
-							message: `AI batch (${message?.mode || values.mode}) queued on ${message?.queue || "long"} for up to ${message?.limit || values.limit} question(s).`,
+							message: `Lote da Athena (${message?.mode || values.mode}) enfileirado em ${message?.queue || "long"} para até ${message?.limit || values.limit} questão(ões).`,
 							indicator: "green",
 						});
 					});
 				},
 			});
 			dialog.show();
-		}, "IA");
-		frm.add_custom_button("Setup Flow Knowledge & Skill", () => {
+		}, "Athena");
+		frm.add_custom_button(__("Configurar Knowledge & Skill (Flow)"), () => {
 			frappe.call({ method: "trivia_sync.api.setup_flow_knowledge_and_skill" }).then(({ message }) => {
 				const parts = [];
 				if (message?.knowledge_base) parts.push(`Knowledge Base: ${message.knowledge_base}`);
 				if (message?.knowledge_source) parts.push(`Source: ${message.knowledge_source}`);
 				if (message?.skill) parts.push(`Skill: ${message.skill}`);
-				if (message?.warnings?.length) parts.push(`Warnings: ${message.warnings.join(" | ")}`);
-				frappe.msgprint(parts.join("<br>") || "Flow Knowledge & Skill synchronized.");
+				if (message?.warnings?.length) parts.push(`Avisos: ${message.warnings.join(" | ")}`);
+				frappe.msgprint(parts.join("<br>") || "Flow Knowledge & Skill sincronizados.");
 			});
-		}, "IA");
+		}, "Athena");
 	},
 });
