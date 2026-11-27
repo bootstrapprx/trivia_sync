@@ -345,11 +345,43 @@
 					method: "trivia_sync.api.enqueue_athena_course",
 					args,
 				}).then(({ message }) => {
+					const runName = message?.run;
+					const modeNote = message?.executor === "local_thread" ? __("thread local ativa") : __("worker RQ");
 					frappe.show_alert({
-						message: __("Geração do curso enfileirada na fila {0}. Acompanhe em Trivia Sync Run ou no Dashboard!", [message?.queue || "long"]),
-						indicator: "green",
+						message: __("Geração iniciada em segundo plano ({0} · Run {1}). Acompanhe no Dashboard!", [modeNote, runName || "—"]),
+						indicator: "blue",
 					});
 					if (typeof options.onCreated === "function") options.onCreated(message);
+
+					if (runName) {
+						let lastOp = "";
+						const watch = setInterval(() => {
+							frappe.call({
+								method: "trivia_sync.api.get_athena_course_run_status",
+								args: { run_name: runName },
+							}).then(({ message: st }) => {
+								if (!st) return;
+								if (st.status === "Running" && st.current_operation && st.current_operation !== lastOp) {
+									lastOp = st.current_operation;
+									frappe.show_alert({ message: `Athena: ${st.current_operation}`, indicator: "blue" });
+								} else if (st.status === "Completed") {
+									clearInterval(watch);
+									frappe.show_alert({
+										message: __("Athena concluiu a geração! ({0})", [st.current_operation || runName]),
+										indicator: "green",
+									});
+									if (typeof options.onCreated === "function") options.onCreated(st);
+								} else if (st.status === "Failed") {
+									clearInterval(watch);
+									frappe.msgprint({
+										title: __("Falha na geração do curso ({0})", [runName]),
+										indicator: "red",
+										message: `<pre class="small" style="white-space: pre-wrap;">${esc(st.error_log || "Verifique os detalhes em Trivia Sync Run.")}</pre>`,
+									});
+								}
+							}).catch(() => clearInterval(watch));
+						}, 4500);
+					}
 				});
 				return;
 			}

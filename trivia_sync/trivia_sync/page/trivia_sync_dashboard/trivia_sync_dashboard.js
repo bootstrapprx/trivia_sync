@@ -27,10 +27,22 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
   const escape = (value) => frappe.utils.escape_html(String(value ?? ""));
   const card = (label, value, detail, tone = "blue") => `<div class="frappe-card trivia-dashboard-metric"><div class="trivia-dashboard-metric-label">${escape(label)}</div><div class="trivia-dashboard-metric-value text-${tone}">${escape(value)}</div><div class="trivia-dashboard-metric-detail">${escape(detail)}</div></div>`;
 
+  let pollTimer = null;
+  const pillClass = (status) => {
+    if (status === "Completed") return "green";
+    if (status === "Queued") return "blue";
+    if (status === "Running") return "orange";
+    return "red";
+  };
+
   const render = (data) => {
     const q = data.questions || {}, w = data.workers || {}, c = data.catalogs || {}, e = data.editorial || {}, s = data.source_sync || {}, m = data.materials || {};
+    const activeCount = (w.running || 0) + (w.queued || 0);
+    const workerNote = w.rq_worker_online
+      ? `${w.running || 0} rodando · ${w.queued || 0} na fila (RQ online)`
+      : `${w.running || 0} rodando · ${w.queued || 0} na fila (modo thread local)`;
     main.find("[data-cards]").html([
-      card(__("Active workers"), w.running, __("Runs in progress"), w.running ? "orange" : "green"),
+      card(__("Workers / Segundo plano"), activeCount, workerNote, activeCount ? "orange" : "green"),
       card(__("Questions"), q.total, `${q.enriched} ${__("enriched")} · ${q.coverage_percent}%`, "blue"),
       card(__("Pendentes para Athena"), q.pending, __("Aguardando análise"), q.pending ? "orange" : "green"),
       card(__("Average difficulty"), `${q.average || 0} ★`, __("Scale of 1 to 5 stars"), "purple"),
@@ -41,7 +53,7 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     ].join(""));
     const dist = q.distribution || {};
     main.find("[data-difficulty]").html(Object.keys(dist).map((stars) => `<div class="trivia-dashboard-bar-row"><span>${stars} ★</span><div class="trivia-dashboard-bar"><i style="width:${q.enriched ? Math.min(100, (dist[stars] / q.enriched) * 100) : 0}%"></i></div><strong>${dist[stars]}</strong></div>`).join("") || `<p class="text-muted">${__("Nenhuma classificação da Athena ainda.")}</p>`);
-    main.find("[data-runs]").html((w.recent_runs || []).map((run) => `<tr><td>${escape(run.source)}</td><td>${escape(run.operation)} · ${escape(run.current_operation || "")}</td><td><span class="indicator-pill ${run.status === "Completed" ? "green" : run.status === "Running" ? "orange" : "red"}">${escape(run.status)}</span></td><td>${escape(run.records_errors || 0)}</td><td>${escape(run.requests_made || 0)} · ${escape(run.credits_used || 0)} / ${escape(run.request_budget || 0)} · ${escape(run.credit_reserve || 0)}</td><td>${escape(run.resume_operation || "—")} ${escape(run.resume_page || "")}</td><td>${escape(run.finished_at || "—")}</td></tr>`).join("") || `<tr><td colspan="7" class="text-muted">${__("No runs recorded.")}</td></tr>`);
+    main.find("[data-runs]").html((w.recent_runs || []).map((run) => `<tr style="cursor:pointer;" onclick="frappe.set_route('Form', 'Trivia Sync Run', '${escape(run.name)}')"><td><strong>${escape(run.source)}</strong></td><td>${escape(run.operation)}${run.current_operation ? ` · <span class="text-muted">${escape(run.current_operation)}</span>` : ""}${run.error_snippet ? `<div class="text-danger small mt-1">${escape(run.error_snippet)}</div>` : ""}</td><td><span class="indicator-pill ${pillClass(run.status)}">${escape(run.status)}</span></td><td>${escape(run.records_errors || 0)}</td><td>${escape(run.requests_made || 0)} · ${escape(run.credits_used || 0)} / ${escape(run.request_budget || 0)} · ${escape(run.credit_reserve || 0)}</td><td>${escape(run.resume_operation || "—")} ${escape(run.resume_page || "")}</td><td>${escape(run.finished_at || run.started_at || "—")}</td></tr>`).join("") || `<tr><td colspan="7" class="text-muted">${__("No runs recorded.")}</td></tr>`);
     main.find("[data-editorial]").html([
       card(__("In preparation"), e.pending_review || 0, `${e.oldest_pending_days || 0} ${__("days in oldest item")}`, e.pending_review ? "orange" : "green"),
       card(__("Ready in LMS"), e.ready_questions || 0, __("Available for quizzes & courses"), "green"),
@@ -63,7 +75,16 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     main.find("[data-coverage]").html((data.syllabus_coverage || []).map((row) => `<tr><td>${escape(row.concurso || "—")}</td><td>${escape(row.cargo || row.concurso_cargo)}</td><td>${escape(row.questions || 0)}</td><td>${escape(row.eligible || 0)}</td><td>${escape(row.review?.Pending || 0)}</td></tr>`).join("") || `<tr><td colspan="5" class="text-muted">${__("No contest positions are configured.")}</td></tr>`);
     main.find("[data-updated]").text(`${__("Updated at")} ${data.generated_at || "—"}`);
   };
-  const load = () => frappe.call("trivia_sync.dashboard.metrics").then(({ message }) => render(message || {}));
+  const scheduleNext = (active) => {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(load, active ? 5000 : 25000);
+  };
+  const load = () => frappe.call("trivia_sync.dashboard.metrics").then(({ message }) => {
+    const data = message || {};
+    render(data);
+    const active = ((data.workers?.running || 0) + (data.workers?.queued || 0)) > 0;
+    scheduleNext(active);
+  });
   main.find('[data-action="create-course"]').on("click", () => {
     window.trivia_sync?.openAthenaCourseBuilder?.({ onCreated: load });
   });
@@ -72,5 +93,4 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
   });
   main.find('[data-action="refresh"]').on("click", load);
   load();
-  setInterval(load, 30000);
 };

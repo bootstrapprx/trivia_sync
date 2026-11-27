@@ -27,9 +27,13 @@ from trivia_sync.integrations.exam_importer import (
 	preview_ready_exam as preview_ready_exam_payload,
 )
 from trivia_sync.integrations.exams import build_lms_quiz_from_bank
+from trivia_sync.integrations.background import create_sync_run, dispatch_background_job
 from trivia_sync.integrations.course_builder import (
 	create_course_from_blueprint as materialize_athena_course,
+	get_course_run_status as fetch_athena_course_run_status,
 	plan_course_blueprint as build_athena_course_blueprint,
+	resume_course_generation as restart_athena_course_generation,
+	start_course_generation as launch_athena_course_generation,
 )
 from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.knowledge import (
@@ -161,25 +165,33 @@ def save_onboarding(
 def enqueue_qapi_sync(full=1, dry_run=0, budget=None, max_pages=0, filters=None):
 	_admin()
 	parsed_filters = json.loads(filters) if isinstance(filters, str) and filters else filters or {}
+	op_label = "Full QAPI sync" if cint(full) else "Pull questions"
+	run_name = create_sync_run(
+		source="QAPI",
+		operation="QAPI ingestion",
+		status="Queued",
+		current_operation=f"Na fila: {op_label}",
+		parameters={"filters": parsed_filters, "full": bool(cint(full)), "max_pages": cint(max_pages)},
+	)
 	job_name = f"trivia_sync_qapi_{'full' if cint(full) else 'questions'}_{uuid.uuid4().hex[:10]}"
-	job = frappe.enqueue(
+	dispatched = dispatch_background_job(
 		"trivia_sync.integrations.sync.ingest_source",
-		source_name="QAPI",
-		filters=parsed_filters,
-		dry_run=bool(cint(dry_run)),
-		include_catalogs=bool(cint(full)),
-		budget=None if budget in (None, "") else cint(budget),
-		max_pages=cint(max_pages),
+		kwargs={
+			"source_name": "QAPI",
+			"filters": parsed_filters,
+			"dry_run": bool(cint(dry_run)),
+			"include_catalogs": bool(cint(full)),
+			"budget": None if budget in (None, "") else cint(budget),
+			"max_pages": cint(max_pages),
+			"queued_run": run_name,
+		},
 		queue="long",
 		job_name=job_name,
-		enqueue_after_commit=False,
+		run_name=run_name,
 	)
 	return {
-		"queued": True,
-		"job": job_name,
-		"job_id": getattr(job, "id", None),
-		"queue": "long",
-		"message": "Job enqueued immediately; a running worker_long process is required to execute it.",
+		**dispatched,
+		"message": "Sincronização QAPI iniciada em segundo plano.",
 	}
 
 
@@ -211,13 +223,19 @@ def enqueue_qapi_full_upgrade(budget=None, max_pages=0, filters=None):
 @frappe.whitelist()
 def enqueue_lms_sync():
 	_admin()
-	frappe.enqueue(
+	run_name = create_sync_run(
+		source="Frappe LMS",
+		operation="Push LMS content",
+		status="Queued",
+		current_operation="Na fila: sincronizar cursos LMS → Trivia",
+	)
+	return dispatch_background_job(
 		"trivia_sync.integrations.frappe_lms.sync_existing_lms_to_trivia",
+		kwargs={"run_name": run_name},
 		queue="long",
 		job_name="trivia_sync_lms_to_trivia",
-		enqueue_after_commit=False,
+		run_name=run_name,
 	)
-	return {"queued": True, "job": "trivia_sync_lms_to_trivia"}
 
 
 @frappe.whitelist()
@@ -250,15 +268,21 @@ def repair_qapi_question(question_name):
 @frappe.whitelist()
 def enqueue_qapi_reformat(limit=10000):
 	_admin()
+	parsed_limit = max(1, min(cint(limit), 100000))
+	run_name = create_sync_run(
+		source="QAPI",
+		operation="QAPI reformat",
+		status="Queued",
+		current_operation=f"Na fila: reprocessar formatação QAPI (até {parsed_limit})",
+	)
 	job_name = f"trivia_sync_reformat_{uuid.uuid4().hex[:10]}"
-	job = frappe.enqueue(
+	return dispatch_background_job(
 		"trivia_sync.integrations.sync.reformat_qapi_questions",
-		limit=max(1, min(cint(limit), 100000)),
+		kwargs={"limit": parsed_limit, "run_name": run_name},
 		queue="long",
 		job_name=job_name,
-		enqueue_after_commit=False,
+		run_name=run_name,
 	)
-	return {"queued": True, "job": job_name, "job_id": getattr(job, "id", None), "queue": "long"}
 
 
 @frappe.whitelist()
@@ -419,27 +443,41 @@ def enqueue_ai_batch(question_names=None, mode="full", limit=None, include_knowl
 	if not settings.ai_enabled:
 		frappe.throw("Enable AI enrichment in Trivia Sync Settings before queuing a batch.")
 	parsed_limit = None if limit in (None, "") else max(1, min(cint(limit), 200))
+	effective_limit = parsed_limit or int(settings.ai_batch_size or 10)
+	run_name = create_sync_run(
+		source="Athena",
+		operation=f"AI batch ({mode})",
+		status="Queued",
+		current_operation=f"Na fila: lote Athena ({mode}, até {effective_limit} questões)",
+		parameters={
+			"mode": mode,
+			"limit": effective_limit,
+			"include_knowledge": bool(cint(include_knowledge)),
+			"force": bool(cint(force)),
+			"selected_count": len(question_names or []),
+		},
+	)
 	job_name = f"trivia_sync_ai_batch_{mode}_{uuid.uuid4().hex[:8]}"
-	job = frappe.enqueue(
+	dispatched = dispatch_background_job(
 		"trivia_sync.integrations.ai_enricher.enrich_questions_batch",
-		question_names=question_names or None,
-		mode=mode,
-		limit=parsed_limit,
-		include_knowledge=bool(cint(include_knowledge)),
-		force=bool(cint(force)),
-		filters=filters or None,
+		kwargs={
+			"question_names": question_names or None,
+			"mode": mode,
+			"limit": parsed_limit,
+			"include_knowledge": bool(cint(include_knowledge)),
+			"force": bool(cint(force)),
+			"filters": filters or None,
+			"run_name": run_name,
+		},
 		queue="long",
 		job_name=job_name,
-		enqueue_after_commit=False,
+		run_name=run_name,
 	)
 	return {
-		"queued": True,
-		"job": job_name,
-		"job_id": getattr(job, "id", None),
-		"queue": "long",
+		**dispatched,
 		"mode": mode,
 		"selected_count": len(question_names or []),
-		"limit": parsed_limit or int(settings.ai_batch_size or 10),
+		"limit": effective_limit,
 	}
 
 
@@ -708,13 +746,9 @@ def enqueue_athena_course(
 	methodology=None,
 	use_teacher_materials=1,
 	include_quiz=1,
+	force=0,
 ):
-	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
-	if isinstance(blueprint, str):
-		blueprint = json.loads(blueprint or "{}")
-	job_name = f"trivia_sync_athena_course_{uuid.uuid4().hex[:8]}"
-	job = frappe.enqueue(
-		"trivia_sync.integrations.course_builder.create_course_from_blueprint",
+	return launch_athena_course_generation(
 		blueprint=blueprint,
 		target_course=target_course or None,
 		seed_question=seed_question or None,
@@ -723,14 +757,15 @@ def enqueue_athena_course(
 		methodology=methodology or None,
 		use_teacher_materials=bool(cint(use_teacher_materials)),
 		include_quiz=bool(cint(include_quiz)),
-		owner_user=frappe.session.user,
-		queue="long",
-		job_name=job_name,
-		enqueue_after_commit=False,
+		force=bool(cint(force)),
 	)
-	return {
-		"queued": True,
-		"job": job_name,
-		"job_id": getattr(job, "id", None),
-		"queue": "long",
-	}
+
+
+@frappe.whitelist()
+def get_athena_course_run_status(run_name):
+	return fetch_athena_course_run_status(run_name)
+
+
+@frappe.whitelist()
+def resume_athena_course(run_name):
+	return restart_athena_course_generation(run_name)

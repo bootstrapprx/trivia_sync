@@ -62,17 +62,23 @@ def build_lms_payload():
 	return {"subjects": list(subjects.values()), "tracks": tracks, "questions": []}
 
 
-def sync_existing_lms_to_trivia():
+def sync_existing_lms_to_trivia(run_name: str | None = None):
 	doc = settings()
 	payload = build_lms_payload()
-	run = frappe.new_doc("Trivia Sync Run")
+	has_existing = bool(run_name and hasattr(frappe, "db") and frappe.db.exists("Trivia Sync Run", run_name))
+	run = frappe.get_doc("Trivia Sync Run", run_name) if has_existing else frappe.new_doc("Trivia Sync Run")
 	run.source, run.operation, run.status, run.started_at = (
 		"Frappe LMS",
 		"Push LMS content",
 		"Running",
 		frappe.utils.now_datetime(),
 	)
-	run.insert(ignore_permissions=True)
+	if getattr(run, "flags", None) is not None:
+		run.flags.ignore_validate = True
+	if has_existing:
+		run.save(ignore_permissions=True)
+	else:
+		run.insert(ignore_permissions=True)
 	try:
 		if doc.trivia_sync_mode == "Dry run":
 			result = {

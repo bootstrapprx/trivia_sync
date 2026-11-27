@@ -9,10 +9,13 @@ from typing import Any
 import frappe
 
 from trivia_sync.integrations.ai_enricher import AIEnrichmentError, get_ai_adapter
+from trivia_sync.integrations.background import create_sync_run, dispatch_background_job
 from trivia_sync.integrations.lms_questions import (
 	extract_lms_question_options,
 	strip_question_embeds,
 )
+
+whitelist = getattr(frappe, "whitelist", lambda: (lambda function: function))
 
 
 COURSE_ROLES = ("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator")
@@ -115,6 +118,11 @@ def _sanitize_html(raw_html: str) -> str:
 		from frappe.utils.html_utils import sanitize_html
 
 		return sanitize_html(text, always_sanitize=True)
+	except ImportError:
+		if hasattr(frappe, "utils") and hasattr(frappe.utils, "sanitize_html"):
+			return frappe.utils.sanitize_html(text)
+		frappe.log_error(traceback.format_exc(), "Trivia Sync · sanitize_html indisponível")
+		raise AIEnrichmentError("Falha ao sanitizar o HTML gerado; conteúdo descartado por segurança.")
 	except Exception:
 		frappe.log_error(traceback.format_exc(), "Trivia Sync · sanitize_html falhou")
 		raise AIEnrichmentError("Falha ao sanitizar o HTML gerado; conteúdo descartado por segurança.")
@@ -716,13 +724,17 @@ def _lessons_key(run_name: str) -> str:
 def _progress(run_name: str, percent: float, text: str) -> None:
 	frappe.db.set_value("Trivia Sync Run", run_name, "current_operation", text[:140], update_modified=False)
 	frappe.db.commit()
-	frappe.publish_progress(
-		percent,
-		title="Athena · Gerando curso",
-		description=text,
-		doctype="Trivia Sync Run",
-		docname=run_name,
-	)
+	if hasattr(frappe, "publish_progress"):
+		try:
+			frappe.publish_progress(
+				percent,
+				title="Athena · Gerando curso",
+				description=text,
+				doctype="Trivia Sync Run",
+				docname=run_name,
+			)
+		except Exception:
+			pass
 
 
 def _pedagogical_context(seed_doc, prompt: str, use_teacher_materials: bool) -> dict[str, Any]:
@@ -884,7 +896,12 @@ def _execute_course_build(run_name: str, p: dict[str, Any]) -> dict[str, Any]:
 	frappe.db.set_value(
 		"Trivia Sync Run",
 		run_name,
-		{"status": "Running", "error_log": None},
+		{
+			"status": "Running",
+			"started_at": frappe.utils.now_datetime(),
+			"current_operation": "Iniciando redação das aulas...",
+			"error_log": None,
+		},
 		update_modified=False,
 	)
 	frappe.db.commit()
@@ -965,13 +982,17 @@ def _execute_course_build(run_name: str, p: dict[str, Any]) -> dict[str, Any]:
 		frappe.db.commit()
 		cache.delete_value(_lessons_key(run_name))
 		cache.delete_value(_payload_key(run_name))
-		frappe.publish_progress(
-			100,
-			title="Athena · Gerando curso",
-			description="Concluído",
-			doctype="Trivia Sync Run",
-			docname=run_name,
-		)
+		if hasattr(frappe, "publish_progress"):
+			try:
+				frappe.publish_progress(
+					100,
+					title="Athena · Gerando curso",
+					description="Concluído",
+					doctype="Trivia Sync Run",
+					docname=run_name,
+				)
+			except Exception:
+				pass
 		result.pop("records", None)
 		result["model"] = adapter.model
 		return result
@@ -1047,17 +1068,16 @@ def _guard_duplicates(p: dict[str, Any], force: bool) -> None:
 		frappe.throw("Já existe uma geração em andamento para esta mesma ementa. Aguarde ela terminar.")
 
 
-def _new_run() -> str:
-	run = frappe.new_doc("Trivia Sync Run")
-	run.source = "Athena"
-	run.operation = "Create LMS Course"
-	run.status = "Running"
-	run.started_at = frappe.utils.now_datetime()
-	run.insert(ignore_permissions=True)
-	return run.name
+def _new_run(status: str = "Queued", current_operation: str = "Na fila para gerar curso...") -> str:
+	return create_sync_run(
+		source="Athena",
+		operation="Create LMS Course",
+		status=status,
+		current_operation=current_operation,
+	)
 
 
-@frappe.whitelist()
+@whitelist()
 def start_course_generation(
 	blueprint: dict[str, Any] | str,
 	target_course: str | None = None,
@@ -1090,24 +1110,25 @@ def start_course_generation(
 	if not settings.ai_enabled:
 		frappe.throw("Ative a Athena em Trivia Sync Settings antes de gerar um curso.")
 
-	run_name = _new_run()
+	course_label = str(p["blueprint"].get("course_title") or p.get("target_course") or "Curso")[:80]
+	run_name = _new_run(status="Queued", current_operation=f"Na fila: {course_label}")
 	cache = frappe.cache()
 	cache.set_value(_lock_key(p["fingerprint"]), run_name, expires_in_sec=LOCK_TTL)
 	cache.set_value(_payload_key(run_name), p, expires_in_sec=RESUME_TTL)
 	frappe.db.commit()
 
-	frappe.enqueue(
+	dispatched = dispatch_background_job(
 		f"{__name__}._run_course_job",
+		kwargs={"run_name": run_name, "params": p},
 		queue="long",
 		timeout=3600,
-		enqueue_after_commit=True,
+		job_name=f"athena_course_{run_name}",
 		run_name=run_name,
-		params=p,
 	)
-	return {"run": run_name, "status": "Queued"}
+	return {"run": run_name, "status": "Queued", **dispatched}
 
 
-@frappe.whitelist()
+@whitelist()
 def resume_course_generation(run_name: str) -> dict[str, Any]:
 	"""Retoma uma geração que falhou, reaproveitando as aulas já geradas (cache de 24h)."""
 	_require_course_role()
@@ -1127,20 +1148,25 @@ def resume_course_generation(run_name: str) -> dict[str, Any]:
 		frappe.throw("Já existe uma geração em andamento para esta mesma ementa.")
 
 	cache.set_value(_lock_key(params["fingerprint"]), run_name, expires_in_sec=LOCK_TTL)
-	frappe.db.set_value("Trivia Sync Run", run_name, "status", "Running", update_modified=False)
+	frappe.db.set_value(
+		"Trivia Sync Run",
+		run_name,
+		{"status": "Queued", "current_operation": "Retomando geração..."},
+		update_modified=False,
+	)
 	frappe.db.commit()
-	frappe.enqueue(
+	dispatched = dispatch_background_job(
 		f"{__name__}._run_course_job",
+		kwargs={"run_name": run_name, "params": params},
 		queue="long",
 		timeout=3600,
-		enqueue_after_commit=True,
+		job_name=f"athena_course_resume_{run_name}",
 		run_name=run_name,
-		params=params,
 	)
-	return {"run": run_name, "status": "Queued"}
+	return {"run": run_name, "status": "Queued", **dispatched}
 
 
-@frappe.whitelist()
+@whitelist()
 def get_course_run_status(run_name: str) -> dict[str, Any]:
 	_require_course_role()
 	row = frappe.db.get_value(

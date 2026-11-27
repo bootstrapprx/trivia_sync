@@ -2,6 +2,7 @@ import json
 
 import frappe
 
+from trivia_sync.integrations.background import has_active_rq_worker
 from trivia_sync.integrations.reconciliation import question_coverage
 
 whitelist = getattr(frappe, "whitelist", lambda: (lambda function: function))
@@ -137,12 +138,20 @@ def metrics():
 			"name", "source", "operation", "status", "started_at", "finished_at", "page",
 			"records_created", "records_updated", "records_skipped", "records_errors", "records_received",
 			"endpoint_metrics", "requests_made", "credits_used", "request_budget", "credit_reserve",
-			"current_operation", "resume_operation", "resume_page",
+			"current_operation", "resume_operation", "resume_page", "error_log",
 		],
 		order_by="creation desc",
 		limit_page_length=12,
 	)
+	for row in run_rows:
+		raw_err = str(getattr(row, "error_log", None) or (row.get("error_log") if isinstance(row, dict) else "") or "").strip()
+		snippet = raw_err.splitlines()[-1][:160] if raw_err else ""
+		if isinstance(row, dict):
+			row["error_snippet"] = snippet
+		else:
+			row.error_snippet = snippet
 	running = sum(1 for row in run_rows if row.status == "Running")
+	queued = sum(1 for row in run_rows if row.status == "Queued")
 	failed = sum(1 for row in run_rows if row.status in {"Failed", "Partial"})
 	oldest_pending = frappe.get_all(
 		"LMS Question",
@@ -194,7 +203,14 @@ def metrics():
 	in_prep_count = _safe_count("LMS Question", {"trivia_status": "In Preparation"})
 	ready_count = _safe_count("LMS Question", {"trivia_status": "Ready"})
 	return {
-		"workers": {"running": running, "failed_recent": failed, "recent_runs": run_rows},
+		"workers": {
+			"running": running,
+			"queued": queued,
+			"active": running + queued,
+			"rq_worker_online": has_active_rq_worker("long"),
+			"failed_recent": failed,
+			"recent_runs": run_rows,
+		},
 		"editorial": {
 			"pending_review": in_prep_count,
 			"ready_questions": ready_count,

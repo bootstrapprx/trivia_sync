@@ -33,14 +33,13 @@
       "fieldname": "source",
       "fieldtype": "Select",
       "label": "Source",
-      "options": "QAPI\nFrappe LMS\nIA",
+      "options": "QAPI\nFrappe LMS\nAthena\nIA",
       "in_list_view": 1
     },
     {
       "fieldname": "operation",
-      "fieldtype": "Select",
+      "fieldtype": "Data",
       "label": "Operation",
-      "options": "Pull questions\nPush LMS content\nFull QAPI sync\nQAPI ingestion\nAI enrichment",
       "in_list_view": 1
     },
     {

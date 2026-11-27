@@ -10,6 +10,20 @@ class FakeSettings:
 	ai_backend = "Frappe Flow"
 
 
+class FakeCache:
+	def __init__(self):
+		self.data = {}
+
+	def get_value(self, key):
+		return self.data.get(key)
+
+	def set_value(self, key, val, expires_in_sec=None):
+		self.data[key] = val
+
+	def delete_value(self, key):
+		self.data.pop(key, None)
+
+
 class TestAthenaCourseBuilder(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
@@ -18,6 +32,7 @@ class TestAthenaCourseBuilder(unittest.TestCase):
 		frappe.throw = lambda msg, exc=None: (_ for _ in ()).throw((exc or ValueError)(msg))
 		frappe.only_for = lambda roles: None
 		frappe.session = types.SimpleNamespace(user="professor@example.com")
+		frappe.local = types.SimpleNamespace(site=None)
 		frappe.utils = types.SimpleNamespace(now_datetime=lambda: "2026-11-27 16:45:00", sanitize_html=lambda s: s)
 		frappe.log_error = lambda *a, **k: None
 		frappe.generate_hash = lambda length=6: "abc123"
@@ -113,7 +128,6 @@ class TestAthenaCourseBuilder(unittest.TestCase):
 
 		self.assertIn("Anotação didática do professor", seen_prompts[0])
 		self.assertNotIn("Anotação didática do professor", seen_prompts[1])
-		# Hallucinated question IDs must be stripped out
 		self.assertEqual(
 			res_with["blueprint"]["recommended_question_names"],
 			["QTS-2026-00213", "QTS-2026-00214"],
@@ -129,12 +143,14 @@ class TestAthenaCourseBuilder(unittest.TestCase):
 		questions_db = {seed.name: seed, deprecated_q.name: deprecated_q}
 		created_docs: dict[str, list] = {}
 		seq = {"n": 0}
+		cache = FakeCache()
 
 		class FakeDoc:
 			def __init__(self, doctype):
 				seq["n"] += 1
 				self.doctype = doctype
 				self.name = f"{doctype.upper().replace(' ', '-')}-{seq['n']}"
+				self.flags = types.SimpleNamespace(ignore_validate=False)
 				self.chapters = []
 				self.lessons = []
 				self.questions = []
@@ -157,20 +173,37 @@ class TestAthenaCourseBuilder(unittest.TestCase):
 		frappe = self.module.frappe
 		frappe.get_single = lambda name: FakeSettings()
 		frappe.new_doc = lambda dt: FakeDoc(dt)
+		frappe.cache = lambda: cache
 		frappe.db = types.SimpleNamespace(
 			exists=lambda dt, name=None: (name in questions_db) if dt == "LMS Question" else False,
 			commit=lambda: None,
+			savepoint=lambda sp: None,
+			rollback=lambda **kw: None,
+			set_value=lambda *a, **k: None,
+			get_value=lambda *a, **k: None,
 		)
 		frappe.get_doc = lambda dt, name: questions_db[name]
 		frappe.get_all = lambda *a, **k: []
+
+		long_lesson_html = (
+			"<h2>Regra do Art. 2º da Lei nº 10.887/2004</h2>"
+			"<p>"
+			+ (
+				"No regime próprio de previdência social, o cálculo histórico da pensão por morte "
+				"observa o limite máximo dos benefícios do RGPS acrescido de setenta por cento da parcela "
+				"que superar esse teto previdenciário, distinguindo servidores aposentados e em atividade. "
+			)
+			* 3
+			+ "</p>"
+		)
 
 		class FakeWriterAdapter:
 			model = "athena-writer"
 
 			def _chat_json(self, messages, schema_name, schema, max_tokens):
 				return {
-					"html_content": "<h2>Regra do Art. 2º</h2><p>Explicação detalhada com exemplo resolvido.</p>",
-					"summary": "Resumo da aula.",
+					"html_content": long_lesson_html,
+					"summary": "Resumo didático completo da aula sobre o art. 2º.",
 				}
 
 		blueprint = {
@@ -202,7 +235,6 @@ class TestAthenaCourseBuilder(unittest.TestCase):
 
 		self.assertTrue(res["course_created"])
 		self.assertEqual(res["chapters_created"], 1)
-		# 2 theoretical lessons + 1 final quiz practice lesson = 3 lessons!
 		self.assertEqual(res["lessons_created"], 3)
 		self.assertEqual(res["quiz_questions"], 2)
 
@@ -212,7 +244,6 @@ class TestAthenaCourseBuilder(unittest.TestCase):
 		self.assertEqual(course.image, self.module.DEFAULT_COVER_IMAGE)
 
 		quiz = created_docs["LMS Quiz"][0]
-		# Normal question keeps marks=2; deprecated question gets marks=0!
 		self.assertEqual([(q.question, q.marks) for q in quiz.questions], [(seed.name, 2), (deprecated_q.name, 0)])
 		self.assertEqual(quiz.total_marks, 2)
 

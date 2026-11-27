@@ -330,8 +330,18 @@ def _append_error(current, doctype, source_id, error):
 	return "\n".join(filter(None, [current, message]))[-12000:]
 
 
-def reformat_qapi_questions(question_name=None, limit=10000):
+def reformat_qapi_questions(question_name=None, limit=10000, run_name=None):
 	"""Reparse stored QAPI payloads on LMS Question after a normalizer/renderer upgrade; no QAPI calls."""
+	run = None
+	if run_name and hasattr(frappe, "db") and frappe.db.exists("Trivia Sync Run", run_name):
+		run = frappe.get_doc("Trivia Sync Run", run_name)
+		run.status = "Running"
+		run.started_at = frappe.utils.now_datetime()
+		run.current_operation = "Reprocessando formatação rica QAPI..."
+		if getattr(run, "flags", None) is not None:
+			run.flags.ignore_validate = True
+		run.save(ignore_permissions=True)
+		frappe.db.commit()
 	filters = {"trivia_source_type": "QAPI"}
 	if question_name:
 		filters = {"name": question_name}
@@ -361,6 +371,17 @@ def reformat_qapi_questions(question_name=None, limit=10000):
 		except Exception as exc:
 			failed += 1
 			frappe.log_error(f"{type(exc).__name__}: {str(exc)[:500]}", "Trivia Sync · reformat LMS question")
+	if run is not None:
+		run.records_received = len(rows)
+		run.records_updated = updated
+		run.records_skipped = skipped
+		run.records_errors = failed
+		run.status = "Partial" if failed else "Completed"
+		run.current_operation = f"Concluído: {updated} atualizada(s), {skipped} ignorada(s)"[:140]
+		run.finished_at = frappe.utils.now_datetime()
+		if getattr(run, "flags", None) is not None:
+			run.flags.ignore_validate = True
+		run.save(ignore_permissions=True)
 	frappe.db.commit()
 	return {"processed": len(rows), "updated": updated, "skipped": skipped, "failed": failed}
 
@@ -457,7 +478,7 @@ def _push_local_flashcards(adapter, metrics):
 
 def ingest_source(
 	source_name="QAPI", filters=None, dry_run=False, max_pages=0, budget=None, resume_run=None, include_catalogs=True,
-	force_full_upgrade=False,
+	force_full_upgrade=False, queued_run=None,
 ):
 	if source_name != "QAPI":
 		frappe.throw(f"Source not implemented: {source_name}.")
@@ -480,7 +501,12 @@ def ingest_source(
 	if getattr(settings, "push_flashcards", 0):
 		local_flashcard_count = frappe.db.count("Flashcard", {"source_type": "LOCAL"})
 	required_upper_bound = _estimated_request_cost(settings, max_pages, include_catalogs, local_flashcard_count)
-	run = frappe.get_doc("Trivia Sync Run", resume_run) if resume_run else frappe.new_doc("Trivia Sync Run")
+	has_queued = bool(queued_run and hasattr(frappe, "db") and frappe.db.exists("Trivia Sync Run", queued_run))
+	run = (
+		frappe.get_doc("Trivia Sync Run", resume_run)
+		if resume_run
+		else (frappe.get_doc("Trivia Sync Run", queued_run) if has_queued else frappe.new_doc("Trivia Sync Run"))
+	)
 	if not resume_run:
 		run.source = "QAPI"
 		run.operation = "QAPI ingestion"
@@ -489,7 +515,12 @@ def ingest_source(
 		run.records_created = run.records_updated = run.records_skipped = run.records_errors = 0
 		run.records_received = 0
 		run.endpoint_metrics = "{}"
-		run.insert(ignore_permissions=True)
+		if getattr(run, "flags", None) is not None:
+			run.flags.ignore_validate = True
+		if has_queued:
+			run.save(ignore_permissions=True)
+		else:
+			run.insert(ignore_permissions=True)
 	prior_requests = int(run.requests_made or 0) if resume_run else 0
 	prior_credits = int(run.credits_used or 0) if resume_run else 0
 	run.status = "Running"

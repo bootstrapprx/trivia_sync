@@ -1480,6 +1480,7 @@ def enrich_questions_batch(
 	include_knowledge: bool = True,
 	force: bool = False,
 	filters: dict[str, Any] | None = None,
+	run_name: str | None = None,
 ):
 	if mode not in ("full", "difficulty", "explanations", "knowledge"):
 		raise frappe.ValidationError("Invalid AI batch mode.")
@@ -1506,22 +1507,30 @@ def enrich_questions_batch(
 			limit_page_length=batch_limit,
 		) or []
 
-	run = frappe.new_doc("Trivia Sync Run")
-	run.source = "IA"
+	is_existing_run = bool(run_name and hasattr(frappe, "db") and frappe.db.exists("Trivia Sync Run", run_name))
+	run = frappe.get_doc("Trivia Sync Run", run_name) if is_existing_run else frappe.new_doc("Trivia Sync Run")
+	run.source = "Athena"
 	run.operation = f"AI batch ({mode})"
 	run.status = "Running"
 	run.started_at = frappe.utils.now_datetime()
 	run.records_received = len(targets)
+	run.current_operation = f"Iniciando lote ({len(targets)} questão(ões))" if targets else "Nenhuma questão pendente no filtro"
 	run.parameters_json = json.dumps(
 		{"mode": mode, "limit": batch_limit, "include_knowledge": bool(include_knowledge), "force": bool(force), "count": len(targets)},
 		ensure_ascii=False,
 	)
-	run.insert(ignore_permissions=True)
+	if getattr(run, "flags", None) is not None:
+		run.flags.ignore_validate = True
+	if is_existing_run:
+		run.save(ignore_permissions=True)
+	else:
+		run.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	result = {"processed": 0, "enriched": 0, "skipped": 0, "errors": 0, "run": getattr(run, "name", None)}
 	try:
 		for name in targets:
+			run.current_operation = f"Analisando {result['processed'] + 1}/{len(targets)}: {name}"[:140]
 			try:
 				doc = frappe.get_doc("LMS Question", name)
 				payload = _question_payload(doc)
@@ -1616,17 +1625,23 @@ def enrich_questions_batch(
 			run.records_created = result["enriched"]
 			run.records_skipped = result["skipped"]
 			run.records_errors = result["errors"]
+			if getattr(run, "flags", None) is not None:
+				run.flags.ignore_validate = True
 			run.save(ignore_permissions=True)
 			frappe.db.commit()
 		run.status = "Partial" if result["errors"] else "Completed"
+		run.current_operation = f"Concluído: {result['enriched']} analisada(s), {result['skipped']} ignorada(s), {result['errors']} erro(s)"[:140]
 		return result
 	except Exception:
 		run.status = "Failed"
 		run.error_log = frappe.get_traceback()
+		run.current_operation = "Falhou durante execução do lote"
 		frappe.log_error(frappe.get_traceback(), f"Trivia Sync · AI batch ({mode})")
 		raise
 	finally:
 		run.finished_at = frappe.utils.now_datetime()
+		if getattr(run, "flags", None) is not None:
+			run.flags.ignore_validate = True
 		run.save(ignore_permissions=True)
 		frappe.db.commit()
 
