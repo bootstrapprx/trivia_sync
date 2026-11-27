@@ -24,11 +24,73 @@ frappe.ui.form.on("Trivia Sync Settings", {
 		}, "Sync");
 		frm.add_custom_button(__("Testar conexão da Athena"), () => {
 			frappe.call({ method: "trivia_sync.api.ai_status" }).then(({ message }) => {
+				if (message?.backend === "Codex CLI (OAuth)") {
+					frappe.msgprint(
+						message?.ok
+							? `Athena OK (Codex CLI OAuth · ${message.model})<br><small class="text-muted">${frappe.utils.escape_html(message.status_text || "")}</small>`
+							: `Codex CLI ainda não autenticado via OAuth.<br><small class="text-muted">${frappe.utils.escape_html(message?.status_text || message?.error || "")}</small><br><br>Use <b>Athena → Conectar Codex (OAuth)</b>.`
+					);
+					return;
+				}
 				frappe.msgprint(
 					message?.ok
 						? `Athena OK (${message.backend}): ${message.model}${message.flow_model ? ` · Flow Model: ${message.flow_model}` : ""}`
 						: (message?.error || "Não foi possível validar a conexão da Athena.")
 				);
+			});
+		}, "Athena");
+		frm.add_custom_button(__("Conectar Codex (OAuth)"), () => {
+			frappe.call({
+				method: "trivia_sync.api.start_codex_oauth",
+				freeze: true,
+				freeze_message: __("Iniciando autenticação OAuth do Codex..."),
+			}).then(({ message }) => {
+				if (!message) return;
+				if (message.already_authenticated) {
+					frappe.show_alert({ message: __("Codex já está conectado via OAuth!"), indicator: "green" });
+					frappe.msgprint(`<strong>Codex OAuth ativo</strong><br><small class="text-muted">${frappe.utils.escape_html(message.status_text || "")}</small>`);
+					return;
+				}
+				const url = frappe.utils.escape_html(message.verification_url || "https://auth.openai.com/codex/device");
+				const code = frappe.utils.escape_html(message.user_code || "");
+				const raw = frappe.utils.escape_html(message.raw_output || "");
+				const dialog = new frappe.ui.Dialog({
+					title: __("Conectar Codex via OAuth (sem chave de API)"),
+					fields: [
+						{
+							fieldname: "oauth_html",
+							fieldtype: "HTML",
+							options: `
+								<div class="mb-3">
+									<p class="text-muted small mb-2">1. Clique no botão abaixo para abrir a página oficial de autorização da OpenAI e entre com sua conta ChatGPT.</p>
+									<a href="${url}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Abrir página de autorização OpenAI ↗</a>
+								</div>
+								${code ? `
+								<div class="mb-3 p-3 rounded border" style="background: var(--control-bg);">
+									<div class="small text-muted mb-1">2. Digite este código único no navegador:</div>
+									<div style="font-size: 1.5rem; font-weight: 700; letter-spacing: 0.14em; font-family: monospace;">${code}</div>
+								</div>` : `<pre class="small p-2 rounded border" style="white-space: pre-wrap;">${raw}</pre>`}
+								<p class="text-muted small mb-0">3. Após autorizar no navegador, clique em <strong>Verificar conexão</strong> abaixo.</p>
+								<div class="mt-2 small" data-codex-status></div>
+							`,
+						},
+					],
+					primary_action_label: __("Verificar conexão"),
+					primary_action() {
+						frappe.call({
+							method: "trivia_sync.api.get_codex_oauth_status",
+						}).then(({ message: st }) => {
+							const box = dialog.$wrapper.find("[data-codex-status]");
+							if (st?.authenticated) {
+								box.html(`<span class="indicator-pill green">${__("Conectado via OAuth!")}</span> <span class="text-muted">${frappe.utils.escape_html(st.status_text || "")}</span>`);
+								frappe.show_alert({ message: __("Codex conectado com sucesso via OAuth!"), indicator: "green" });
+							} else {
+								box.html(`<span class="indicator-pill orange">${__("Aguardando autorização no navegador...")}</span>`);
+							}
+						});
+					},
+				});
+				dialog.show();
 			});
 		}, "Athena");
 		frm.add_custom_button(__("Analisar questões em lote"), () => {

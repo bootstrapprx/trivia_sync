@@ -616,6 +616,60 @@ Linha 2",
 			"<p>Segundo a Lei nº 8.666/1993, a modalidade convite...</p>",
 		)
 
+	def test_codex_cli_oauth_adapter_runs_read_only_without_api_key_and_parses_schema(self):
+		settings = types.SimpleNamespace(
+			ai_backend="Codex CLI (OAuth)",
+			ai_codex_model="gpt-5.4",
+			ai_codex_binary="",
+			ai_timeout=60,
+		)
+		captured = {}
+
+		def fake_run(cmd, input=None, capture_output=False, text=False, timeout=None, env=None, cwd=None):
+			captured["cmd"] = cmd
+			captured["env"] = env
+			out_idx = cmd.index("-o") + 1
+			out_file = cmd[out_idx]
+			with open(out_file, "w", encoding="utf-8") as fh:
+				fh.write(json.dumps({
+					"difficulty_stars": 4,
+					"difficulty_label": "Difícil",
+					"reason": "Exige domínio aprofundado do princípio constitucional.",
+					"learning_objective": "Aplicar o princípio ao caso concreto.",
+					"topics": ["Princípios"],
+				}))
+			return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+		with patch.object(self.module, "_resolve_codex_binary", return_value="/usr/local/bin/codex"), patch.dict(
+			self.module.os.environ, {"OPENAI_API_KEY": "should-be-stripped"}, clear=False
+		), patch.object(self.module.subprocess, "run", side_effect=fake_run):
+			adapter = self.module.get_ai_adapter(settings)
+			self.assertIsInstance(adapter, self.module.CodexCLIAdapter)
+			result = adapter.enrich(self.question())
+
+		self.assertEqual(result["difficulty_stars"], 4)
+		self.assertEqual(result["model"], "gpt-5.4")
+		self.assertIn("--ephemeral", captured["cmd"])
+		self.assertIn("--sandbox", captured["cmd"])
+		self.assertIn("read-only", captured["cmd"])
+		self.assertIn("--output-schema", captured["cmd"])
+		self.assertNotIn("OPENAI_API_KEY", captured["env"])
+
+	def test_codex_login_status_and_healthcheck(self):
+		settings = types.SimpleNamespace(
+			ai_backend="Codex CLI (OAuth)",
+			ai_codex_model="",
+			ai_codex_binary="",
+		)
+		ok_proc = types.SimpleNamespace(returncode=0, stdout="Logged in using ChatGPT", stderr="")
+		with patch.object(self.module, "_resolve_codex_binary", return_value="/usr/local/bin/codex"), patch.object(
+			self.module.subprocess, "run", return_value=ok_proc
+		):
+			status = self.module.test_ai_connection(settings)
+		self.assertTrue(status["ok"])
+		self.assertTrue(status["authenticated"])
+		self.assertEqual(status["backend"], "Codex CLI (OAuth)")
+
 
 if __name__ == "__main__":
 	unittest.main()

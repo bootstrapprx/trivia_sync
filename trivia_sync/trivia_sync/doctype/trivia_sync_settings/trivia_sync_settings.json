@@ -45,6 +45,8 @@
     "ai_enabled",
     "ai_backend",
     "ai_flow_model",
+    "ai_codex_model",
+    "ai_codex_binary",
     "ai_base_url",
     "ai_api_key",
     "ai_model",
@@ -280,17 +282,31 @@
       "fieldname": "ai_backend",
       "fieldtype": "Select",
       "label": "Provedor da Athena",
-      "options": "Frappe Flow\nCustom OpenAI-compatible",
+      "options": "Frappe Flow\nCodex CLI (OAuth)\nCustom OpenAI-compatible",
       "default": "Frappe Flow",
-      "description": "Use o provedor e modelos já configurados no Frappe Flow, ou informe um endpoint compatível com OpenAI."
+      "description": "Use o Frappe Flow, sua conta ChatGPT via Codex CLI (OAuth, sem chave de API) ou um endpoint compatível com OpenAI."
     },
     {
       "fieldname": "ai_flow_model",
       "fieldtype": "Link",
       "label": "Modelo Flow (Athena)",
       "options": "Flow Model",
-      "depends_on": "eval:doc.ai_backend!='Custom OpenAI-compatible'",
+      "depends_on": "eval:doc.ai_backend=='Frappe Flow'",
       "description": "Opcional. Deixe em branco para usar automaticamente um modelo de chat habilitado no Frappe Flow."
+    },
+    {
+      "fieldname": "ai_codex_model",
+      "fieldtype": "Data",
+      "label": "Modelo do Codex (opcional)",
+      "depends_on": "eval:doc.ai_backend=='Codex CLI (OAuth)'",
+      "description": "Opcional. Deixe em branco para usar o modelo padrão da sua conta ChatGPT/Codex (ex.: gpt-5.4, gpt-5.3-codex, o3)."
+    },
+    {
+      "fieldname": "ai_codex_binary",
+      "fieldtype": "Data",
+      "label": "Caminho do binário codex (opcional)",
+      "depends_on": "eval:doc.ai_backend=='Codex CLI (OAuth)'",
+      "description": "Opcional. Deixe em branco para detectar automaticamente no PATH ou ~/.nvm."
     },
     {
       "fieldname": "ai_base_url",

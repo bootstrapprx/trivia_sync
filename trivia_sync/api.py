@@ -7,6 +7,7 @@ from frappe.utils import cint
 from trivia_sync.integrations.ai_enricher import (
 	apply_ai_topics as apply_question_topics_from_ai,
 	apply_question_ai_review as apply_lms_question_ai_review,
+	codex_login_status as fetch_codex_login_status,
 	draft_question_option_explanations as generate_option_explanations_draft,
 	enrich_questions_batch,
 	enrich_question_full as enrich_single_question_all,
@@ -14,6 +15,7 @@ from trivia_sync.integrations.ai_enricher import (
 	extract_question_knowledge as extract_knowledge_for_question,
 	get_question_deep_dive as fetch_question_deep_dive,
 	review_question_with_feedback as review_lms_question_with_feedback,
+	start_codex_device_auth as initiate_codex_device_auth,
 	submit_student_reflection as evaluate_student_reflection,
 	test_ai_connection,
 )
@@ -632,3 +634,15 @@ def get_question_deep_dive(question_name):
 @frappe.whitelist()
 def submit_student_reflection(question_name, student_answer):
 	return evaluate_student_reflection(question_name, student_answer)
+
+
+@frappe.whitelist()
+def start_codex_oauth():
+	_admin()
+	return initiate_codex_device_auth()
+
+
+@frappe.whitelist()
+def get_codex_oauth_status():
+	_admin()
+	return fetch_codex_login_status()

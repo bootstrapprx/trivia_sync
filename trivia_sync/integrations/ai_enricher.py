@@ -1,6 +1,14 @@
 import hashlib
 import json
+import os
+from pathlib import Path
 import re
+import select
+import shutil
+import subprocess
+import tempfile
+import threading
+import time
 from typing import Any
 
 import frappe
@@ -760,9 +768,259 @@ class FlowAdapter(_BaseAIAdapter):
 			raise AIEnrichmentError(f"Frappe Flow returned invalid JSON: {exc}") from exc
 
 
+_CODEX_AUTH_LOCK = threading.Lock()
+_CODEX_AUTH_PROC: subprocess.Popen | None = None
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _strip_ansi(text: str) -> str:
+	return _ANSI_RE.sub("", str(text or ""))
+
+
+def _resolve_codex_binary(settings_doc=None) -> str:
+	configured = str(getattr(settings_doc, "ai_codex_binary", None) or "").strip() if settings_doc else ""
+	if configured:
+		if os.path.isfile(configured) and os.access(configured, os.X_OK):
+			return configured
+		raise AIEnrichmentError(f"Binário codex configurado não encontrado ou sem permissão de execução: {configured}")
+
+	found = shutil.which("codex")
+	if found:
+		return found
+
+	home = Path.home()
+	candidates: list[Path] = []
+	nvm_root = home / ".nvm" / "versions" / "node"
+	if nvm_root.is_dir():
+		candidates.extend(sorted(nvm_root.glob("*/bin/codex"), reverse=True))
+	candidates.extend([
+		home / ".local" / "bin" / "codex",
+		Path("/usr/local/bin/codex"),
+		Path("/usr/bin/codex"),
+	])
+	for path in candidates:
+		if path.is_file() and os.access(str(path), os.X_OK):
+			return str(path)
+
+	raise AIEnrichmentError(
+		"Codex CLI não encontrado no servidor. Instale `@openai/codex` ou informe o caminho do binário em Trivia Sync Settings."
+	)
+
+
+def _codex_env(binary_path: str) -> dict[str, str]:
+	env = dict(os.environ)
+	# Force OAuth session instead of accidentally billing an OpenAI API key in the environment
+	env.pop("OPENAI_API_KEY", None)
+	env.pop("CODEX_API_KEY", None)
+	bin_dir = str(Path(binary_path).parent)
+	current_path = env.get("PATH") or ""
+	if bin_dir and bin_dir not in current_path.split(os.pathsep):
+		env["PATH"] = f"{bin_dir}{os.pathsep}{current_path}" if current_path else bin_dir
+	return env
+
+
+def codex_login_status(settings_doc=None) -> dict[str, Any]:
+	settings = settings_doc or frappe.get_single("Trivia Sync Settings")
+	binary = _resolve_codex_binary(settings)
+	proc = subprocess.run(
+		[binary, "login", "status"],
+		capture_output=True,
+		text=True,
+		timeout=15,
+		env=_codex_env(binary),
+	)
+	combined = _strip_ansi((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+	lower = combined.lower()
+	not_logged = any(marker in lower for marker in ("not logged in", "logged out", "unauthenticated", "no credentials"))
+	authenticated = proc.returncode == 0 and not not_logged
+	return {
+		"ok": authenticated,
+		"authenticated": authenticated,
+		"backend": "Codex CLI (OAuth)",
+		"binary": binary,
+		"model": (getattr(settings, "ai_codex_model", None) or "").strip() or "codex-default",
+		"status_text": combined or ("Logged in" if authenticated else "Not logged in"),
+	}
+
+
+def start_codex_device_auth(settings_doc=None) -> dict[str, Any]:
+	"""Start `codex login --device-auth` in the background and return verification URL + one-time code."""
+	global _CODEX_AUTH_PROC
+	frappe.only_for("System Manager")
+	settings = settings_doc or frappe.get_single("Trivia Sync Settings")
+	binary = _resolve_codex_binary(settings)
+
+	status = codex_login_status(settings)
+	if status["authenticated"]:
+		return {
+			"ok": True,
+			"already_authenticated": True,
+			"status_text": status["status_text"],
+			"binary": binary,
+		}
+
+	with _CODEX_AUTH_LOCK:
+		if _CODEX_AUTH_PROC is not None and _CODEX_AUTH_PROC.poll() is None:
+			try:
+				_CODEX_AUTH_PROC.terminate()
+			except Exception:
+				pass
+		proc = subprocess.Popen(
+			[binary, "login", "--device-auth"],
+			stdin=subprocess.DEVNULL,
+			stdout=subprocess.PIPE,
+			stderr=subprocess.STDOUT,
+			text=True,
+			env=_codex_env(binary),
+		)
+		_CODEX_AUTH_PROC = proc
+
+	lines: list[str] = []
+	verification_url = ""
+	user_code = ""
+	deadline = time.monotonic() + 10.0
+
+	url_re = re.compile(r"https?://[^\s]+")
+	code_re = re.compile(r"\b([A-Z0-9]{4,5}-[A-Z0-9]{4,5})\b")
+
+	while time.monotonic() < deadline and proc.stdout is not None:
+		ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+		if ready:
+			chunk = proc.stdout.readline()
+			if not chunk:
+				break
+			clean = _strip_ansi(chunk).strip()
+			if clean:
+				lines.append(clean)
+				if not verification_url:
+					m_url = url_re.search(clean)
+					if m_url:
+						verification_url = m_url.group(0).rstrip(".,)")
+				if not user_code:
+					m_code = code_re.search(clean)
+					if m_code:
+						user_code = m_code.group(1)
+				if verification_url and user_code:
+					break
+		elif proc.poll() is not None:
+			break
+
+	def _reap(p: subprocess.Popen):
+		try:
+			p.wait(timeout=900)
+		except Exception:
+			try:
+				p.kill()
+			except Exception:
+				pass
+
+	threading.Thread(target=_reap, args=(proc,), daemon=True).start()
+
+	raw_output = "\n".join(lines).strip()
+	if not verification_url and proc.poll() not in (None, 0):
+		raise AIEnrichmentError(f"Não foi possível iniciar o login OAuth do Codex: {raw_output or 'erro desconhecido'}")
+
+	return {
+		"ok": True,
+		"already_authenticated": False,
+		"verification_url": verification_url or "https://auth.openai.com/codex/device",
+		"user_code": user_code,
+		"raw_output": raw_output,
+		"binary": binary,
+	}
+
+
+class CodexCLIAdapter(_BaseAIAdapter):
+	"""Adapter that executes OpenAI Codex CLI non-interactively using the user's OAuth session (no API key)."""
+
+	def __init__(self, settings_doc=None):
+		self.settings = settings_doc or frappe.get_single("Trivia Sync Settings")
+		self.binary = _resolve_codex_binary(self.settings)
+		self.explicit_model = str(getattr(self.settings, "ai_codex_model", None) or "").strip()
+		self.model = self.explicit_model or "codex-default"
+		self.timeout = max(30, int(getattr(self.settings, "ai_timeout", None) or 120))
+
+	def _chat_json(self, messages: list[dict[str, str]], schema_name: str, schema: dict[str, Any], max_tokens: int) -> dict[str, Any]:
+		prompt_parts: list[str] = []
+		for msg in messages:
+			role = str(msg.get("role") or "user").upper()
+			content = str(msg.get("content") or "").strip()
+			if content:
+				prompt_parts.append(f"[{role}]\n{content}")
+		prompt_parts.append(
+			"[OUTPUT_REQUIREMENT]\nResponda EXCLUSIVAMENTE com um objeto JSON válido seguindo o JSON Schema fornecido. "
+			"Não execute comandos de shell, não leia arquivos locais e não adicione texto fora do JSON."
+		)
+		prompt_text = "\n\n".join(prompt_parts)
+
+		with tempfile.TemporaryDirectory(prefix="trivia_codex_") as tmpdir:
+			schema_path = os.path.join(tmpdir, f"{schema_name}.schema.json")
+			output_path = os.path.join(tmpdir, f"{schema_name}.out.json")
+			with open(schema_path, "w", encoding="utf-8") as sf:
+				json.dump(schema, sf, ensure_ascii=False)
+
+			cmd = [
+				self.binary,
+				"exec",
+				"--ephemeral",
+				"--skip-git-repo-check",
+				"--sandbox",
+				"read-only",
+				"--color",
+				"never",
+				"--output-schema",
+				schema_path,
+				"-o",
+				output_path,
+			]
+			if self.explicit_model:
+				cmd.extend(["-m", self.explicit_model])
+			cmd.append("-")
+
+			try:
+				proc = subprocess.run(
+					cmd,
+					input=prompt_text,
+					capture_output=True,
+					text=True,
+					timeout=self.timeout,
+					env=_codex_env(self.binary),
+					cwd=tmpdir,
+				)
+			except subprocess.TimeoutExpired as exc:
+				raise AIEnrichmentError(
+					f"Codex CLI excedeu o tempo limite de {self.timeout}s."
+				) from exc
+			except OSError as exc:
+				raise AIEnrichmentError(f"Falha ao executar Codex CLI ({self.binary}): {exc}") from exc
+
+			content = ""
+			if os.path.isfile(output_path):
+				with open(output_path, "r", encoding="utf-8") as of:
+					content = of.read().strip()
+			if not content:
+				content = (proc.stdout or "").strip()
+
+			if proc.returncode != 0 and not content:
+				err_text = _strip_ansi(proc.stderr or proc.stdout or "").strip()
+				if any(k in err_text.lower() for k in ("not logged in", "login", "unauthorized", "auth", "sign in")):
+					raise AIEnrichmentError(
+						"Sessão OAuth do Codex não autenticada ou expirada. "
+						"Clique em 'Conectar Codex (OAuth)' em Trivia Sync Settings."
+					)
+				raise AIEnrichmentError(f"Codex CLI falhou (código {proc.returncode}): {err_text[:400]}")
+
+			try:
+				return _extract_json(content)
+			except ValueError as exc:
+				raise AIEnrichmentError(f"Codex CLI retornou JSON inválido: {exc}") from exc
+
+
 def get_ai_adapter(settings_doc=None) -> _BaseAIAdapter:
 	settings = settings_doc or frappe.get_single("Trivia Sync Settings")
 	backend = (getattr(settings, "ai_backend", None) or "").strip()
+	if backend == "Codex CLI (OAuth)":
+		return CodexCLIAdapter(settings)
 	if backend == "Custom OpenAI-compatible":
 		return OpenAICompatibleAdapter(settings)
 	if backend == "Frappe Flow":
@@ -776,6 +1034,8 @@ def test_ai_connection(settings_doc=None) -> dict[str, Any]:
 	settings = settings_doc or frappe.get_single("Trivia Sync Settings")
 	try:
 		adapter = get_ai_adapter(settings)
+		if isinstance(adapter, CodexCLIAdapter):
+			return codex_login_status(settings)
 		backend = "Frappe Flow" if isinstance(adapter, FlowAdapter) else "Custom OpenAI-compatible"
 		result = adapter._chat_json(
 			[{"role": "user", "content": 'Respond with JSON: {"ok": true}'}],
