@@ -540,6 +540,82 @@ Linha 2",
 		self.assertEqual(parsed["option_explanations"]["A"], "Texto com vírgula antes de fecha chave: }, ok")
 		self.assertEqual(parsed["option_explanations"]["B"], "Linha 1\nLinha 2")
 
+	def test_athena_detects_deprecated_legislation_and_builds_banner(self):
+		from trivia_sync.integrations.lms_questions import strip_question_embeds
+
+		class FakeDeprecatedDoc:
+			def __init__(self):
+				self.name = "QTS-8666"
+				self.trivia_qcode = "EX-8666-Q1"
+				self.question = "<p>Segundo a Lei nº 8.666/1993, a modalidade convite...</p>"
+				self.option_1 = "Exige 3 convidados"
+				self.option_2 = "Exige 5 convidados"
+				self.is_correct_1 = 1
+				self.is_correct_2 = 0
+				for i in range(3, 11):
+					setattr(self, f"option_{i}", "")
+					setattr(self, f"is_correct_{i}", 0)
+				for i in range(1, 11):
+					setattr(self, f"explanation_{i}", "")
+				self.trivia_status = "In Preparation"
+				self.trivia_answer_key_pending = 0
+				self.trivia_deprecated = 0
+				self.trivia_deprecated_law = ""
+				self.trivia_replacement_law = ""
+				self.trivia_deprecation_note = ""
+				self.trivia_knowledge_pages = []
+
+			def set(self, field, value):
+				setattr(self, field, value)
+
+			def save(self, **kwargs):
+				pass
+
+		doc = FakeDeprecatedDoc()
+		frappe = self.module.frappe
+		frappe.only_for = lambda roles: None
+		frappe.get_single = lambda name: FakeSettings()
+		frappe.get_doc = lambda dt, name: doc
+		frappe.utils = types.SimpleNamespace(now_datetime=lambda: "now")
+
+		fake_adapter = types.SimpleNamespace(
+			enrich_full=lambda q: {
+				"difficulty_stars": 2,
+				"difficulty_label": "Fácil",
+				"reason": "Cobra modalidade extinta da Lei 8.666/93.",
+				"learning_objective": "Comparar modalidades da Lei 8.666/93 com a Lei 14.133/2021.",
+				"topics": ["Licitações"],
+				"general_explanation": "Como era: a Lei 8.666/93 previa o convite. Como é hoje: a Lei 14.133/2021 extinguiu o convite.",
+				"suggested_materia": "Direito Administrativo",
+				"suggested_assunto": "Licitações",
+				"is_deprecated": True,
+				"deprecated_law": "Lei nº 8.666/1993",
+				"replacement_law": "Lei nº 14.133/2021",
+				"deprecation_note": "A modalidade convite foi extinta pela Nova Lei de Licitações.",
+				"option_explanations": {
+					"A": "Correta à época da Lei 8.666/93; hoje o convite foi extinto pela Lei 14.133/2021.",
+					"B": "Incorreta: mesmo na Lei 8.666/93, o mínimo não era 5.",
+				},
+				"enrichment_hash": "h-dep",
+				"model": "test-model",
+			},
+			extract_knowledge_concepts=lambda q: {"concepts": [], "model": "test-model"},
+		)
+		with patch.object(self.module, "get_ai_adapter", return_value=fake_adapter), patch.object(
+			self.module, "_safe_apply_ai_topics", return_value={}
+		):
+			self.module.enrich_question_full(doc.name)
+
+		self.assertEqual(doc.trivia_deprecated, 1)
+		self.assertEqual(doc.trivia_deprecated_law, "Lei nº 8.666/1993")
+		self.assertEqual(doc.trivia_replacement_law, "Lei nº 14.133/2021")
+		self.assertIn("trivia-deprecated-banner", doc.question)
+		self.assertIn("Lei nº 14.133/2021", doc.question)
+		self.assertEqual(
+			strip_question_embeds(doc.question),
+			"<p>Segundo a Lei nº 8.666/1993, a modalidade convite...</p>",
+		)
+
 
 if __name__ == "__main__":
 	unittest.main()

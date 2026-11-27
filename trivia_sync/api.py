@@ -297,6 +297,7 @@ def build_lms_quiz(
 	only_ready=1,
 	append_existing=0,
 	marks=None,
+	include_deprecated=0,
 ):
 	return build_lms_quiz_from_bank(
 		quiz_name=quiz_name,
@@ -309,6 +310,7 @@ def build_lms_quiz(
 		only_ready=bool(cint(only_ready)),
 		append_existing=bool(cint(append_existing)),
 		marks=marks,
+		include_deprecated=bool(cint(include_deprecated)),
 	)
 
 

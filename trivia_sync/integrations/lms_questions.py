@@ -10,6 +10,7 @@ from trivia_sync.integrations.reconciliation import reconcile_question_classific
 
 OPTION_LETTERS = "ABCDEFGHIJ"
 
+_DEPRECATED_BANNER_RE = re.compile(r'<div class="trivia-deprecated-banner">[\s\S]*?</div>\s*', re.IGNORECASE)
 _PASSAGE_RE = re.compile(r'<div class="trivia-supporting-passage">[\s\S]*?</div>\s*<hr\s*/?>\s*', re.IGNORECASE)
 _KNOWLEDGE_RE = re.compile(r'<div class="trivia-knowledge-refs">[\s\S]*?</div>\s*$', re.IGNORECASE)
 _DEEP_DIVE_RE = re.compile(r'\s*<details class="trivia-deep-dive">[\s\S]*?</details>\s*$', re.IGNORECASE)
@@ -19,9 +20,32 @@ MAX_TITLE_CHARS = 135
 
 
 def strip_question_embeds(question_html: str) -> str:
-	text = _PASSAGE_RE.sub("", str(question_html or ""))
+	text = _DEPRECATED_BANNER_RE.sub("", str(question_html or ""))
+	text = _PASSAGE_RE.sub("", text)
 	text = _KNOWLEDGE_RE.sub("", text)
 	return text.strip()
+
+
+def build_deprecated_banner_html(
+	deprecated_law: str | None = None,
+	replacement_law: str | None = None,
+	deprecation_note: str | None = None,
+) -> str:
+	old_law = str(deprecated_law or "").strip()
+	new_law = str(replacement_law or "").strip()
+	note = str(deprecation_note or "").strip()
+	parts = [
+		"<strong>Questão depreciada · estudo opcional (não obrigatória)</strong>"
+	]
+	if old_law and new_law:
+		parts.append(f"<span>Baseada em <em>{html.escape(old_law)}</em> → substituída por <em>{html.escape(new_law)}</em>.</span>")
+	elif old_law:
+		parts.append(f"<span>Baseada em norma revogada/superada: <em>{html.escape(old_law)}</em>.</span>")
+	elif new_law:
+		parts.append(f"<span>Substituída pela legislação vigente: <em>{html.escape(new_law)}</em>.</span>")
+	if note:
+		parts.append(f"<span>{html.escape(note)}</span>")
+	return f'<div class="trivia-deprecated-banner">{" ".join(parts)}</div>'
 
 
 def strip_teacher_comment_embed(explanation_html: str) -> str:
@@ -114,14 +138,67 @@ def sync_lms_question_title(doc, method=None):
 	):
 		doc.trivia_answer_key_pending = 0
 	sync_lms_question_deep_dive_embeds(doc)
+	if hasattr(doc, "question") and doc.question is not None:
+		without_banner = _DEPRECATED_BANNER_RE.sub("", str(doc.question or "")).strip()
+		if int(getattr(doc, "trivia_deprecated", 0) or 0):
+			banner = build_deprecated_banner_html(
+				deprecated_law=getattr(doc, "trivia_deprecated_law", None),
+				replacement_law=getattr(doc, "trivia_replacement_law", None),
+				deprecation_note=getattr(doc, "trivia_deprecation_note", None),
+			)
+			doc.question = f"{banner}{without_banner}"
+		elif without_banner != str(doc.question or "").strip():
+			doc.question = without_banner
 
 
-def compose_lms_question_html(base_html: str, texto_apoio: str | None = None, knowledge_rows=None) -> str:
+def sync_deprecated_quiz_marks(doc, method=None):
+	"""When a question is marked deprecated, zero its weight (marks=0) in linked LMS Quizzes so it never penalizes scores."""
+	if not int(getattr(doc, "trivia_deprecated", 0) or 0) or not getattr(doc, "name", None):
+		return
+	if not hasattr(frappe, "db") or not frappe.db.exists("DocType", "LMS Quiz Question"):
+		return
+	rows = frappe.get_all(
+		"LMS Quiz Question",
+		filters={"question": doc.name, "marks": ["!=", 0]},
+		fields=["name", "parent"],
+	) or []
+	if not rows:
+		return
+	affected_quizzes = set()
+	for row in rows:
+		frappe.db.set_value("LMS Quiz Question", row["name"], "marks", 0, update_modified=False)
+		if row.get("parent"):
+			affected_quizzes.add(row["parent"])
+	for quiz_name in affected_quizzes:
+		try:
+			quiz_rows = frappe.get_all("LMS Quiz Question", filters={"parent": quiz_name}, pluck="marks") or []
+			total_marks = sum(int(m or 0) for m in quiz_rows)
+			frappe.db.set_value("LMS Quiz", quiz_name, "total_marks", total_marks, update_modified=False)
+		except Exception:
+			pass
+
+
+def compose_lms_question_html(
+	base_html: str,
+	texto_apoio: str | None = None,
+	knowledge_rows=None,
+	deprecated: bool = False,
+	deprecated_law: str | None = None,
+	replacement_law: str | None = None,
+	deprecation_note: str | None = None,
+) -> str:
 	clean = strip_question_embeds(base_html)
 	if texto_apoio and hasattr(frappe, "db") and frappe.db.exists("Trivia Supporting Text", texto_apoio):
 		passage = frappe.db.get_value("Trivia Supporting Text", texto_apoio, "conteudo")
 		if passage:
 			clean = f'<div class="trivia-supporting-passage"><p><strong>Texto de apoio</strong></p>{passage}</div><hr>{clean}'
+	if deprecated:
+		banner = build_deprecated_banner_html(
+			deprecated_law=deprecated_law,
+			replacement_law=replacement_law,
+			deprecation_note=deprecation_note,
+		)
+		clean = f"{banner}{clean}"
 
 	names = [
 		getattr(row, "knowledge_page", None) if not isinstance(row, dict) else row.get("knowledge_page")

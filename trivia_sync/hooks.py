@@ -29,6 +29,10 @@ fixtures = [
 					"LMS Question-trivia_section",
 					"LMS Question-trivia_status",
 					"LMS Question-trivia_answer_key_pending",
+					"LMS Question-trivia_deprecated",
+					"LMS Question-trivia_deprecated_law",
+					"LMS Question-trivia_replacement_law",
+					"LMS Question-trivia_deprecation_note",
 					"LMS Question-trivia_source_type",
 					"LMS Question-trivia_qcode",
 					"LMS Question-trivia_source_key",
@@ -95,7 +99,10 @@ scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enab
 doc_events = {
 	"LMS Question": {
 		"before_validate": "trivia_sync.integrations.lms_questions.sync_lms_question_title",
-		"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_question",
+		"on_update": [
+			"trivia_sync.integrations.lms_questions.sync_deprecated_quiz_marks",
+			"trivia_sync.integrations.learning_content.invalidate_stale_materials_for_question",
+		],
 	},
 	"Trivia Methodology": {"on_update": "trivia_sync.integrations.learning_content.invalidate_stale_materials_for_methodology"},
 }
@@ -118,9 +125,9 @@ app_include_js = [
 	"/assets/trivia_sync/js/exam_importer.js",
 ]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=10"]
+web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=11"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
-	"/assets/trivia_sync/css/trivia_question.css?v=10",
+	"/assets/trivia_sync/css/trivia_question.css?v=11",
 ]

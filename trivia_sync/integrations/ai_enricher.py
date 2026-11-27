@@ -195,12 +195,22 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 		"properties": {letter: {"type": "string", "minLength": 10, "maxLength": 1200} for letter in ordered_letters},
 		"required": ordered_letters,
 	}
+	deprecation_clause = ""
+	if question.get("deprecated"):
+		deprecation_clause = (
+			"ATENÇÃO — QUESTÃO DEPRECIADA / LEGISLAÇÃO SUPERADA: "
+			f"Norma revogada: {question.get('deprecated_law') or 'não especificada'}. "
+			f"Substituída por: {question.get('replacement_law') or 'legislação vigente aplicável'}. "
+			"Nas explicações, contextualize explicitamente COMO ERA à época da prova e COMO É HOJE na legislação vigente, "
+			"para que o estudante compreenda a evolução do legislador (mantendo a regra de não entregar o gabarito nas incorretas). "
+		)
 	messages = [
 		{
 			"role": "system",
 			"content": (
-				"Você é um professor especialista em concursos públicos brasileiros. "
+				"Você é Athena, professora especialista em concursos públicos brasileiros. "
 				"Use todo o seu conhecimento geral de domínio (e o texto_apoio, se fornecido) para escrever explicações em português brasileiro. "
+				f"{deprecation_clause}"
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela "
 				"alternativa está errada SEM revelar, citar, referenciar ou dar dica de qual é a alternativa correta "
 				"(nunca escreva frases como 'conforme a alternativa A' — o estudante verá essa mensagem ao errar). "
@@ -220,6 +230,11 @@ def _build_option_explanations_messages(question: dict[str, Any]) -> tuple[list[
 					"materia": question.get("materia"),
 					"assunto": question.get("assunto"),
 					"banca": question.get("banca"),
+					"ano": question.get("ano"),
+					"depreciada": bool(question.get("deprecated")),
+					"norma_revogada": question.get("deprecated_law") or "",
+					"substituida_por": question.get("replacement_law") or "",
+					"resumo_mudanca": question.get("deprecation_note") or "",
 				},
 				ensure_ascii=False,
 			),
@@ -245,6 +260,10 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 		"general_explanation": {"type": "string", "minLength": 15, "maxLength": 1200},
 		"suggested_materia": {"type": "string", "maxLength": 140},
 		"suggested_assunto": {"type": "string", "maxLength": 140},
+		"is_deprecated": {"type": "boolean"},
+		"deprecated_law": {"type": "string", "maxLength": 160},
+		"replacement_law": {"type": "string", "maxLength": 160},
+		"deprecation_note": {"type": "string", "maxLength": 500},
 		"option_explanations": {
 			"type": "object",
 			"additionalProperties": False,
@@ -261,6 +280,10 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 		"general_explanation",
 		"suggested_materia",
 		"suggested_assunto",
+		"is_deprecated",
+		"deprecated_law",
+		"replacement_law",
+		"deprecation_note",
 		"option_explanations",
 	]
 	if syllabus_candidates:
@@ -271,12 +294,15 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 		{
 			"role": "system",
 			"content": (
-				"Você é um professor especialista em avaliação de concursos públicos brasileiros. "
+				"Você é Athena, professora especialista em avaliação de concursos públicos brasileiros. "
 				"Use todo o seu conhecimento geral de domínio (e o texto_apoio, se fornecido) para analisar completamente a questão em português brasileiro, sem alterar enunciado, alternativas ou gabarito. "
 				"1) Classifique a dificuldade (1 a 5 estrelas), justificativa técnica, objetivo de aprendizagem, tópicos, matéria e assunto. "
 				"2) Se houver itens em ementa_candidatos, selecione em syllabus_topic_ids apenas os IDs (campo 'name') que correspondem diretamente à questão (ou lista vazia se nenhum se aplicar). "
-				"3) Escreva um comentário geral didático (general_explanation). "
-				"4) Em option_explanations, explique cada alternativa individualmente (2, 3, 4, 5 ou mais alternativas, conforme fornecidas). "
+				"3) VERIFICAÇÃO DE LEGISLAÇÃO REVOGADA / QUESTÃO DEPRECIADA: verifique se a questão já vem marcada com depreciada=true OU se cobra legislação/regra integralmente revogada ou superada no ordenamento atual (ex.: Lei nº 8.666/1993 substituída pela Lei nº 14.133/2021, CPC/1973 substituído pelo CPC/2015, etc.). "
+				"Se for depreciada, retorne is_deprecated=true, preencha deprecated_law, replacement_law e deprecation_note (resumo objetivo do que mudou), e estruture o general_explanation e as option_explanations contextualizando explicitamente 'Como era (à época da prova)' e 'Como é hoje (legislação vigente)', permitindo ao aluno analisar o padrão e a evolução do legislador. "
+				"Caso a questão esteja vigente/atual, retorne is_deprecated=false e strings vazias em deprecated_law, replacement_law e deprecation_note. "
+				"4) Escreva um comentário geral didático (general_explanation). "
+				"5) Em option_explanations, explique cada alternativa individualmente (2, 3, 4, 5 ou mais alternativas, conforme fornecidas). "
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela alternativa está errada "
 				"SEM revelar, citar ou dar dica de qual é a alternativa correta (o aluno verá essa mensagem ao errar). "
 				"Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
@@ -297,6 +323,10 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 					"assunto": question.get("assunto"),
 					"banca": question.get("banca"),
 					"ano": question.get("ano"),
+					"depreciada": bool(question.get("deprecated")),
+					"norma_revogada": question.get("deprecated_law") or "",
+					"substituida_por": question.get("replacement_law") or "",
+					"resumo_mudanca": question.get("deprecation_note") or "",
 					"ementa_candidatos": syllabus_candidates,
 				},
 				ensure_ascii=False,
@@ -804,6 +834,10 @@ def _question_payload(doc, include_teacher_comment: bool = False) -> dict[str, A
 		"assunto": getattr(doc, "trivia_assunto", None) or getattr(doc, "assunto", None),
 		"banca": getattr(doc, "trivia_banca", None) or getattr(doc, "banca", None),
 		"ano": getattr(doc, "trivia_ano", None) or getattr(doc, "ano", None),
+		"deprecated": bool(int(getattr(doc, "trivia_deprecated", 0) or 0)),
+		"deprecated_law": getattr(doc, "trivia_deprecated_law", None) or "",
+		"replacement_law": getattr(doc, "trivia_replacement_law", None) or "",
+		"deprecation_note": getattr(doc, "trivia_deprecation_note", None) or "",
 	}
 	supporting = _supporting_text_content(doc)
 	if supporting:
@@ -819,6 +853,18 @@ def _apply_difficulty_fields(doc, data):
 	doc.trivia_ai_topics = json.dumps(data.get("topics") or [], ensure_ascii=False)
 	doc.trivia_ai_model = data["model"]
 	doc.trivia_ai_enriched_at = frappe.utils.now_datetime()
+
+
+def _apply_deprecation_fields(doc, data):
+	if not data.get("is_deprecated"):
+		return
+	doc.trivia_deprecated = 1
+	if data.get("deprecated_law") and not getattr(doc, "trivia_deprecated_law", None):
+		doc.trivia_deprecated_law = str(data["deprecated_law"]).strip()[:140]
+	if data.get("replacement_law") and not getattr(doc, "trivia_replacement_law", None):
+		doc.trivia_replacement_law = str(data["replacement_law"]).strip()[:140]
+	if data.get("deprecation_note") and not getattr(doc, "trivia_deprecation_note", None):
+		doc.trivia_deprecation_note = str(data["deprecation_note"]).strip()[:500]
 
 
 def _safe_apply_ai_topics(doc, topics=None, suggested_materia=None, suggested_assunto=None, syllabus_topic_names=None):
@@ -842,6 +888,10 @@ def _refresh_question_html(doc):
 			doc.question,
 			texto_apoio=getattr(doc, "trivia_texto_apoio", None),
 			knowledge_rows=getattr(doc, "trivia_knowledge_pages", None),
+			deprecated=bool(int(getattr(doc, "trivia_deprecated", 0) or 0)),
+			deprecated_law=getattr(doc, "trivia_deprecated_law", None),
+			replacement_law=getattr(doc, "trivia_replacement_law", None),
+			deprecation_note=getattr(doc, "trivia_deprecation_note", None),
 		)
 
 
@@ -950,6 +1000,7 @@ def enrich_question_full(question_name: str):
 	else:
 		data = adapter.enrich_full(payload)
 		_apply_difficulty_fields(doc, data)
+		_apply_deprecation_fields(doc, data)
 		apply_explanations_to_lms_question(doc, data["option_explanations"])
 		if data.get("general_explanation"):
 			doc.trivia_ai_comment = data["general_explanation"]
@@ -1219,6 +1270,7 @@ def enrich_questions_batch(
 								payload["syllabus_candidates"] = []
 							data = adapter.enrich_full(payload)
 							_apply_difficulty_fields(doc, data)
+							_apply_deprecation_fields(doc, data)
 							apply_explanations_to_lms_question(doc, data["option_explanations"])
 							if data.get("general_explanation"):
 								doc.trivia_ai_comment = data["general_explanation"]
@@ -1360,6 +1412,10 @@ def get_question_deep_dive(question_name: str) -> dict[str, Any]:
 		"assunto": getattr(doc, "trivia_assunto", None) or "",
 		"banca": getattr(doc, "trivia_banca", None) or "",
 		"ano": getattr(doc, "trivia_ano", None) or "",
+		"deprecated": bool(int(getattr(doc, "trivia_deprecated", 0) or 0)),
+		"deprecated_law": getattr(doc, "trivia_deprecated_law", None) or "",
+		"replacement_law": getattr(doc, "trivia_replacement_law", None) or "",
+		"deprecation_note": getattr(doc, "trivia_deprecation_note", None) or "",
 		"supporting_html": supporting_html,
 		"enunciado_html": enunciado_html,
 		"teacher_comment_html": teacher_comment,

@@ -12,6 +12,7 @@ def build_lms_quiz_from_bank(
 	only_ready: bool = True,
 	append_existing: bool = False,
 	marks: int | None = None,
+	include_deprecated: bool = False,
 ) -> dict:
 	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
 	requested = max(1, min(int(count or 10), 200))
@@ -21,6 +22,8 @@ def build_lms_quiz_from_bank(
 	filters: dict = {"type": "Choices"}
 	if only_ready:
 		filters["trivia_status"] = "Ready"
+	if not include_deprecated:
+		filters["trivia_deprecated"] = ["!=", 1]
 	if subject:
 		if frappe.db.exists("Trivia Subject", subject):
 			filters["trivia_subject_link"] = subject
@@ -49,7 +52,7 @@ def build_lms_quiz_from_bank(
 	candidates = frappe.get_all(
 		"LMS Question",
 		filters=filters,
-		fields=["name", "marks", "trivia_qcode", "trivia_source_key"],
+		fields=["name", "marks", "trivia_qcode", "trivia_source_key", "trivia_deprecated"],
 		order_by="modified desc",
 		limit_page_length=requested * 3,
 	) or []
@@ -73,7 +76,7 @@ def build_lms_quiz_from_bank(
 
 	default_marks = max(1, int(marks)) if marks not in (None, "", 0) else None
 	for row in selected:
-		q_marks = default_marks or max(1, int(row.get("marks") or 1))
+		q_marks = 0 if int(row.get("trivia_deprecated") or 0) else (default_marks or max(1, int(row.get("marks") or 1)))
 		quiz.append("questions", {"question": row["name"], "marks": q_marks, "type": "Choices"})
 
 	quiz.save(ignore_permissions=True)

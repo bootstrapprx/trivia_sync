@@ -94,6 +94,7 @@
 	const escapeAttr = (value) => frappe.utils.escape_html(String(value ?? ""));
 	const stripEmbeds = (htmlStr) =>
 		String(htmlStr ?? "")
+			.replace(/<div class="trivia-deprecated-banner">[\s\S]*?<\/div>\s*/gi, "")
 			.replace(/<div class="trivia-supporting-passage">[\s\S]*?<\/div>\s*<hr\s*\/?>\s*/gi, "")
 			.replace(/<div class="trivia-knowledge-refs">[\s\S]*?<\/div>\s*$/gi, "")
 			.trim();
@@ -251,6 +252,16 @@
 				: __("{0}/{1} explanations complete", [explainedCount, optionItems.length]))
 			: __("No alternatives");
 
+		const deprecatedBannerHtml = d.trivia_deprecated
+			? `<div class="trivia-deprecated-banner">
+				<strong>${__("Questão depreciada · estudo opcional (não obrigatória)")}</strong>
+				${d.trivia_deprecated_law && d.trivia_replacement_law
+					? `<span>${__("Baseada em")} <em>${safe(d.trivia_deprecated_law)}</em> → ${__("substituída por")} <em>${safe(d.trivia_replacement_law)}</em>.</span>`
+					: (d.trivia_deprecated_law ? `<span>${__("Norma revogada")}: <em>${safe(d.trivia_deprecated_law)}</em>.</span>` : "")}
+				${d.trivia_deprecation_note ? `<span>${safe(d.trivia_deprecation_note)}</span>` : ""}
+			</div>`
+			: "";
+
 		root.html(`
 			<div class="trivia-cockpit-header">
 				<div>
@@ -259,10 +270,12 @@
 				</div>
 				<div class="trivia-cockpit-status">
 					<span class="indicator-pill ${statusColor}">${safe(status)}</span>
+					${d.trivia_deprecated ? `<span class="indicator-pill orange">${__("Depreciada · Estudo opcional")}</span>` : ""}
 					${d.trivia_answer_key_pending ? `<span class="indicator-pill orange">${__("Answer key pending")}</span>` : ""}
 					<span class="indicator-pill ${coveragePillColor}" data-coverage-pill>${safe(coverageLabel)}</span>
 				</div>
 			</div>
+			${deprecatedBannerHtml}
 			<div class="trivia-cockpit-meta">
 				<span>${safe(d.trivia_banca || "—")}</span>
 				<span>${safe(d.trivia_materia || "—")}</span>
@@ -632,6 +645,10 @@
 		trivia_texto_apoio(frm) { renderCockpit(frm); },
 		trivia_general_explanation(frm) { renderCockpit(frm); },
 		trivia_ai_comment(frm) { renderCockpit(frm); },
+		trivia_deprecated(frm) { renderCockpit(frm); },
+		trivia_deprecated_law(frm) { renderCockpit(frm); },
+		trivia_replacement_law(frm) { renderCockpit(frm); },
+		trivia_deprecation_note(frm) { renderCockpit(frm); },
 	};
 	for (let i = 1; i <= 10; i += 1) {
 		handlers[`option_${i}`] = (frm) => renderCockpit(frm);

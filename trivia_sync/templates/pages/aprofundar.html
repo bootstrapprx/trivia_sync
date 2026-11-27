@@ -21,6 +21,20 @@
 			<div class="text-muted small">Questão {{ deep_dive.qcode }}</div>
 		</header>
 
+		{% if deep_dive.deprecated %}
+			<div class="trivia-deprecated-banner mb-4">
+				<strong>Questão depreciada · estudo opcional (não obrigatória)</strong>
+				{% if deep_dive.deprecated_law and deep_dive.replacement_law %}
+					<span>Baseada em <em>{{ deep_dive.deprecated_law }}</em> → substituída por <em>{{ deep_dive.replacement_law }}</em>.</span>
+				{% elif deep_dive.deprecated_law %}
+					<span>Baseada em norma revogada/superada: <em>{{ deep_dive.deprecated_law }}</em>.</span>
+				{% endif %}
+				{% if deep_dive.deprecation_note %}
+					<span>{{ deep_dive.deprecation_note }}</span>
+				{% endif %}
+			</div>
+		{% endif %}
+
 		<details class="trivia-aprofundar-stem mb-4">
 			<summary>Ver enunciado da questão</summary>
 			<div class="mt-3">

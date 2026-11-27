@@ -696,7 +696,7 @@ def import_ready_exam(
 			{
 				"name": doc.name,
 				"question": doc.question,
-				"marks": int(doc.marks or 1),
+				"marks": 0 if int(getattr(doc, "trivia_deprecated", 0) or 0) else int(doc.marks or 1),
 				"type": doc.type or "Choices",
 			}
 		)
