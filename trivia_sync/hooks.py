@@ -110,6 +110,7 @@ doctype_js = {
 	"Trivia Sync Settings": "public/js/trivia_sync_settings.js",
 	"LMS Question": "public/js/lms_question.js",
 	"LMS Quiz": "public/js/lms_quiz.js",
+	"LMS Course": "public/js/lms_course.js",
 	"Course Lesson": "public/js/course_lesson.js",
 	"Trivia Study Guide Recipe": "public/js/trivia_study_guide_recipe.js",
 	"Trivia Contest": "public/js/trivia_contest.js",
@@ -118,11 +119,13 @@ doctype_js = {
 doctype_list_js = {
 	"LMS Question": "public/js/lms_question_list.js",
 	"LMS Quiz": "public/js/lms_quiz_list.js",
+	"LMS Course": "public/js/lms_course_list.js",
 }
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = [
 	"/assets/trivia_sync/js/math_renderer.js?v=2",
 	"/assets/trivia_sync/js/exam_importer.js",
+	"/assets/trivia_sync/js/course_builder.js",
 ]
 web_include_js = ["/assets/trivia_sync/js/math_renderer.js?v=2"]
 web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=11"]

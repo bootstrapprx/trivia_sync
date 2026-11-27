@@ -38,6 +38,11 @@
 			`<path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/>
 			<path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/>`
 		),
+		graduationCap: svgIcon(
+			`<path d="M22 10L12 5 2 10l10 5 10-5z"/>
+			<path d="M6 12.5v4.5c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5"/>
+			<path d="M22 10v6"/>`
+		),
 		tag: svgIcon(
 			`<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
 			<circle cx="7" cy="7" r="1.2"/>`
@@ -415,6 +420,8 @@
 			);
 
 			const menuItems = [
+				`<li><a class="dropdown-item trivia-menu-item" href="#" data-cockpit="build-course">${ICONS.graduationCap}<span>${__("Criar curso a partir desta questão")}</span></a></li>`,
+				`<li class="dropdown-divider"></li>`,
 				`<li><a class="dropdown-item trivia-menu-item" href="#" data-cockpit="classify-difficulty">${ICONS.star}<span>${__("Classificar dificuldade")}</span></a></li>`,
 				`<li><a class="dropdown-item trivia-menu-item" href="#" data-cockpit="draft-explanations">${ICONS.listCheck}<span>${__("Explicar alternativas")}</span></a></li>`,
 				`<li><a class="dropdown-item trivia-menu-item" href="#" data-cockpit="extract-knowledge">${ICONS.bookOpen}<span>${__("Extrair conhecimento")}</span></a></li>`,
@@ -611,6 +618,12 @@
 			});
 
 			dialog.show();
+		});
+		tools.find('[data-cockpit="build-course"]').on("click", (ev) => {
+			ev.preventDefault();
+			window.trivia_sync?.openAthenaCourseBuilder?.({
+				seedQuestion: d.name,
+			});
 		});
 		tools.find('[data-cockpit="classify-difficulty"]').on("click", (ev) => {
 			ev.preventDefault();

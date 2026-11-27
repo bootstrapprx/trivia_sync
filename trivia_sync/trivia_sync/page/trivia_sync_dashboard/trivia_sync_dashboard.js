@@ -5,7 +5,8 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     <div class="trivia-dashboard-header">
       <div><div class="trivia-onboarding-eyebrow">TRIVIA SYNC</div><h2>${__("Editorial and contests")}</h2><p>${__("Track reviews, licenses, LMS projections, budgets, and question coverage by position.")}</p></div>
       <div class="d-flex" style="gap:8px;">
-        <button class="btn btn-primary" data-action="import-exam">${__("Import Ready Exam")}</button>
+        <button class="btn btn-primary" data-action="create-course">${__("Athena · Criar Curso")}</button>
+        <button class="btn btn-default" data-action="import-exam">${__("Import Ready Exam")}</button>
         <button class="btn btn-default" data-action="refresh">${__("Refresh")}</button>
       </div>
     </div>
@@ -63,6 +64,9 @@ frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
     main.find("[data-updated]").text(`${__("Updated at")} ${data.generated_at || "—"}`);
   };
   const load = () => frappe.call("trivia_sync.dashboard.metrics").then(({ message }) => render(message || {}));
+  main.find('[data-action="create-course"]').on("click", () => {
+    window.trivia_sync?.openAthenaCourseBuilder?.({ onCreated: load });
+  });
   main.find('[data-action="import-exam"]').on("click", () => {
     window.trivia_sync?.openExamImporterDialog?.({ onImported: load });
   });

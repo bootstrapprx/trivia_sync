@@ -27,6 +27,10 @@ from trivia_sync.integrations.exam_importer import (
 	preview_ready_exam as preview_ready_exam_payload,
 )
 from trivia_sync.integrations.exams import build_lms_quiz_from_bank
+from trivia_sync.integrations.course_builder import (
+	create_course_from_blueprint as materialize_athena_course,
+	plan_course_blueprint as build_athena_course_blueprint,
+)
 from trivia_sync.integrations.frappe_lms import sync_existing_lms_to_trivia
 from trivia_sync.integrations.knowledge import (
 	get_knowledge_page_backlinks,
@@ -646,3 +650,87 @@ def start_codex_oauth():
 def get_codex_oauth_status():
 	_admin()
 	return fetch_codex_login_status()
+
+
+@frappe.whitelist()
+def plan_athena_course(
+	seed_question=None,
+	prompt="",
+	level="180",
+	methodology=None,
+	use_teacher_materials=1,
+	subject=None,
+	topic=None,
+):
+	return build_athena_course_blueprint(
+		seed_question=seed_question or None,
+		prompt=prompt or "",
+		level=level or "180",
+		methodology=methodology or None,
+		use_teacher_materials=bool(cint(use_teacher_materials)),
+		subject=subject or None,
+		topic=topic or None,
+	)
+
+
+@frappe.whitelist()
+def create_athena_course(
+	blueprint,
+	target_course=None,
+	seed_question=None,
+	prompt="",
+	level="180",
+	methodology=None,
+	use_teacher_materials=1,
+	include_quiz=1,
+):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	return materialize_athena_course(
+		blueprint=blueprint,
+		target_course=target_course or None,
+		seed_question=seed_question or None,
+		prompt=prompt or "",
+		level=level or "180",
+		methodology=methodology or None,
+		use_teacher_materials=bool(cint(use_teacher_materials)),
+		include_quiz=bool(cint(include_quiz)),
+		owner_user=frappe.session.user,
+	)
+
+
+@frappe.whitelist()
+def enqueue_athena_course(
+	blueprint,
+	target_course=None,
+	seed_question=None,
+	prompt="",
+	level="180",
+	methodology=None,
+	use_teacher_materials=1,
+	include_quiz=1,
+):
+	frappe.only_for(("System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"))
+	if isinstance(blueprint, str):
+		blueprint = json.loads(blueprint or "{}")
+	job_name = f"trivia_sync_athena_course_{uuid.uuid4().hex[:8]}"
+	job = frappe.enqueue(
+		"trivia_sync.integrations.course_builder.create_course_from_blueprint",
+		blueprint=blueprint,
+		target_course=target_course or None,
+		seed_question=seed_question or None,
+		prompt=prompt or "",
+		level=level or "180",
+		methodology=methodology or None,
+		use_teacher_materials=bool(cint(use_teacher_materials)),
+		include_quiz=bool(cint(include_quiz)),
+		owner_user=frappe.session.user,
+		queue="long",
+		job_name=job_name,
+		enqueue_after_commit=False,
+	)
+	return {
+		"queued": True,
+		"job": job_name,
+		"job_id": getattr(job, "id", None),
+		"queue": "long",
+	}
