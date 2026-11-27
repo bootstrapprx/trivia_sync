@@ -121,10 +121,10 @@ doctype_list_js = {
 }
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = [
-	"/assets/trivia_sync/js/math_renderer.js",
+	"/assets/trivia_sync/js/math_renderer.js?v=2",
 	"/assets/trivia_sync/js/exam_importer.js",
 ]
-web_include_js = ["/assets/trivia_sync/js/math_renderer.js"]
+web_include_js = ["/assets/trivia_sync/js/math_renderer.js?v=2"]
 web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=11"]
 app_include_css = [
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
