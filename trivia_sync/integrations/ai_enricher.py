@@ -15,7 +15,9 @@ import frappe
 import requests
 
 from trivia_sync.integrations.lms_questions import (
+	MAX_TITLE_CHARS,
 	apply_explanations_to_lms_question,
+	apply_formatted_options_to_lms_question,
 	compose_lms_question_html,
 	extract_lms_question_options,
 	strip_question_embeds,
@@ -138,16 +140,40 @@ def _extract_json(raw_content: Any) -> dict[str, Any]:
 	raise ValueError("Empty or non-object JSON payload.")
 
 
-def _build_enrich_messages(question: dict[str, Any]) -> list[dict[str, str]]:
-	return [
+def _build_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any]]:
+	options = question.get("options") or {}
+	if isinstance(options, str):
+		options = json.loads(options or "{}")
+	ordered_letters = sorted(str(letter).upper() for letter, value in options.items() if value not in (None, ""))
+	properties: dict[str, Any] = {
+		**SCHEMA["properties"],
+		"friendly_title": {"type": "string", "minLength": 8, "maxLength": 110},
+	}
+	required = [*SCHEMA["required"], "friendly_title"]
+	if ordered_letters:
+		properties["formatted_options"] = {
+			"type": "object",
+			"additionalProperties": False,
+			"properties": {letter: {"type": "string", "minLength": 1, "maxLength": 2000} for letter in ordered_letters},
+			"required": ordered_letters,
+		}
+		required.append("formatted_options")
+	schema = {"type": "object", "additionalProperties": False, "properties": properties, "required": required}
+	messages = [
 		{
 			"role": "system",
 			"content": (
-				"Você é um especialista em avaliação de concursos públicos brasileiros. "
+				"Você é Athena, especialista em avaliação de concursos públicos brasileiros. "
 				"Use todo o seu conhecimento geral de domínio para classificar a dificuldade da questão, "
-				"sem alterar enunciado, alternativas ou gabarito. "
+				"sem alterar o conteúdo do enunciado, das alternativas ou do gabarito. "
 				"Considere complexidade conceitual, quantidade de inferências, pegadinhas, profundidade "
-				"e dependência de legislação específica. Responda exclusivamente no JSON Schema solicitado."
+				"e dependência de legislação específica. "
+				"1) Em friendly_title, crie um nome reduzido, amigável e altamente buscável (máx. 110 caracteres) que resuma o tema central da questão "
+				"(ex.: 'PCASP · Registro contábil de contribuição patronal ao RPPS (FCC 2015)'). Nunca copie mecanicamente o começo do enunciado com reticências. "
+				"2) Em formatted_options (quando houver alternativas), melhore APENAS a estética/legibilidade visual de cada alternativa "
+				"(quebras de linha <br>, negrito <strong> em rótulos como 'D -', 'C -', 'I.', 'II.', 'III.'), "
+				"SEM ALTERAR, ADICIONAR OU REMOVER NENHUMA PALAVRA, NÚMERO OU PONTUAÇÃO do texto original. Se já estiver limpa e curta, devolva-a exatamente igual. "
+				"Responda exclusivamente no JSON Schema solicitado."
 			),
 		},
 		{
@@ -157,7 +183,7 @@ def _build_enrich_messages(question: dict[str, Any]) -> list[dict[str, str]]:
 					"qcode": question.get("qcode"),
 					"texto_apoio": question.get("texto_apoio") or "",
 					"enunciado": question.get("enunciado"),
-					"alternativas": question.get("options"),
+					"alternativas": options,
 					"gabarito": question.get("correct_option"),
 					"materia": question.get("materia"),
 					"assunto": question.get("assunto"),
@@ -168,6 +194,7 @@ def _build_enrich_messages(question: dict[str, Any]) -> list[dict[str, str]]:
 			),
 		},
 	]
+	return messages, schema
 
 
 def _build_material_messages(prompt: str, level: str, material_kind: str) -> tuple[list[dict[str, str]], dict[str, Any]]:
@@ -268,6 +295,13 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 		"general_explanation": {"type": "string", "minLength": 15, "maxLength": 1200},
 		"suggested_materia": {"type": "string", "maxLength": 140},
 		"suggested_assunto": {"type": "string", "maxLength": 140},
+		"friendly_title": {"type": "string", "minLength": 8, "maxLength": 110},
+		"formatted_options": {
+			"type": "object",
+			"additionalProperties": False,
+			"properties": {letter: {"type": "string", "minLength": 1, "maxLength": 2000} for letter in ordered_letters},
+			"required": ordered_letters,
+		},
 		"is_deprecated": {"type": "boolean"},
 		"deprecated_law": {"type": "string", "maxLength": 160},
 		"replacement_law": {"type": "string", "maxLength": 160},
@@ -288,6 +322,8 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 		"general_explanation",
 		"suggested_materia",
 		"suggested_assunto",
+		"friendly_title",
+		"formatted_options",
 		"is_deprecated",
 		"deprecated_law",
 		"replacement_law",
@@ -305,12 +341,17 @@ def _build_full_enrich_messages(question: dict[str, Any]) -> tuple[list[dict[str
 				"Você é Athena, professora especialista em avaliação de concursos públicos brasileiros. "
 				"Use todo o seu conhecimento geral de domínio (e o texto_apoio, se fornecido) para analisar completamente a questão em português brasileiro, sem alterar enunciado, alternativas ou gabarito. "
 				"1) Classifique a dificuldade (1 a 5 estrelas), justificativa técnica, objetivo de aprendizagem, tópicos, matéria e assunto. "
-				"2) Se houver itens em ementa_candidatos, selecione em syllabus_topic_ids apenas os IDs (campo 'name') que correspondem diretamente à questão (ou lista vazia se nenhum se aplicar). "
-				"3) VERIFICAÇÃO DE LEGISLAÇÃO REVOGADA / QUESTÃO DEPRECIADA: verifique se a questão já vem marcada com depreciada=true OU se cobra legislação/regra integralmente revogada ou superada no ordenamento atual (ex.: Lei nº 8.666/1993 substituída pela Lei nº 14.133/2021, CPC/1973 substituído pelo CPC/2015, etc.). "
+				"2) Em friendly_title, crie um nome reduzido, amigável e altamente buscável (máx. 110 caracteres) que resuma o tema central da questão "
+				"(ex.: 'PCASP · Registro contábil de contribuição patronal ao RPPS (FCC 2015)'). Nunca copie mecanicamente o começo do enunciado com reticências. "
+				"3) Em formatted_options, melhore APENAS a estética/legibilidade visual de cada alternativa "
+				"(quebras de linha <br>, negrito <strong> em rótulos como 'D -', 'C -', 'I.', 'II.', 'III.'), "
+				"SEM ALTERAR, ADICIONAR OU REMOVER NENHUMA PALAVRA, NÚMERO OU PONTUAÇÃO do texto original. Se a alternativa já estiver limpa e curta, devolva-a exatamente igual. "
+				"4) Se houver itens em ementa_candidatos, selecione em syllabus_topic_ids apenas os IDs (campo 'name') que correspondem diretamente à questão (ou lista vazia se nenhum se aplicar). "
+				"5) VERIFICAÇÃO DE LEGISLAÇÃO REVOGADA / QUESTÃO DEPRECIADA: verifique se a questão já vem marcada com depreciada=true OU se cobra legislação/regra integralmente revogada ou superada no ordenamento atual (ex.: Lei nº 8.666/1993 substituída pela Lei nº 14.133/2021, CPC/1973 substituído pelo CPC/2015, etc.). "
 				"Se for depreciada, retorne is_deprecated=true, preencha deprecated_law, replacement_law e deprecation_note (resumo objetivo do que mudou), e estruture o general_explanation e as option_explanations contextualizando explicitamente 'Como era (à época da prova)' e 'Como é hoje (legislação vigente)', permitindo ao aluno analisar o padrão e a evolução do legislador. "
 				"Caso a questão esteja vigente/atual, retorne is_deprecated=false e strings vazias em deprecated_law, replacement_law e deprecation_note. "
-				"4) Escreva um comentário geral didático (general_explanation). "
-				"5) Em option_explanations, explique cada alternativa individualmente (2, 3, 4, 5 ou mais alternativas, conforme fornecidas). "
+				"6) Escreva um comentário geral didático (general_explanation). "
+				"7) Em option_explanations, explique cada alternativa individualmente (2, 3, 4, 5 ou mais alternativas, conforme fornecidas). "
 				"REGRA CRÍTICA PARA ALTERNATIVAS INCORRETAS: explique especificamente por que aquela alternativa está errada "
 				"SEM revelar, citar ou dar dica de qual é a alternativa correta (o aluno verá essa mensagem ao errar). "
 				"Para a(s) alternativa(s) correta(s), explique claramente por que ela responde ao enunciado. "
@@ -511,7 +552,8 @@ class _BaseAIAdapter:
 	def enrich(self, question: dict[str, Any]) -> dict[str, Any]:
 		source = json.dumps(question, ensure_ascii=False, sort_keys=True, default=str)
 		enrichment_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
-		result = self._chat_json(_build_enrich_messages(question), "question_enrichment", SCHEMA, 1200)
+		messages, schema = _build_enrich_messages(question)
+		result = self._chat_json(messages, "question_enrichment", schema, 2000)
 		stars = int(result.get("difficulty_stars", 0))
 		if stars not in range(1, 6):
 			raise AIEnrichmentError("The AI adapter returned a difficulty outside the 1 to 5 star range.")
@@ -1127,6 +1169,15 @@ def _apply_deprecation_fields(doc, data):
 		doc.trivia_deprecation_note = str(data["deprecation_note"]).strip()[:500]
 
 
+def _apply_presentation_fields(doc, data):
+	friendly = re.sub(r"\s+", " ", str(data.get("friendly_title") or "")).strip()
+	if friendly:
+		doc.trivia_title = friendly[:MAX_TITLE_CHARS]
+	formatted_options = data.get("formatted_options")
+	if isinstance(formatted_options, dict):
+		apply_formatted_options_to_lms_question(doc, formatted_options)
+
+
 def _safe_apply_ai_topics(doc, topics=None, suggested_materia=None, suggested_assunto=None, syllabus_topic_names=None):
 	try:
 		from trivia_sync.integrations.reconciliation import apply_ai_topics_to_question
@@ -1189,6 +1240,7 @@ def enrich_question_doc(doc, settings_doc=None):
 	payload = _question_payload(doc)
 	result = adapter.enrich(payload)
 	_apply_difficulty_fields(doc, result)
+	_apply_presentation_fields(doc, result)
 	_safe_apply_ai_topics(doc, topics=result.get("topics") or [])
 	doc.save(ignore_permissions=True)
 	return result
@@ -1255,12 +1307,14 @@ def enrich_question_full(question_name: str):
 		# Never generate per-option explanations from the temporary placeholder answer key
 		data = adapter.enrich(payload)
 		_apply_difficulty_fields(doc, data)
+		_apply_presentation_fields(doc, data)
 		applied = _safe_apply_ai_topics(doc, topics=data.get("topics") or [])
 		explanations_out = {}
 	else:
 		data = adapter.enrich_full(payload)
 		_apply_difficulty_fields(doc, data)
 		_apply_deprecation_fields(doc, data)
+		_apply_presentation_fields(doc, data)
 		apply_explanations_to_lms_question(doc, data["option_explanations"])
 		if data.get("general_explanation"):
 			doc.trivia_ai_comment = data["general_explanation"]
@@ -1479,6 +1533,7 @@ def enrich_questions_batch(
 					else:
 						data = adapter.enrich(payload)
 						_apply_difficulty_fields(doc, data)
+						_apply_presentation_fields(doc, data)
 						_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
 						doc.save(ignore_permissions=True)
 						result["enriched"] += 1
@@ -1517,6 +1572,7 @@ def enrich_questions_batch(
 						if payload.get("answer_key_pending"):
 							data = adapter.enrich(payload)
 							_apply_difficulty_fields(doc, data)
+							_apply_presentation_fields(doc, data)
 							_safe_apply_ai_topics(doc, topics=data.get("topics") or [])
 						else:
 							try:
@@ -1531,6 +1587,7 @@ def enrich_questions_batch(
 							data = adapter.enrich_full(payload)
 							_apply_difficulty_fields(doc, data)
 							_apply_deprecation_fields(doc, data)
+							_apply_presentation_fields(doc, data)
 							apply_explanations_to_lms_question(doc, data["option_explanations"])
 							if data.get("general_explanation"):
 								doc.trivia_ai_comment = data["general_explanation"]

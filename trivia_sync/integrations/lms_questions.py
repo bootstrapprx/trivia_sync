@@ -125,10 +125,50 @@ def build_question_title(question_html: str, fallback: str = "") -> str:
 	return plain
 
 
+def _normalize_plain_text(raw_html: str) -> str:
+	plain = html.unescape(re.sub(r"<[^>]+>", " ", str(raw_html or "")))
+	return re.sub(r"\s+", " ", plain).strip()
+
+
+def preserves_exact_text(original: str, formatted: str) -> bool:
+	"""Return True iff `formatted` contains the exact same words/numbers/punctuation as `original` (only HTML/whitespace changed)."""
+	orig_norm = _normalize_plain_text(original)
+	fmt_norm = _normalize_plain_text(formatted)
+	if not orig_norm or not fmt_norm:
+		return False
+	return orig_norm == fmt_norm
+
+
+def apply_formatted_options_to_lms_question(doc, formatted_options: dict[str, str] | None) -> int:
+	"""Apply purely aesthetic HTML formatting to options without ever altering a single word or number."""
+	if not isinstance(formatted_options, dict):
+		return 0
+	updated = 0
+	for idx, letter in enumerate(OPTION_LETTERS, start=1):
+		current = str(getattr(doc, f"option_{idx}", None) or "").strip()
+		if not current:
+			continue
+		candidate = str(formatted_options.get(letter) or formatted_options.get(letter.lower()) or "").strip()
+		if not candidate or candidate == current:
+			continue
+		candidate = _sanitize_portal_html(candidate)
+		if preserves_exact_text(current, candidate):
+			doc.set(f"option_{idx}", candidate)
+			updated += 1
+	return updated
+
+
 def sync_lms_question_title(doc, method=None):
 	"""doc_events hook (`before_validate`) keeping `LMS Question.trivia_title` concise, clearing pending key, and syncing deep-dive embeds."""
 	fallback = getattr(doc, "trivia_qcode", None) or getattr(doc, "name", None) or "Questão"
-	doc.trivia_title = build_question_title(getattr(doc, "question", "") or "", fallback=fallback)
+	existing_title = re.sub(r"\s+", " ", str(getattr(doc, "trivia_title", None) or "")).strip()
+	if existing_title:
+		if len(existing_title) > MAX_TITLE_CHARS:
+			doc.trivia_title = existing_title[: MAX_TITLE_CHARS - 1].rstrip() + "…"
+		elif existing_title != getattr(doc, "trivia_title", None):
+			doc.trivia_title = existing_title
+	else:
+		doc.trivia_title = build_question_title(getattr(doc, "question", "") or "", fallback=fallback)
 	if (
 		getattr(doc, "trivia_answer_key_pending", 0)
 		and hasattr(doc, "is_new")
