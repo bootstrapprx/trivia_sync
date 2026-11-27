@@ -522,6 +522,24 @@ class TestAIEnricher(unittest.TestCase):
 		self.assertEqual(inserted_records[0].user, "aluno@example.com")
 		self.assertEqual(inserted_records[0].question, "QTS-2026-00213")
 
+	def test_extract_json_repairs_trailing_commas_and_preserves_string_commas(self):
+		raw = """```json
+		{
+			"difficulty_stars": 3,
+			"topics": ["Direito, Constitucional", "Atos",],
+			"option_explanations": {
+				"A": "Texto com vírgula antes de fecha chave: }, ok",
+				"B": "Linha 1
+Linha 2",
+			},
+		}
+		```"""
+		parsed = self.module._extract_json(raw)
+		self.assertEqual(parsed["difficulty_stars"], 3)
+		self.assertEqual(parsed["topics"], ["Direito, Constitucional", "Atos"])
+		self.assertEqual(parsed["option_explanations"]["A"], "Texto com vírgula antes de fecha chave: }, ok")
+		self.assertEqual(parsed["option_explanations"]["B"], "Linha 1\nLinha 2")
+
 
 if __name__ == "__main__":
 	unittest.main()

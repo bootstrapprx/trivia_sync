@@ -58,6 +58,51 @@ SCHEMA = {
 }
 
 
+def _repair_json_text(candidate: str) -> str:
+	"""Repair common LLM JSON quirks (trailing commas outside strings, raw control chars inside strings)."""
+	out: list[str] = []
+	in_string = False
+	escape = False
+	length = len(candidate)
+	idx = 0
+	while idx < length:
+		ch = candidate[idx]
+		if in_string:
+			if escape:
+				out.append(ch)
+				escape = False
+			elif ch == "\\":
+				out.append(ch)
+				escape = True
+			elif ch == '"':
+				out.append(ch)
+				in_string = False
+			elif ch == "\n":
+				out.append("\\n")
+			elif ch == "\r":
+				out.append("\\r")
+			elif ch == "\t":
+				out.append("\\t")
+			else:
+				out.append(ch)
+		else:
+			if ch == '"':
+				out.append(ch)
+				in_string = True
+			elif ch == ",":
+				lookahead = idx + 1
+				while lookahead < length and candidate[lookahead] in " \t\r\n":
+					lookahead += 1
+				if lookahead < length and candidate[lookahead] in "}]":
+					idx += 1
+					continue
+				out.append(ch)
+			else:
+				out.append(ch)
+		idx += 1
+	return "".join(out)
+
+
 def _extract_json(raw_content: Any) -> dict[str, Any]:
 	if isinstance(raw_content, dict):
 		return raw_content
@@ -65,13 +110,24 @@ def _extract_json(raw_content: Any) -> dict[str, Any]:
 	if text.startswith("```"):
 		text = re.sub(r"^```(?:json)?\s*", "", text)
 		text = re.sub(r"\s*```$", "", text).strip()
-	try:
-		return json.loads(text)
-	except ValueError:
-		match = re.search(r"\{[\s\S]*\}", text)
-		if match:
-			return json.loads(match.group(0))
-		raise
+
+	candidates = [text]
+	match = re.search(r"\{[\s\S]*\}", text)
+	if match and match.group(0) != text:
+		candidates.append(match.group(0))
+
+	last_error: Exception | None = None
+	for candidate in candidates:
+		for attempt in (candidate, _repair_json_text(candidate)):
+			try:
+				parsed = json.loads(attempt)
+				if isinstance(parsed, dict):
+					return parsed
+			except ValueError as exc:
+				last_error = exc
+	if last_error:
+		raise last_error
+	raise ValueError("Empty or non-object JSON payload.")
 
 
 def _build_enrich_messages(question: dict[str, Any]) -> list[dict[str, str]]:
