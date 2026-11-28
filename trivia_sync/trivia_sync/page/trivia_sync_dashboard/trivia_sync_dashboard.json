@@ -3,7 +3,7 @@
   "name": "trivia-sync-dashboard",
   "module": "Trivia Sync",
   "standard": "Yes",
-  "title": "Trivia Sync Dashboard",
+  "title": "Painel Trivia Concursos",
   "roles": [
     {"role": "System Manager"},
     {"role": "Trivia Reviewer"},

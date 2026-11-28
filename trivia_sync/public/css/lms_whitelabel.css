@@ -1,0 +1,35 @@
+/* Trivia Concursos Whitelabel Styles */
+
+.footer-powered,
+.web-footer .footer-powered {
+	display: none !important;
+}
+
+.trivia-whitelabel-brand-icon,
+.navbar-brand img[src*="/assets/trivia_sync/images/whitelabel/trivia-shield"] {
+	width: 28px !important;
+	height: 28px !important;
+	max-height: 28px !important;
+	object-fit: contain !important;
+	flex-shrink: 0;
+}
+
+.page-card-head img.app-logo,
+.for-login .page-card-head img,
+.for-forgot .page-card-head img,
+.for-signup .page-card-head img,
+img.trivia-whitelabel-full-logo {
+	max-height: 112px !important;
+	width: auto !important;
+	height: auto !important;
+	object-fit: contain !important;
+	margin-bottom: 0.5rem;
+}
+
+.splash img {
+	max-width: 168px !important;
+	max-height: 168px !important;
+	width: auto !important;
+	height: auto !important;
+	object-fit: contain !important;
+}

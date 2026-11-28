@@ -1,16 +1,17 @@
 app_name = "trivia_sync"
-app_title = "Trivia Sync"
-app_publisher = "trivia360"
-app_description = "Contest sync, AI enrichment, and knowledge tools for Frappe LMS."
+app_title = "Trivia Concursos"
+app_publisher = "Trivia Concursos"
+app_description = "Plataforma e ferramentas editoriais de concursos públicos para Trivia Concursos."
 app_email = "dev@trivia360.app"
 app_license = "MIT"
+app_logo_url = "/assets/trivia_sync/images/whitelabel/trivia-shield-64.png"
 required_apps = ["lms"]
 
 add_to_apps_screen = [
 	{
 		"name": "trivia_sync",
-		"logo": "/assets/frappe/images/frappe-framework-logo.svg",
-		"title": "Trivia Sync",
+		"logo": "/assets/trivia_sync/images/whitelabel/trivia-shield-192.png",
+		"title": "Gestão de Concursos",
 		"route": "/app/concursos",
 		"has_permission": "trivia_sync.api.has_app_permission",
 	}
@@ -91,9 +92,23 @@ fixtures = [
 	},
 ]
 
+after_install = [
+	"trivia_sync.whitelabel.ensure_whitelabel_on_migrate",
+]
+
 after_migrate = [
 	"trivia_sync.patches.v0_6.migrate_to_lms_native.ensure_lms_native_clean",
+	"trivia_sync.whitelabel.ensure_whitelabel_on_migrate",
 ]
+
+boot_session = "trivia_sync.whitelabel.boot_session"
+update_website_context = ["trivia_sync.whitelabel.update_website_context"]
+after_request = ["trivia_sync.whitelabel.after_request"]
+
+override_whitelisted_methods = {
+	"frappe.apps.get_apps": "trivia_sync.whitelabel.get_apps",
+	"lms.lms.api.get_branding": "trivia_sync.whitelabel.get_branding",
+}
 
 scheduler_events = {"hourly_long": ["trivia_sync.scheduler.run_qapi_sync_if_enabled"]}
 doc_events = {
@@ -123,13 +138,21 @@ doctype_list_js = {
 }
 page_js = {"trivia-sync-onboarding": "public/js/trivia_sync_onboarding.js"}
 app_include_js = [
+	"/assets/trivia_sync/js/lms_whitelabel.js?v=1",
 	"/assets/trivia_sync/js/math_renderer.js?v=2",
 	"/assets/trivia_sync/js/exam_importer.js",
 	"/assets/trivia_sync/js/course_builder.js",
 ]
-web_include_js = ["/assets/trivia_sync/js/math_renderer.js?v=2"]
-web_include_css = ["/assets/trivia_sync/css/trivia_question.css?v=11"]
+web_include_js = [
+	"/assets/trivia_sync/js/lms_whitelabel.js?v=1",
+	"/assets/trivia_sync/js/math_renderer.js?v=2",
+]
+web_include_css = [
+	"/assets/trivia_sync/css/lms_whitelabel.css?v=1",
+	"/assets/trivia_sync/css/trivia_question.css?v=11",
+]
 app_include_css = [
+	"/assets/trivia_sync/css/lms_whitelabel.css?v=1",
 	"/assets/trivia_sync/css/trivia_sync_onboarding.css",
 	"/assets/trivia_sync/css/trivia_sync_dashboard.css",
 	"/assets/trivia_sync/css/trivia_question.css?v=11",

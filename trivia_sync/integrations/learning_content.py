@@ -409,7 +409,21 @@ def export_apostila(recipe_name, levels):
 		f"<section><h2>{html.escape(version.level)}</h2>{sanitize_html(version.content or '', always_sanitize=True)}</section>"
 		for version in versions
 	)
-	markup = f"<html><body><h1>{html.escape(recipe.title)}</h1>{body}</body></html>"
+	brand_header = (
+		'<header style="border-bottom:2px solid #08245A;padding-bottom:12px;margin-bottom:20px;">'
+		'<img src="/assets/trivia_sync/images/whitelabel/trivia-logo-full.png" alt="Trivia Concursos" '
+		'style="height:56px;width:auto;vertical-align:middle;margin-right:12px;">'
+		'<span style="font-size:12px;color:#08245A;font-weight:700;letter-spacing:0.06em;">'
+		"TRIVIA CONCURSOS · MATERIAL DE ESTUDO DIRIGIDO"
+		"</span></header>"
+	)
+	brand_footer = (
+		'<footer style="border-top:1px solid #cbd5e1;margin-top:28px;padding-top:10px;'
+		'font-size:11px;color:#475569;text-align:center;">'
+		"Trivia Concursos"
+		"</footer>"
+	)
+	markup = f"<html><body>{brand_header}<h1>{html.escape(recipe.title)}</h1>{body}{brand_footer}</body></html>"
 	pdf = get_pdf(markup)
 	is_private = int(not course.published or course.paid_course)
 	file = frappe.get_doc(

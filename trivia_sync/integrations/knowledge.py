@@ -296,7 +296,7 @@ def get_published_knowledge_page(slug: str) -> dict:
 FLOW_KB_TITLE = "Trivia Knowledge"
 FLOW_SOURCE_TITLE = "Trivia Knowledge Pages"
 FLOW_SKILL_TITLE = "Trivia Knowledge & Concepts"
-FLOW_SKILL_INSTRUCTIONS = """Você é um assistente especialista em concursos públicos integrado ao Frappe LMS via Trivia Sync.
+FLOW_SKILL_INSTRUCTIONS = """Você é um assistente especialista em concursos públicos integrado à plataforma Trivia Concursos.
 
 REGRAS FUNDAMENTAIS:
 1. USE SEMPRE TODO O SEU CONHECIMENTO GERAL DE DOMÍNIO para responder, analisar questões (`LMS Question`), explicar conceitos, classificar dificuldade e criar novos conteúdos. NUNCA se restrinja apenas ao conhecimento local nem diga que "não encontrou na base local" quando você já sabe a resposta.
@@ -319,7 +319,7 @@ def setup_flow_knowledge_and_skill() -> dict:
 			if not kb_name:
 				kb = frappe.new_doc("Flow Knowledge Base")
 				kb.title = FLOW_KB_TITLE
-				kb.description = "Conceitos, sub-conceitos, exemplos e pegadinhas de concursos públicos do Trivia Sync."
+				kb.description = "Conceitos, sub-conceitos, exemplos e pegadinhas de concursos públicos da Trivia Concursos."
 				kb.enabled = 1
 				kb.insert(ignore_permissions=True)
 				kb_name = kb.name
@@ -349,7 +349,7 @@ def setup_flow_knowledge_and_skill() -> dict:
 			skill_name = frappe.db.get_value("Flow Skill", {"title": FLOW_SKILL_TITLE}, "name")
 			if skill_name:
 				skill = frappe.get_doc("Flow Skill", skill_name)
-				skill.description = "Consulta e cita páginas de conhecimento (conceitos, sub-conceitos, exemplos e pegadinhas) do Trivia Sync."
+				skill.description = "Consulta e cita páginas de conhecimento (conceitos, sub-conceitos, exemplos e pegadinhas) da Trivia Concursos."
 				skill.instructions = FLOW_SKILL_INSTRUCTIONS
 				skill.enabled = 1
 				skill.user_invocable = 1
@@ -357,7 +357,7 @@ def setup_flow_knowledge_and_skill() -> dict:
 			else:
 				skill = frappe.new_doc("Flow Skill")
 				skill.title = FLOW_SKILL_TITLE
-				skill.description = "Consulta e cita páginas de conhecimento (conceitos, sub-conceitos, exemplos e pegadinhas) do Trivia Sync."
+				skill.description = "Consulta e cita páginas de conhecimento (conceitos, sub-conceitos, exemplos e pegadinhas) da Trivia Concursos."
 				skill.instructions = FLOW_SKILL_INSTRUCTIONS
 				skill.enabled = 1
 				skill.user_invocable = 1

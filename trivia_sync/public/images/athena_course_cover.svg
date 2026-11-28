@@ -20,6 +20,6 @@
     <path d="M12 13.4l-1.1 1.6L12 16.5l1.1-1.5L12 13.4z"/>
     <path d="M8.5 19.2c1 .5 2.2.8 3.5.8s2.5-.3 3.5-.8"/>
   </g>
-  <text x="600" y="385" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="38" font-weight="700" letter-spacing="2">ATHENA · TRIVIA LMS</text>
+  <text x="600" y="385" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="38" font-weight="700" letter-spacing="2">ATHENA · TRIVIA CONCURSOS</text>
   <text x="600" y="430" text-anchor="middle" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="22">Trilha estruturada de estudo dirigido e prática</text>
 </svg>

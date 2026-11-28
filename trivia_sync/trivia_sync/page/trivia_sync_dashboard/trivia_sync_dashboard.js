@@ -1,9 +1,9 @@
 frappe.pages["trivia-sync-dashboard"].on_page_load = function (wrapper) {
-  const page = frappe.ui.make_app_page({ parent: wrapper, title: __("Trivia Sync Dashboard"), single_column: true });
+  const page = frappe.ui.make_app_page({ parent: wrapper, title: __("Painel Trivia Concursos"), single_column: true });
   const main = page.main.addClass("trivia-dashboard-page");
   main.html(`
     <div class="trivia-dashboard-header">
-      <div><div class="trivia-onboarding-eyebrow">TRIVIA SYNC</div><h2>${__("Editorial and contests")}</h2><p>${__("Track reviews, licenses, LMS projections, budgets, and question coverage by position.")}</p></div>
+      <div><div class="trivia-onboarding-eyebrow">TRIVIA CONCURSOS</div><h2>${__("Editorial and contests")}</h2><p>${__("Track reviews, licenses, LMS projections, budgets, and question coverage by position.")}</p></div>
       <div class="d-flex" style="gap:8px;">
         <button class="btn btn-primary" data-action="create-course">${__("Athena · Criar Curso")}</button>
         <button class="btn btn-default" data-action="import-exam">${__("Import Ready Exam")}</button>

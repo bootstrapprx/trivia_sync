@@ -476,7 +476,7 @@ def _build_course_blueprint_messages(context_payload: dict[str, Any], level: str
 		{
 			"role": "system",
 			"content": (
-				"Você é Athena, arquiteta pedagógica especialista em concursos públicos brasileiros no Frappe LMS. "
+				"Você é Athena, arquiteta pedagógica especialista em concursos públicos brasileiros na plataforma Trivia Concursos. "
 				"Sua missão é estruturar um curso didático progressivo a partir de uma questão-semente e/ou de uma pergunta norteadora do professor. "
 				f"Diretriz de escopo para o nível '{level}': {LEVEL_GUIDANCE[level]} "
 				f"Totalizando entre {lim['total_lessons'][0]} e {lim['total_lessons'][1]} aulas teóricas. "
@@ -527,7 +527,7 @@ def _build_lesson_writer_messages(
 		{
 			"role": "system",
 			"content": (
-				"Você é Athena, professora especialista em concursos públicos brasileiros redigindo uma aula completa para o Frappe LMS. "
+				"Você é Athena, professora especialista em concursos públicos brasileiros redigindo uma aula completa para a plataforma Trivia Concursos. "
 				"Escreva html_content em HTML limpo e bem estruturado (<h2>, <h3>, <p>, <ul>, <li>, <strong>, <blockquote>, <table> quando útil para quadros comparativos ou lançamentos). "
 				"Ensine com clareza profunda todos os key_points da aula, trazendo fundamentação legal/teórica correta, exemplos inéditos resolvidos passo a passo e alertas de pegadinhas de prova. "
 				"Use 'ementa_completa' para saber onde esta aula se encaixa e 'aulas_anteriores' para NÃO repetir o que já foi explicado: "

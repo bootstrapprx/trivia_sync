@@ -57,6 +57,7 @@ from trivia_sync.integrations.lms_questions import compose_lms_question_html, se
 from trivia_sync.integrations.qapi import test_qapi_connection
 from trivia_sync.integrations.reconciliation import question_coverage
 from trivia_sync.integrations.sync import ingest_source, reformat_qapi_questions
+from trivia_sync.whitelabel import apply_whitelabel
 
 
 def _admin():
@@ -66,6 +67,12 @@ def _admin():
 def has_app_permission():
 	user_roles = set(frappe.get_roles(frappe.session.user))
 	return bool(user_roles.intersection({"System Manager", "Trivia Editor", "Trivia Reviewer", "Trivia Integrator"}))
+
+
+@frappe.whitelist()
+def apply_whitelabel_now():
+	_admin()
+	return apply_whitelabel(force=True)
 
 
 @frappe.whitelist()

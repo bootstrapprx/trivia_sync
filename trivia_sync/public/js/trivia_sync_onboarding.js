@@ -11,7 +11,7 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	];
 	main.html(`
 		<div class="trivia-onboarding-header">
-			<div class="trivia-onboarding-eyebrow">TRIVIA SYNC</div>
+			<div class="trivia-onboarding-eyebrow">TRIVIA CONCURSOS</div>
 			<h2>${__("Prepare your question bank")}</h2>
 			<p>${__("Choose individual endpoints or enable Full upgrade to consume every read endpoint in one resumable worker.")}</p>
 		</div>
@@ -98,6 +98,6 @@ frappe.pages["trivia-sync-onboarding"].on_page_load = function (wrapper) {
 	};
 	main.find('[data-action="full-upgrade"]').on("click", () => frappe.call({ method: "trivia_sync.api.enqueue_qapi_full_upgrade", args: { max_pages: controls.qapi_max_pages.get_value() } }).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_full"), "green")));
 	main.find('[data-action="sync"]').on("click", () => saveCurrentSettings().then(() => frappe.call({ method: "trivia_sync.api.enqueue_qapi_sync", args: { full: controls.sync_catalogs.get_value() ? 1 : 0, max_pages: controls.qapi_max_pages.get_value() } })).then(({ message }) => showStatus(queuedMessage(message, "trivia_sync_qapi_selected"), "green")));
-	main.find('[data-action="lms"]').on("click", () => frappe.call("trivia_sync.api.enqueue_lms_sync").then(() => showStatus(__("Frappe LMS sync queued."), "green")));
+	main.find('[data-action="lms"]').on("click", () => frappe.call("trivia_sync.api.enqueue_lms_sync").then(() => showStatus(__("Trivia Concursos sync queued."), "green")));
 	loadStatus();
 };

@@ -51,7 +51,9 @@
     "ai_api_key",
     "ai_model",
     "ai_timeout",
-    "ai_batch_size"
+    "ai_batch_size",
+    "whitelabel_section",
+    "whitelabel_enabled"
   ],
   "fields": [
     {
@@ -101,7 +103,7 @@
     {
       "fieldname": "lms_section",
       "fieldtype": "Section Break",
-      "label": "Frappe LMS → Trivia"
+      "label": "Trivia Concursos · Sincronização Externa"
     },
     {
       "fieldname": "lms_sync_enabled",
@@ -355,6 +357,18 @@
       "label": "Minimum QAPI credit reserve",
       "default": "1",
       "description": "Credits held in reserve and unavailable to the run."
+    },
+    {
+      "fieldname": "whitelabel_section",
+      "fieldtype": "Section Break",
+      "label": "Identidade Visual · Whitelabel"
+    },
+    {
+      "fieldname": "whitelabel_enabled",
+      "fieldtype": "Check",
+      "label": "Ativar whitelabel Trivia Concursos",
+      "default": "1",
+      "description": "Aplica automaticamente nome, logos, favicons, manifesto PWA (#08245A) e cabeçalhos Trivia Concursos em todas as telas e no bench migrate."
     }
   ],
   "permissions": [

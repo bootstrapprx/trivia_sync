@@ -15,8 +15,24 @@ frappe.ui.form.on("Trivia Sync Settings", {
 			frappe.call({ method: "trivia_sync.api.enqueue_qapi_sync" }).then(() => frappe.show_alert({ message: "QAPI sync queued.", indicator: "green" }));
 		}, "Sync");
 		frm.add_custom_button("Sync LMS → Trivia", () => {
-			frappe.call({ method: "trivia_sync.api.enqueue_lms_sync" }).then(() => frappe.show_alert({ message: "Frappe LMS sync queued.", indicator: "green" }));
+			frappe.call({ method: "trivia_sync.api.enqueue_lms_sync" }).then(() => frappe.show_alert({ message: "Sincronização Trivia Concursos enfileirada.", indicator: "green" }));
 		}, "Sync");
+		frm.add_custom_button(__("Reaplicar Whitelabel Agora"), () => {
+			frappe.call({
+				method: "trivia_sync.api.apply_whitelabel_now",
+				type: "POST",
+				freeze: true,
+				freeze_message: __("Aplicando identidade visual Trivia Concursos..."),
+			}).then(({ message }) => {
+				const count = (message?.updated_doctypes || []).length;
+				frappe.show_alert({
+					message: count
+						? __("Whitelabel Trivia Concursos atualizado ({0} configuração(ões)).", [count])
+						: __("Whitelabel Trivia Concursos já está sincronizado."),
+					indicator: "green",
+				});
+			});
+		}, __("Identidade Visual"));
 		frm.add_custom_button("Repair imported rich content", () => {
 			frappe.call({ method: "trivia_sync.api.enqueue_qapi_reformat" }).then(({ message }) => {
 				frappe.show_alert({ message: `Reformat queued on ${message?.queue || "long"}${message?.job_id ? ` · ${message.job_id}` : ""}.`, indicator: "green" });

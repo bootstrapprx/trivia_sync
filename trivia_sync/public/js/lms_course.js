@@ -16,7 +16,7 @@
 						onCreated: () => frm.reload_doc(),
 					});
 				},
-				__("Trivia Sync")
+				__("Trivia Concursos")
 			);
 		},
 	});

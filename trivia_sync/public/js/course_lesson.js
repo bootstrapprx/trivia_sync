@@ -48,7 +48,7 @@
 					},
 				});
 				dialog.show();
-			}, __("Trivia Sync"));
+			}, __("Trivia Concursos"));
 		},
 	});
 })();
